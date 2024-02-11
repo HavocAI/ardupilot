@@ -78,6 +78,8 @@ bool RC_Channels::read_input(void)
         return false;
     }
 
+    _has_ever_seen_rc_input = true;
+
     has_new_overrides = false;
 
     last_update_ms = AP_HAL::millis();
@@ -169,10 +171,12 @@ void RC_Channels::read_aux_all()
         }
         need_log |= c->read_aux();
     }
+#if HAL_LOGGING_ENABLED
     if (need_log) {
         // guarantee that we log when a switch changes
         AP::logger().Write_RCIN();
     }
+#endif
 }
 
 void RC_Channels::init_aux_all()

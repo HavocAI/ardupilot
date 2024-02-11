@@ -39,7 +39,6 @@
 // #include <AP_AccelCal/AP_AccelCal.h>                // interface and maths for accelerometer calibration
 // #include <AP_InertialSensor/AP_InertialSensor.h>  // ArduPilot Mega Inertial Sensor (accel & gyro) Library
 #include <AP_AHRS/AP_AHRS.h>
-#include <AP_Stats/AP_Stats.h>     // statistics library
 #include <Filter/Filter.h>             // Filter library
 #include <AP_Vehicle/AP_Vehicle.h>         // needed for AHRS build
 #include <AP_InertialNav/AP_InertialNav.h>     // inertial navigation library
@@ -114,7 +113,9 @@ private:
     RC_Channel *channel_up;
     RC_Channel *channel_yaw;
 
+#if HAL_LOGGING_ENABLED
     AP_Logger logger;
+#endif
 
     // flight modes convenience array
     AP_Int8 *flight_modes;
@@ -150,7 +151,7 @@ private:
             uint8_t logging_started         : 1; // 4       // true if logging has started
             uint8_t land_complete           : 1; // 5       // true if we have detected a landing
             uint8_t new_radio_frame         : 1; // 6       // Set true if we have new PWM data to act on from the Radio
-            uint8_t rc_receiver_present     : 1; // 7       // true if we have an rc receiver present (i.e. if we've ever received an update
+            uint8_t rc_receiver_present_unused     : 1; // 7       // UNUSED
             uint8_t compass_mot             : 1; // 8       // true if we are currently performing compassmot calibration
             uint8_t motor_test              : 1; // 9       // true if we are currently performing the motors test
             uint8_t initialised             : 1; // 10      // true once the init_ardupilot function has completed.  Extended status to GCS is not sent until this completes
@@ -352,6 +353,7 @@ private:
     // landing_gear.cpp
     void landinggear_update();
 
+#if HAL_LOGGING_ENABLED
     // Log.cpp
     void Log_Write_Performance();
     void Log_Write_Attitude();
@@ -370,6 +372,7 @@ private:
     void log_init(void);
     void Write_FINI(float right, float front, float down, float yaw);
     void Write_FINO(float *amp, float *off);
+#endif
 
     // mode.cpp
     bool set_mode(Mode::Number mode, ModeReason reason);

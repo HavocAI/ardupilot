@@ -27,6 +27,7 @@
 /// change in your local copy of APM_Config.h.
 ///
 #include "APM_Config.h"
+#include <AP_ADSB/AP_ADSB_config.h>
 #include <AP_Follow/AP_Follow_config.h>
 
 
@@ -131,6 +132,10 @@
 
 #ifndef EKF_ORIGIN_MAX_ALT_KM
  # define EKF_ORIGIN_MAX_ALT_KM         50   // EKF origin and home must be within 50km vertically
+#endif
+
+#ifndef FS_EKF_FILT_DEFAULT
+# define FS_EKF_FILT_DEFAULT     5.0f    // frequency cutoff of EKF variance filters
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -238,7 +243,7 @@
 //////////////////////////////////////////////////////////////////////////////
 // System ID - conduct system identification tests on vehicle
 #ifndef MODE_SYSTEMID_ENABLED
-# define MODE_SYSTEMID_ENABLED ENABLED
+# define MODE_SYSTEMID_ENABLED HAL_LOGGING_ENABLED
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -432,10 +437,6 @@
  # define RTL_CLIMB_MIN_DEFAULT     0       // vehicle will always climb this many cm as first stage of RTL
 #endif
 
-#ifndef RTL_ABS_MIN_CLIMB
- # define RTL_ABS_MIN_CLIMB         250     // absolute minimum initial climb
-#endif
-
 #ifndef RTL_CONE_SLOPE_DEFAULT
  # define RTL_CONE_SLOPE_DEFAULT    3.0f    // slope of RTL cone (height / distance). 0 = No cone
 #endif
@@ -532,9 +533,6 @@
 //////////////////////////////////////////////////////////////////////////////
 // Logging control
 //
-#ifndef LOGGING_ENABLED
- # define LOGGING_ENABLED                ENABLED
-#endif
 
 // Default logging bitmask
 #ifndef DEFAULT_LOG_BITMASK
@@ -623,10 +621,6 @@
   #error Toy mode is not available on Helicopters
 #endif
 
-#ifndef STATS_ENABLED
- # define STATS_ENABLED ENABLED
-#endif
-
 #ifndef OSD_ENABLED
  #define OSD_ENABLED DISABLED
 #endif
@@ -641,4 +635,8 @@
 
 #ifndef AC_PAYLOAD_PLACE_ENABLED
 #define AC_PAYLOAD_PLACE_ENABLED 1
+#endif
+
+#ifndef USER_PARAMS_ENABLED
+  #define USER_PARAMS_ENABLED DISABLED
 #endif

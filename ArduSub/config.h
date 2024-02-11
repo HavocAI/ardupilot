@@ -186,15 +186,6 @@
 //////////////////////////////////////////////////////////////////////////////
 // Logging control
 //
-#ifndef LOGGING_ENABLED
-# define LOGGING_ENABLED                ENABLED
-#endif
-
-// Statistics
-#ifndef STATS_ENABLED
- # define STATS_ENABLED (AP_STATS_ENABLED ? ENABLED : DISABLED)
-#endif
-
 
 // Default logging bitmask
 #ifndef DEFAULT_LOG_BITMASK

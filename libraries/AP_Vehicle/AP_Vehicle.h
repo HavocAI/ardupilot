@@ -14,6 +14,10 @@
  */
 #pragma once
 
+#include "AP_Vehicle_config.h"
+
+#if AP_VEHICLE_ENABLED
+
 /*
   this header holds a parameter structure for each vehicle type for
   parameters needed by multiple libraries
@@ -30,6 +34,7 @@
 #include <AP_Button/AP_Button.h>
 #include <AP_Compass/AP_Compass.h>
 #include <AP_EFI/AP_EFI.h>
+#include <AP_ExternalControl/AP_ExternalControl_config.h>
 #include <AP_GPS/AP_GPS.h>
 #include <AP_Generator/AP_Generator.h>
 #include <AP_Notify/AP_Notify.h>                    // Notify library
@@ -62,6 +67,11 @@
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
 #include <Filter/LowPassFilter.h>
 #include <AP_KDECAN/AP_KDECAN.h>
+#include <Filter/AP_Filter.h>
+#include <AP_Stats/AP_Stats.h>              // statistics library
+#if AP_SCRIPTING_ENABLED
+#include <AP_Scripting/AP_Scripting.h>
+#endif
 
 class AP_DDS_Client;
 
@@ -113,7 +123,9 @@ public:
     void get_common_scheduler_tasks(const AP_Scheduler::Task*& tasks, uint8_t& num_tasks);
     // implementations *MUST* fill in all passed-in fields or we get
     // Valgrind errors
+#if AP_SCHEDULER_ENABLED
     virtual void get_scheduler_tasks(const AP_Scheduler::Task *&tasks, uint8_t &task_count, uint32_t &log_bit) = 0;
+#endif
 
     /*
       set the "likely flying" flag. This is not guaranteed to be
@@ -150,12 +162,15 @@ public:
     // returns true if the vehicle has crashed
     virtual bool is_crashed() const;
 
+#if AP_EXTERNAL_CONTROL_ENABLED
+    // Method to control vehicle position for use by external control
+    virtual bool set_target_location(const Location& target_loc) { return false; }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
 #if AP_SCRIPTING_ENABLED
     /*
       methods to control vehicle for use by scripting
     */
     virtual bool start_takeoff(float alt) { return false; }
-    virtual bool set_target_location(const Location& target_loc) { return false; }
     virtual bool set_target_pos_NED(const Vector3f& target_pos, bool use_yaw, float yaw_deg, bool use_yaw_rate, float yaw_rate_degs, bool yaw_relative, bool terrain_alt) { return false; }
     virtual bool set_target_posvel_NED(const Vector3f& target_pos, const Vector3f& target_vel) { return false; }
     virtual bool set_target_posvelaccel_NED(const Vector3f& target_pos, const Vector3f& target_vel, const Vector3f& target_accel, bool use_yaw, float yaw_deg, bool use_yaw_rate, float yaw_rate_degs, bool yaw_relative) { return false; }
@@ -259,7 +274,7 @@ public:
      */
     virtual bool get_pan_tilt_norm(float &pan_norm, float &tilt_norm) const { return false; }
 
-   // Returns roll and  pitch for OSD Horizon, Plane overrides to correct for VTOL view and fixed wing TRIM_PITCH_CD
+    // Returns roll and  pitch for OSD Horizon, Plane overrides to correct for VTOL view and fixed wing PTCH_TRIM_DEG
     virtual void get_osd_roll_pitch_rad(float &roll, float &pitch) const;
 
     /*
@@ -294,13 +309,18 @@ protected:
 #endif
     AP_Baro barometer;
     Compass compass;
+#if AP_INERTIALSENSOR_ENABLED
     AP_InertialSensor ins;
+#endif
 #if HAL_BUTTON_ENABLED
     AP_Button button;
 #endif
     RangeFinder rangefinder;
 
+#if AP_RSSI_ENABLED
     AP_RSSI rssi;
+#endif
+
 #if HAL_RUNCAM_ENABLED
     AP_RunCam runcam;
 #endif
@@ -324,8 +344,10 @@ protected:
     // false disables external leds)
     AP_Notify notify;
 
+#if AP_AHRS_ENABLED
     // Inertial Navigation EKF
     AP_AHRS ahrs;
+#endif
 
 #if HAL_HOTT_TELEM_ENABLED
     AP_Hott_Telem hott_telem;
@@ -376,6 +398,11 @@ protected:
     AP_Airspeed airspeed;
 #endif
 
+#if AP_STATS_ENABLED
+    // vehicle statistics
+    AP_Stats stats;
+#endif
+
 #if AP_AIS_ENABLED
     // Automatic Identification System - for tracking sea-going vehicles
     AP_AIS ais;
@@ -395,6 +422,10 @@ protected:
 
 #if AP_TEMPERATURE_SENSOR_ENABLED
     AP_TemperatureSensor temperature_sensor;
+#endif
+
+#if AP_SCRIPTING_ENABLED
+    AP_Scripting scripting;
 #endif
 
     static const struct AP_Param::GroupInfo var_info[];
@@ -439,6 +470,7 @@ private:
     // statustext:
     void send_watchdog_reset_statustext();
 
+#if AP_INERTIALSENSOR_ENABLED
     // update the harmonic notch for throttle based notch
     void update_throttle_notch(AP_InertialSensor::HarmonicNotch &notch);
 
@@ -447,6 +479,7 @@ private:
 
     // run notch update at either loop rate or 200Hz
     void update_dynamic_notch_at_specified_rate();
+#endif
 
     // decimation for 1Hz update
     uint8_t one_Hz_counter;
@@ -469,6 +502,9 @@ private:
     uint32_t _last_internal_errors;  // backup of AP_InternalError::internal_errors bitmask
 
     AP_CustomRotations custom_rotations;
+#if AP_FILTER_ENABLED
+    AP_Filters filters;
+#endif
 
     // Bitmask of modes to disable from gcs
     AP_Int32 flight_mode_GCS_block;
@@ -483,3 +519,5 @@ extern const AP_HAL::HAL& hal;
 extern const AP_Param::Info vehicle_var_info[];
 
 #include "AP_Vehicle_Type.h"
+
+#endif  // AP_VEHICLE_ENABLED

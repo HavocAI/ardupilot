@@ -44,6 +44,7 @@ static constexpr uint16_t DELAY_PING_MS = 500;
 sensor_msgs_msg_Joy AP_DDS_Client::rx_joy_topic {};
 tf2_msgs_msg_TFMessage AP_DDS_Client::rx_dynamic_transforms_topic {};
 geometry_msgs_msg_TwistStamped AP_DDS_Client::rx_velocity_control_topic {};
+ardupilot_msgs_msg_GlobalPosition AP_DDS_Client::rx_global_position_control_topic {};
 
 
 const AP_Param::GroupInfo AP_DDS_Client::var_info[] {
@@ -391,6 +392,8 @@ void AP_DDS_Client::update_topic(geographic_msgs_msg_GeoPoseStamped& msg)
     if (ahrs.get_location(loc)) {
         msg.pose.position.latitude = loc.lat * 1E-7;
         msg.pose.position.longitude = loc.lng * 1E-7;
+        // TODO this is assumed to be absolute frame in WGS-84 as per the GeoPose message definition in ROS.
+        // Use loc.get_alt_frame() to convert if necessary.
         msg.pose.position.altitude = loc.alt * 0.01; // Transform from cm to m
     }
 
@@ -501,6 +504,19 @@ void AP_DDS_Client::on_topic(uxrSession* uxr_session, uxrObjectId object_id, uin
 #if AP_EXTERNAL_CONTROL_ENABLED
         if (!AP_DDS_External_Control::handle_velocity_control(rx_velocity_control_topic)) {
             // TODO #23430 handle velocity control failure through rosout, throttled.
+        }
+#endif // AP_EXTERNAL_CONTROL_ENABLED
+        break;
+    }
+    case topics[to_underlying(TopicIndex::GLOBAL_POSITION_SUB)].dr_id.id: {
+        const bool success = ardupilot_msgs_msg_GlobalPosition_deserialize_topic(ub, &rx_global_position_control_topic);
+        if (success == false) {
+            break;
+        }
+
+#if AP_EXTERNAL_CONTROL_ENABLED
+        if (!AP_DDS_External_Control::handle_global_position_control(rx_global_position_control_topic)) {
+            // TODO #23430 handle global position control failure through rosout, throttled.
         }
 #endif // AP_EXTERNAL_CONTROL_ENABLED
         break;
@@ -733,7 +749,7 @@ bool AP_DDS_Client::create()
     constexpr uint8_t nRequestsParticipant = 1;
     const uint16_t requestsParticipant[nRequestsParticipant] = {participant_req_id};
 
-    constexpr uint8_t maxTimeMsPerRequestMs = 250;
+    constexpr uint16_t maxTimeMsPerRequestMs = 500;
     constexpr uint16_t requestTimeoutParticipantMs = (uint16_t) nRequestsParticipant * maxTimeMsPerRequestMs;
     uint8_t statusParticipant[nRequestsParticipant];
     if (!uxr_run_session_until_all_status(&session, requestTimeoutParticipantMs, requestsParticipant, statusParticipant, nRequestsParticipant)) {

@@ -405,6 +405,7 @@ struct PACKED log_PID {
     float   I;
     float   D;
     float   FF;
+    float   DFF;
     float   Dmod;
     float   slew_rate;
     uint8_t flags;
@@ -679,10 +680,10 @@ struct PACKED log_VER {
 // UNIT messages define units which can be referenced by FMTU messages
 // FMTU messages associate types (e.g. centimeters/second/second) to FMT message fields
 
-#define PID_LABELS "TimeUS,Tar,Act,Err,P,I,D,FF,Dmod,SRate,Flags"
-#define PID_FMT    "QfffffffffB"
-#define PID_UNITS  "s----------"
-#define PID_MULTS  "F----------"
+#define PID_LABELS "TimeUS,Tar,Act,Err,P,I,D,FF,DFF,Dmod,SRate,Flags"
+#define PID_FMT    "QffffffffffB"
+#define PID_UNITS  "s-----------"
+#define PID_MULTS  "F-----------"
 
 #define PIDx_FMT "Qffffffff"
 #define PIDx_UNITS "smmnnnooo"
@@ -816,7 +817,8 @@ struct PACKED log_VER {
 // @Field: TimeUS: Time since system startup
 // @Field: LandingGear: Current landing gear state
 // @FieldValueEnum: LandingGear: AP_LandingGear::LG_LandingGear_State
-// @Field: WeightOnWheels: True if there is weight on wheels
+// @Field: WeightOnWheels: Weight on wheels state
+// @FieldValueEnum: WeightOnWheels: AP_LandingGear::LG_WOW_State
 
 // @LoggerMessage: MAG
 // @Description: Information received from compasses
@@ -890,8 +892,8 @@ struct PACKED log_VER {
 // @Field: Qual: Estimated sensor data quality
 // @Field: flowX: Sensor flow rate, X-axis
 // @Field: flowY: Sensor flow rate,Y-axis
-// @Field: bodyX: derived velocity, X-axis
-// @Field: bodyY: derived velocity, Y-axis
+// @Field: bodyX: derived rotational velocity, X-axis
+// @Field: bodyY: derived rotational velocity, Y-axis
 
 // @LoggerMessage: PARM
 // @Description: parameter value
@@ -900,8 +902,20 @@ struct PACKED log_VER {
 // @Field: Value: parameter value
 // @Field: Default: default parameter value for this board and config
 
-// @LoggerMessage: PIDR,PIDP,PIDY,PIDA,PIDS,PIDN,PIDE
-// @Description: Proportional/Integral/Derivative gain values for Roll/Pitch/Yaw/Altitude/Steering
+// @LoggerMessage: PIDR
+// @Description: Proportional/Integral/Derivative gain values for Roll rate
+// @LoggerMessage: PIDP
+// @Description: Proportional/Integral/Derivative gain values for Pitch rate
+// @LoggerMessage: PIDY
+// @Description: Proportional/Integral/Derivative gain values for Yaw rate
+// @LoggerMessage: PIDA
+// @Description: Proportional/Integral/Derivative gain values for vertical acceleration
+// @LoggerMessage: PIDS
+// @Description: Proportional/Integral/Derivative gain values for ground steering yaw rate
+// @LoggerMessage: PIDN
+// @Description: Proportional/Integral/Derivative gain values for North/South velocity
+// @LoggerMessage: PIDE
+// @Description: Proportional/Integral/Derivative gain values for East/West velocity
 // @Field: TimeUS: Time since system startup
 // @Field: Tar: desired value
 // @Field: Act: achieved value
@@ -910,6 +924,7 @@ struct PACKED log_VER {
 // @Field: I: integral part of PID
 // @Field: D: derivative part of PID
 // @Field: FF: controller feed-forward portion of response
+// @Field: DFF: controller derivative feed-forward portion of response
 // @Field: Dmod: scaler applied to D gain to reduce limit cycling
 // @Field: SRate: slew rate used in slew limiter
 // @Field: Flags: bitmask of PID state flags
@@ -939,7 +954,9 @@ struct PACKED log_VER {
 // @Field: Vcc: Flight board voltage
 // @Field: VServo: Servo rail voltage
 // @Field: Flags: System power flags
+// @FieldBitmaskEnum: Flags: AP_HAL::AnalogIn::PowerStatusFlag
 // @Field: AccFlags: Accumulated System power flags; all flags which have ever been set
+// @FieldBitmaskEnum: AccFlags: AP_HAL::AnalogIn::PowerStatusFlag
 // @Field: Safety: Hardware Safety Switch status
 
 // @LoggerMessage: MCU
@@ -1222,7 +1239,7 @@ LOG_STRUCTURE_FROM_GPS \
     { LOG_RCOUT3_MSG, sizeof(log_RCOUT), \
       "RCO3",  "QHHHHHHHHHHHHHH",     "TimeUS,C19,C20,C21,C22,C23,C24,C25,C26,C27,C28,C29,C30,C31,C32", "sYYYYYYYYYYYYYY", "F--------------", true  }, \
     { LOG_RSSI_MSG, sizeof(log_RSSI), \
-      "RSSI",  "Qff",     "TimeUS,RXRSSI,RXLQ", "s--", "F--", true  }, \
+      "RSSI",  "Qff",     "TimeUS,RXRSSI,RXLQ", "s-%", "F--", true  }, \
 LOG_STRUCTURE_FROM_BARO \
 LOG_STRUCTURE_FROM_PRECLAND \
     { LOG_POWR_MSG, sizeof(log_POWR), \
@@ -1255,7 +1272,7 @@ LOG_STRUCTURE_FROM_MOUNT \
       "SRTL", "QBHHBfff", "TimeUS,Active,NumPts,MaxPts,Action,N,E,D", "s----mmm", "F----000" }, \
 LOG_STRUCTURE_FROM_AVOIDANCE \
     { LOG_SIMSTATE_MSG, sizeof(log_AHRS), \
-      "SIM","QccCfLLffff","TimeUS,Roll,Pitch,Yaw,Alt,Lat,Lng,Q1,Q2,Q3,Q4", "sddhmDU????", "FBBB0GG????", true }, \
+      "SIM","QccCfLLffff","TimeUS,Roll,Pitch,Yaw,Alt,Lat,Lng,Q1,Q2,Q3,Q4", "sddhmDU----", "FBBB0GG0000", true }, \
     { LOG_TERRAIN_MSG, sizeof(log_TERRAIN), \
       "TERR","QBLLHffHHf","TimeUS,Status,Lat,Lng,Spacing,TerrH,CHeight,Pending,Loaded,ROfs", "s-DU-mm--m", "F-GG-00--0", true }, \
 LOG_STRUCTURE_FROM_ESC_TELEM \

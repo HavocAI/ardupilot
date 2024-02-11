@@ -42,6 +42,7 @@ const AP_Param::Info Rover::var_info[] = {
     // @DisplayName: MAVLink ground station ID
     // @Description: The identifier of the ground station in the MAVLink protocol. Don't change this unless you also modify the ground station to match.
     // @Range: 1 255
+    // @Increment: 1
     // @User: Advanced
     GSCALAR(sysid_my_gcs,           "SYSID_MYGCS",      255),
 
@@ -222,9 +223,9 @@ const AP_Param::Info Rover::var_info[] = {
     GOBJECT(barometer, "BARO", AP_Baro),
 
 #if AP_RELAY_ENABLED
-    // @Group: RELAY_
+    // @Group: RELAY
     // @Path: ../libraries/AP_Relay/AP_Relay.cpp
-    GOBJECT(relay,                  "RELAY_", AP_Relay),
+    GOBJECT(relay,                  "RELAY", AP_Relay),
 #endif
 
     // @Group: RCMAP_
@@ -315,9 +316,11 @@ const AP_Param::Info Rover::var_info[] = {
     // @Path: ../libraries/AP_Arming/AP_Arming.cpp
     GOBJECT(arming,                 "ARMING_", AP_Arming),
 
+#if HAL_LOGGING_ENABLED
     // @Group: LOG
     // @Path: ../libraries/AP_Logger/AP_Logger.cpp
     GOBJECT(logger,           "LOG",  AP_Logger),
+#endif
 
     // @Group: BATT
     // @Path: ../libraries/AP_BattMonitor/AP_BattMonitor.cpp
@@ -401,11 +404,8 @@ const AP_Param::Info Rover::var_info[] = {
   2nd group of parameters
  */
 const AP_Param::GroupInfo ParametersG2::var_info[] = {
-#if STATS_ENABLED == ENABLED
-    // @Group: STAT
-    // @Path: ../libraries/AP_Stats/AP_Stats.cpp
-    AP_SUBGROUPINFO(stats, "STAT", 1, ParametersG2, AP_Stats),
-#endif
+    // 1 was AP_Stats
+
     // @Param: SYSID_ENFORCE
     // @DisplayName: GCS sysid enforcement
     // @Description: This controls whether packets from other than the expected GCS system ID will be accepted
@@ -601,11 +601,7 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("BAL_PITCH_TRIM", 40, ParametersG2, bal_pitch_trim, 0),
 
-#if AP_SCRIPTING_ENABLED
-    // @Group: SCR_
-    // @Path: ../libraries/AP_Scripting/AP_Scripting.cpp
-    AP_SUBGROUPINFO(scripting, "SCR_", 41, ParametersG2, AP_Scripting),
-#endif
+    // 41 was Scripting
 
     // @Param: STICK_MIXING
     // @DisplayName: Stick Mixing
@@ -918,4 +914,34 @@ void Rover::load_parameters(void)
 #if AP_FENCE_ENABLED
     AP_Param::convert_class(info.old_key, &fence, fence.var_info, 17, 4049, false);
 #endif
+
+    // PARAMETER_CONVERSION - Added: Jan-2024 for Rover-4.6
+#if AP_STATS_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo stats_info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, stats_info.old_key)) {
+            return;
+        }
+
+        const uint16_t stats_old_index = 1;       // Old parameter index in g2
+        const uint16_t stats_old_top_element = 4033; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(stats_info.old_key, &stats, stats.var_info, stats_old_index, stats_old_top_element, false);
+    }
+#endif
+    // PARAMETER_CONVERSION - Added: Jan-2024 for Rover-4.6
+#if AP_SCRIPTING_ENABLED
+    {
+        // Find G2's Top Level Key
+        AP_Param::ConversionInfo scripting_info;
+        if (!AP_Param::find_top_level_key_by_pointer(&g2, scripting_info.old_key)) {
+            return;
+        }
+
+        const uint16_t scripting_old_index = 41;       // Old parameter index in g2
+        const uint16_t scripting_old_top_element = 105; // Old group element in the tree for the first subgroup element (see AP_PARAM_KEY_DUMP)
+        AP_Param::convert_class(scripting_info.old_key, &scripting, scripting.var_info, scripting_old_index, scripting_old_top_element, false);
+    }
+#endif
+
 }

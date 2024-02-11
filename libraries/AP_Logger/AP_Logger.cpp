@@ -77,6 +77,8 @@ extern const AP_HAL::HAL& hal;
 #define LOGGING_FIRST_DYNAMIC_MSGID 254
 #endif
 
+static constexpr uint16_t MAX_LOG_FILES = 500;
+static constexpr uint16_t MIN_LOG_FILES = 2;
 
 const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @Param: _BACKEND_TYPE
@@ -176,7 +178,16 @@ const AP_Param::GroupInfo AP_Logger::var_info[] = {
     // @Increment: 0.1
     // @User: Standard
     AP_GROUPINFO("_DARM_RATEMAX",  11, AP_Logger, _params.disarm_ratemax, 0),
-    
+
+    // @Param: _MAX_FILES
+    // @DisplayName: Maximum number of log files
+    // @Description: This sets the maximum number of log file that will be written on dataflash or sd card before starting to rotate log number. Limit is capped at 500 logs.
+    // @Range: 2 500
+    // @Increment: 1
+    // @User: Advanced
+    // @RebootRequired: True
+    AP_GROUPINFO("_MAX_FILES", 12, AP_Logger, _params.max_log_files, MAX_LOG_FILES),
+
     AP_GROUPEND
 };
 
@@ -278,7 +289,7 @@ static uint8_t count_commas(const char *string)
 /// return a unit name given its ID
 const char* AP_Logger::unit_name(const uint8_t unit_id)
 {
-    for (uint8_t i=0; i<unit_id; i++) {
+    for (uint8_t i=0; i<_num_units; i++) {
         if (_units[i].ID == unit_id) {
             return _units[i].unit;
         }
@@ -289,7 +300,7 @@ const char* AP_Logger::unit_name(const uint8_t unit_id)
 /// return a multiplier value given its ID
 double AP_Logger::multiplier_name(const uint8_t multiplier_id)
 {
-    for (uint8_t i=0; i<multiplier_id; i++) {
+    for (uint8_t i=0; i<_num_multipliers; i++) {
         if (_multipliers[i].ID == multiplier_id) {
             return _multipliers[i].multiplier;
         }
@@ -820,6 +831,14 @@ uint16_t AP_Logger::get_num_logs(void) {
         return 0;
     }
     return backends[0]->get_num_logs();
+}
+
+uint16_t AP_Logger::get_max_num_logs() {
+    const auto max_logs = constrain_uint16(_params.max_log_files.get(), MIN_LOG_FILES, MAX_LOG_FILES);
+    if (_params.max_log_files.get() != max_logs) {
+        _params.max_log_files.set_and_save_ifchanged(static_cast<int16_t>(max_logs));
+    }
+    return static_cast<uint16_t>(_params.max_log_files.get());
 }
 
 /* we're started if any of the backends are started */
@@ -1554,6 +1573,7 @@ void AP_Logger::prepare_at_arming_sys_file_logging()
         "@ROMFS/hwdef.dat",
         "@SYS/storage.bin",
         "@SYS/crash_dump.bin",
+        "@ROMFS/defaults.parm",
     };
     for (const auto *name : log_content_filenames) {
         log_file_content(at_arm_file_content, name);

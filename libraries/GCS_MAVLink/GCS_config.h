@@ -2,6 +2,7 @@
 
 #include <AP_HAL/AP_HAL_Boards.h>
 #include <AP_Relay/AP_Relay_config.h>
+#include <AP_Mission/AP_Mission_config.h>
 
 #ifndef HAL_GCS_ENABLED
 #define HAL_GCS_ENABLED 1
@@ -25,7 +26,7 @@
 // The command was added to the spec in January 2019 and to MAVLink in
 // ArduPilot in 4.1.x
 #ifndef AP_MAVLINK_MISSION_SET_CURRENT_ENABLED
-#define AP_MAVLINK_MISSION_SET_CURRENT_ENABLED 1
+#define AP_MAVLINK_MISSION_SET_CURRENT_ENABLED AP_MISSION_ENABLED
 #endif
 
 // AUTOPILOT_VERSION_REQUEST is slated to be removed; an instance of
@@ -77,6 +78,10 @@
 
 #ifndef AP_MAVLINK_MSG_SERIAL_CONTROL_ENABLED
 #define AP_MAVLINK_MSG_SERIAL_CONTROL_ENABLED HAL_GCS_ENABLED
+#endif
+
+#ifndef AP_MAVLINK_MSG_UAVIONIX_ADSB_OUT_STATUS_ENABLED
+#define AP_MAVLINK_MSG_UAVIONIX_ADSB_OUT_STATUS_ENABLED HAL_ADSB_ENABLED
 #endif
 
 // GCS should be using MISSION_REQUEST_INT instead; this is a waste of

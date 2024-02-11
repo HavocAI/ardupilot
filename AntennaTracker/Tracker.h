@@ -40,7 +40,6 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <AP_Mission/AP_Mission.h>
-#include <AP_Stats/AP_Stats.h>                      // statistics library
 #include <AP_BattMonitor/AP_BattMonitor.h> // Battery monitor library
 
 // Configuration
@@ -53,10 +52,6 @@
 #include "GCS_Tracker.h"
 
 #include "AP_Arming.h"
-
-#if AP_SCRIPTING_ENABLED
-#include <AP_Scripting/AP_Scripting.h>
-#endif
 
 #include "mode.h"
 
@@ -79,7 +74,9 @@ private:
 
     uint32_t start_time_ms = 0;
 
+#if HAL_LOGGING_ENABLED
     AP_Logger logger;
+#endif
 
     /**
        antenna control channels
@@ -95,8 +92,6 @@ private:
 
     GCS_Tracker _gcs; // avoid using this; use gcs()
     GCS_Tracker &gcs() { return _gcs; }
-
-    AP_Stats stats;
 
     // Battery Sensors
     AP_BattMonitor battery{MASK_LOG_CURRENT,
@@ -115,10 +110,6 @@ private:
     ModeScan mode_scan;
     ModeServoTest mode_servotest;
     ModeStop mode_stop;
-
-#if AP_SCRIPTING_ENABLED
-    AP_Scripting scripting;
-#endif
 
     // Vehicle state
     struct {

@@ -67,6 +67,10 @@ public:
         return frontend.rc_protocols_mask;
     }
 
+    bool protocol_enabled(enum AP_RCProtocol::rcprotocol_t protocol) const {
+        return frontend.protocol_enabled(protocol);
+    }
+
     // get RSSI
     int16_t get_RSSI(void) const {
         return rssi;
@@ -93,6 +97,10 @@ public:
     // is the receiver active, used to detect power loss and baudrate changes
     virtual bool is_rx_active() const {
         return true;
+    }
+
+    bool is_detected() const {
+        return frontend._detected_protocol != AP_RCProtocol::NONE && frontend.backend[frontend._detected_protocol] == this;
     }
 
 #if AP_VIDEOTX_ENABLED

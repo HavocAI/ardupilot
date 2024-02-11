@@ -17,7 +17,7 @@ const AP_Param::GroupInfo ModeTakeoff::var_info[] = {
 
     // @Param: LVL_ALT
     // @DisplayName: Takeoff mode altitude level altitude
-    // @Description: This is the altitude below which the wings are held level for TAKEOFF and AUTO modes. Below this altitude, roll demand is restricted to LEVEL_ROLL_LIMIT. Normal-flight roll restriction resumes above TKOFF_LVL_ALT*2 or TKOFF_ALT, whichever is lower. Roll limits are scaled while between those altitudes for a smooth transition.
+    // @Description: This is the altitude below which the wings are held level for TAKEOFF and AUTO modes. Below this altitude, roll demand is restricted to LEVEL_ROLL_LIMIT. Normal-flight roll restriction resumes above TKOFF_LVL_ALT*3 or TKOFF_ALT, whichever is lower. Roll limits are scaled while between TKOFF_LVL_ALT and those altitudes for a smooth transition.
     // @Range: 0 50
     // @Increment: 1
     // @Units: m
@@ -62,7 +62,7 @@ ModeTakeoff::ModeTakeoff() :
 
 bool ModeTakeoff::_enter()
 {
-    takeoff_started = false;
+    takeoff_mode_setup = false;
 
     return true;
 }
@@ -79,28 +79,27 @@ void ModeTakeoff::update()
 
     const float alt = target_alt;
     const float dist = target_dist;
-    if (!takeoff_started) {
+    if (!takeoff_mode_setup) {
         const uint16_t altitude = plane.relative_ground_altitude(false,true);
-        const float direction = degrees(ahrs.yaw);
+        const float direction = degrees(ahrs.get_yaw());
         // see if we will skip takeoff as already flying
         if (plane.is_flying() && (millis() - plane.started_flying_ms > 10000U) && ahrs.groundspeed() > 3) {
             if (altitude >= alt) {
                 gcs().send_text(MAV_SEVERITY_INFO, "Above TKOFF alt - loitering");
                 plane.next_WP_loc = plane.current_loc;
-                takeoff_started = true;
+                takeoff_mode_setup = true;
                 plane.set_flight_stage(AP_FixedWing::FlightStage::NORMAL);
             } else {
                 gcs().send_text(MAV_SEVERITY_INFO, "Climbing to TKOFF alt then loitering");
                 plane.next_WP_loc = plane.current_loc;
                 plane.next_WP_loc.alt += ((alt - altitude) *100);
                 plane.next_WP_loc.offset_bearing(direction, dist);
-                takeoff_started = true;
+                takeoff_mode_setup = true;
                 plane.set_flight_stage(AP_FixedWing::FlightStage::NORMAL);
             }
             // not flying so do a full takeoff sequence
         } else {
             // setup target waypoint and alt for loiter at dist and alt from start
-
             start_loc = plane.current_loc;
             plane.prev_WP_loc = plane.current_loc;
             plane.next_WP_loc = plane.current_loc;
@@ -116,11 +115,19 @@ void ModeTakeoff::update()
             if (!plane.throttle_suppressed) {
                 gcs().send_text(MAV_SEVERITY_INFO, "Takeoff to %.0fm for %.1fm heading %.1f deg",
                                 alt, dist, direction);
-                takeoff_started = true;
+                plane.takeoff_state.start_time_ms = millis();
+                takeoff_mode_setup = true;
+
             }
         }
     }
+    // check for optional takeoff timeout
+    if (plane.check_takeoff_timeout()) {
+        plane.set_flight_stage(AP_FixedWing::FlightStage::NORMAL);
+        takeoff_mode_setup = false;
 
+    }
+        
     // we finish the initial level takeoff if we climb past
     // TKOFF_LVL_ALT or we pass the target location. The check for
     // target location prevents us flying forever if we can't climb
