@@ -1,0 +1,2 @@
+To run and build the sim on hardware:
+./Tools/scripts/sitl-on-hardware/sitl-on-hw.py --board CubePurple-SimOnHardware --vehicle rover --simclass SimRover --defaults ./Tools/autotest/default_params/rover.parm --upload
