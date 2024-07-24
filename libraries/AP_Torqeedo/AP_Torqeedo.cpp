@@ -1351,8 +1351,10 @@ void AP_Torqeedo::press_on_off_button()
     if (_type == ConnectionType::TYPE_TILLER) {
         // send zero speed command to motor
         // Torqeedo requires a zero speed command at wake/error clear
+        // TODO: These delay times are a guess
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "Torqeedo: Reseting with on/off button");
         send_motor_speed_cmd(true);
-        hal.scheduler->delay(500);
+        hal.scheduler->delay(1000);
 
         if (_pin_onoff > -1) {
             hal.gpio->pinMode(_pin_onoff, HAL_GPIO_OUTPUT);
