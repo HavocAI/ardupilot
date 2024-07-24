@@ -1367,7 +1367,7 @@ void AP_Torqeedo::press_on_off_button()
             hal.scheduler->delay(500);
             _uart->set_RTS_pin(false);
         }
-        hal.scheduler->delay(3000);
+        hal.scheduler->delay(1000);
     }
 }
 
