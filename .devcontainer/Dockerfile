@@ -19,10 +19,30 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     lsb-release \
     sudo \
     tzdata \
+    usbutils \
+    gdb-multiarch \
     bash-completion
 
 COPY Tools/environment_install/install-prereqs-ubuntu.sh /ardupilot/Tools/environment_install/
 COPY Tools/completion /ardupilot/Tools/completion/
+
+# Install JLink drivers
+COPY Drivers/JLink_Linux_V810b_x86_64.deb /opt
+RUN apt-get install -y                                                      \ 
+    libxrender1 libxcb-render0 libxcb-render-util0 libxcb-shape0            \ 
+    libxcb-randr0 libxcb-xfixes0 libxcb-sync1 libxcb-shm0 libxcb-icccm4     \
+    libxcb-keysyms1 libxcb-image0 libxkbcommon0 libxkbcommon-x11-0          \
+    libfontconfig1 libfreetype6 libxext6 libx11-xcb1 libsm6 libice6         \
+    libglib2.0-0                                                            \
+    && dpkg --unpack /opt/JLink_Linux_V810b_x86_64.deb                      \    
+    && rm -f /var/lib/dpkg/info/jlink.postinst                              \
+    && dpkg --configure jlink                                               \
+    && apt-get install -yf
+
+# Install debug helper scripts
+COPY server.sh /usr/local/bin/server
+COPY debug.sh /usr/local/bin/debug
+RUN chmod +x /usr/local/bin/server && chmod +x /usr/local/bin/debug 
 
 # Create non root user for pip
 ENV USER=${USER_NAME}
