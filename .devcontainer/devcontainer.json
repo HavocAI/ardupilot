@@ -1,5 +1,5 @@
 {
     "build": { "dockerfile": "Dockerfile" },
     "runArgs": ["--privileged"],
-    "mounts": ["source=/dev/usb,target=/dev/usb,type=bind"]
+    "mounts": ["source=/dev/bus/usb,target=/dev/bus/usb,type=bind"]
 }

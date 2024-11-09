@@ -44,6 +44,17 @@ COPY server.sh /usr/local/bin/server
 COPY debug.sh /usr/local/bin/debug
 RUN chmod +x /usr/local/bin/server && chmod +x /usr/local/bin/debug 
 
+# Install shell banner
+RUN tee --append /home/${USER_NAME}/.bashrc <<EOL
+echo "## HavocAI ArduoPilot development container"
+echo "##"
+echo "## Configure:          './waf configure --board <board> --debug'"
+echo "## Build:              './waf build rover'"
+echo "## Start GDBServer:    'server'"
+echo "## Start GDB:          'debug'"
+echo ""
+EOL
+
 # Create non root user for pip
 ENV USER=${USER_NAME}
 
