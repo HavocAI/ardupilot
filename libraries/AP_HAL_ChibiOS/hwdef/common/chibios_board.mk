@@ -115,8 +115,8 @@ include $(CHIBIOS)/os/hal/osal/rt-nil/osal.mk
 include $(CHIBIOS)/os/rt/rt.mk
 include $(CHIBIOS)/os/common/ports/ARMv7-M/compilers/GCC/mk/port.mk
 # Other files (optional).
-#include $(CHIBIOS)/test/rt/test.mk
 include $(CHIBIOS)/os/hal/lib/streams/streams.mk
+include $(CHIBIOS)/os/various/shell/shell.mk
 
 ifeq ($(USE_FATFS),yes)
 include $(CHIBIOS)/os/various/cpp_wrappers/chcpp.mk

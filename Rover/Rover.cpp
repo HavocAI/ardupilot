@@ -35,6 +35,42 @@
 #include "version.h"
 #undef FORCE_VERSION_H_INCLUDE
 
+/* Shell defines ----------------------------------------------------------------- */
+
+#include <ch.h>
+#include <halconf.h>
+#include <stm32_registry.h>
+#include <stm32_isr.h>
+#include <osal.h>
+#include <hal_pal.h>
+#include <hal_pal_lld.h>
+#include <hal_objects.h>
+#include <hal_streams.h>
+#include <hal_channels.h>
+#include <hal_queues.h>
+#include <hal_serial.h>
+#include <hal_serial_lld.h>
+#include <stm32_dma.h>
+#include <AP_HAL_ChibiOS/UARTDriver.h>
+#include <chprintf.h>
+#include <shell.h>
+#include <shell_cmd.h>
+
+#define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
+
+static const ShellCommand commands[] = {
+
+    {NULL, NULL}
+
+};
+
+static const ShellConfig shell_cfg1 = {
+  (BaseSequentialStream *)&SD8,
+  commands
+};
+
+/* END Shell defined ------------------------------------------------------------- */
+
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 #define SCHED_TASK(func, _interval_ticks, _max_time_micros, _priority) SCHED_TASK_CLASS(Rover, &rover, func, _interval_ticks, _max_time_micros, _priority)
@@ -516,4 +552,33 @@ bool Rover::get_wp_crosstrack_error_m(float &xtrack_error) const
 Rover rover;
 AP_Vehicle& vehicle = rover;
 
-AP_HAL_MAIN_CALLBACKS(&rover);
+// AP_HAL_MAIN_CALLBACKS(&rover);
+// Note: expanding macro to initialize shell
+int AP_MAIN(int argc, char* const argv[]);
+int AP_MAIN(int argc, char* const argv[]) {
+
+    /*
+     * Activates the serial driver 8 using the driver default configuration.
+     */
+    sdStart(&SD8, NULL);
+
+    /*
+     * Shell manager initialization.
+     */
+    shellInit();
+
+    /*
+     * Shell thread start.
+     */
+    thread_t *shelltp __attribute__((unused)) = chThdCreateFromHeap(
+        NULL, SHELL_WA_SIZE,
+        "shell", NORMALPRIO + 1,
+        shellThread, (void *)&shell_cfg1
+    );
+
+    /*
+     * ArduPilot start.
+     */
+    hal.run(argc, argv, &rover);
+    return 0; 
+}

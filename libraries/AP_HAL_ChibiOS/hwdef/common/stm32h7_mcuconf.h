@@ -426,7 +426,7 @@
 /*
  * CAN driver system settings.
  */
-#define STM32_CAN_USE_FDCAN1                FALSE
+#define STM32_CAN_USE_FDCAN1                TRUE
 #define STM32_CAN_USE_FDCAN2                FALSE
 
 /*
@@ -527,6 +527,7 @@
 /*
  * SERIAL driver system settings.
  */
+
 #define STM32_SERIAL_USART1_PRIORITY        12
 #define STM32_SERIAL_USART2_PRIORITY        12
 #define STM32_SERIAL_USART3_PRIORITY        12
