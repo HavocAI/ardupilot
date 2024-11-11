@@ -31,9 +31,13 @@
 
 #include "Rover.h"
 
+#define ENGINEERING_DEV 1
+
 #define FORCE_VERSION_H_INCLUDE
 #include "version.h"
 #undef FORCE_VERSION_H_INCLUDE
+
+#if ENGINEERING_DEV
 
 /* Shell defines ----------------------------------------------------------------- */
 
@@ -51,15 +55,169 @@
 #include <hal_serial.h>
 #include <hal_serial_lld.h>
 #include <stm32_dma.h>
+#include <AP_Common/ExpandingString.h>
 #include <AP_HAL_ChibiOS/UARTDriver.h>
 #include <chprintf.h>
 #include <shell.h>
 #include <shell_cmd.h>
 
+#include <AP_HAL_ChibiOS/CANFDIface.h>
+#include <AP_Torqeedo/AP_Torqeedo.h>
+
 #define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
 
-static const ShellCommand commands[] = {
+HAL_CANIface can(0);
 
+void test_can(BaseSequentialStream *chp, int argc, char *argv[]){
+    
+    (void)argv;
+
+    if (argc != 1) {
+        shellUsage(chp, "can info|init|read");
+        return;
+    }
+    
+    else if (!strcmp(argv[0], "info")) {
+
+        ExpandingString info;
+        uint8_t info_buffer[512];
+        info.set_buffer((char *)info_buffer, 512, 0);
+
+        can.get_stats(info);
+        chprintf(chp, "%s\r\n", info.get_string());
+
+    }
+
+    else if (!strcmp(argv[0], "init")) {
+        
+        bool init = can.init(250000, can.OperatingMode::NormalMode);
+        chprintf(chp, "\tinit %s\r\n", (init == true) ? "pass" : "fail");
+
+    }
+
+    else if (!strcmp(argv[0],  "read")) {
+
+        uint8_t const reads_req = 20;
+        uint8_t reads = 0;
+        uint8_t i;
+        
+        AP_HAL::CANFrame rx;
+        AP_HAL::CANIface::CanIOFlags flags;
+        uint64_t timestamp_us;
+
+        while(reads < reads_req){
+
+            if(1 == can.receive(rx, timestamp_us, flags)){
+
+                reads++;
+                chprintf(chp, "\t%08X %02X | ", rx.id & ~(0x80000000), rx.dlc);
+                
+                for(i = 0; i < rx.dlc; i++){
+                    chprintf(chp, " %02X", rx.data[i]);
+                }
+                
+                for(; i < 8; i++){
+                    chprintf(chp, " 00");
+                }
+                
+                chprintf(chp, "\r\n");
+
+            }
+
+        }
+
+    }
+
+    return;
+}
+
+static virtual_timer_t torqeedo_gear_vt;
+
+static void torqeedo_gear_cb(ch_virtual_timer* t, void * g) {
+
+    static AP_HAL::CANFrame tx;
+    static AP_HAL::CANIface::CanIOFlags flags = 0;
+    static uint64_t deadline = 0;
+    static int16_t sent __attribute__((unused)) = 0;
+
+    memset(tx.data, 0xFF, 8 * sizeof(uint8_t));
+    tx.id = 0x18F005D0 | (1u << 31);
+    tx.dlc = 8;
+    tx.data[0] = *(uint8_t volatile *)g;
+    
+    sent = can.send(tx, deadline, flags);
+    chVTSetI(t, TIME_MS2I(100), torqeedo_gear_cb, g);
+    return;
+}
+
+static virtual_timer_t torqeedo_speed_vt;
+
+static void torqeedo_speed_cb(ch_virtual_timer* t, void * s) {
+
+    static AP_HAL::CANFrame tx;
+    static AP_HAL::CANIface::CanIOFlags flags = 0;
+    static uint64_t deadline = 0;
+    static int16_t sent  __attribute__((unused)) = 0;
+
+    memset(tx.data, 0xFF, 8 * sizeof(uint8_t));
+    tx.id = 0x0CF003D0 | (1u << 31);
+    tx.dlc = 8;
+    tx.data[1] = *(uint8_t volatile *)s;
+    
+    sent = can.send(tx, deadline, flags);
+    chVTSetI(t, TIME_MS2I(50), torqeedo_accel_cb, s);
+    return;
+}
+
+void test_torq(BaseSequentialStream *chp, int argc, char *argv[]){
+
+    (void)argv;
+
+    static uint8_t gear = 0x7D;
+    static uint8_t speed = 0;
+
+    if (argc == 1){
+        if (!strcmp(argv[0], "start")){
+            chVTObjectInit(&torqeedo_accel_vt);
+            chVTObjectInit(&torqeedo_gear_vt);
+            chVTSet(&torqeedo_accel_vt, TIME_MS2I(50), torqeedo_accel_cb, &accel);
+            chVTSet(&torqeedo_gear_vt, TIME_MS2I(100), torqeedo_gear_cb, &gear);
+        }
+
+        else if (!strcmp(argv[0], "stop")){
+            chVTReset(&torqeedo_accel_vt);
+            chVTReset(&torqeedo_gear_vt);
+        }
+        else { 
+            shellUsage(chp, "torq start|gear|speed");
+            return;
+        }
+    }
+
+    else if (argc == 2){
+        if (!strcmp(argv[0], "gear")){
+            switch((uint8_t)*argv[1]){
+                case 'r': gear = 0x7C; break;
+                case 'n': gear = 0x7D; break;
+                case 'f': gear = 0x7E; break;
+            }
+        }
+
+        else if (!strcmp(argv[0], "accel")){
+            accel = atoi(argv[1]) / 0.4f;
+        }
+        else { 
+            shellUsage(chp, "torq start|gear|accel");
+            return;
+        }
+    }
+
+    return;
+}
+
+static const ShellCommand commands[] = {
+    {"can", test_can},
+    {"torq", test_torq},
     {NULL, NULL}
 
 };
@@ -70,6 +228,8 @@ static const ShellConfig shell_cfg1 = {
 };
 
 /* END Shell defined ------------------------------------------------------------- */
+
+#endif
 
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
@@ -556,6 +716,8 @@ AP_Vehicle& vehicle = rover;
 // Note: expanding macro to initialize shell
 int AP_MAIN(int argc, char* const argv[]);
 int AP_MAIN(int argc, char* const argv[]) {
+    
+    #if ENGINEERING_DEV
 
     /*
      * Activates the serial driver 8 using the driver default configuration.
@@ -577,8 +739,16 @@ int AP_MAIN(int argc, char* const argv[]) {
     );
 
     /*
+     * Wait for shell to exit
+     */
+    chThdWait(shelltp);
+    
+    #else
+    /*
      * ArduPilot start.
      */
-    hal.run(argc, argv, &rover);
+    hal.run(argc, argv, &rover)
+    #endif
+    
     return 0; 
 }

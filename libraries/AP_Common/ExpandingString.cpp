@@ -116,10 +116,10 @@ ExpandingString::~ExpandingString()
 
 void ExpandingString::set_buffer(char *s, uint32_t total_len, uint32_t used_len)
 {
-    if (buf != nullptr) {
-        // we need to free previously used buffer
-        free(buf);
-    }
+    // if (buf != nullptr) {
+    //     // we need to free previously used buffer
+    //     free(buf);
+    // }
 
     buf = s;
     buflen = total_len;
