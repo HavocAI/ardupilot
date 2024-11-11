@@ -73,7 +73,6 @@ void test_can(BaseSequentialStream *chp, int argc, char *argv[]){
     (void)argv;
 
     if (argc != 1) {
-        shellUsage(chp, "can info|init|read");
         return;
     }
     
@@ -88,22 +87,15 @@ void test_can(BaseSequentialStream *chp, int argc, char *argv[]){
 
     }
 
-    else if (!strcmp(argv[0], "init")) {
-        
-        bool init = can.init(250000, can.OperatingMode::NormalMode);
-        chprintf(chp, "\tinit %s\r\n", (init == true) ? "pass" : "fail");
-
-    }
-
     else if (!strcmp(argv[0],  "read")) {
 
-        uint8_t const reads_req = 20;
-        uint8_t reads = 0;
-        uint8_t i;
-        
         AP_HAL::CANFrame rx;
         AP_HAL::CANIface::CanIOFlags flags;
         uint64_t timestamp_us;
+
+        uint8_t const reads_req = 10 ;
+        uint8_t reads = 0;
+        uint8_t i;
 
         while(reads < reads_req){
 
@@ -119,7 +111,7 @@ void test_can(BaseSequentialStream *chp, int argc, char *argv[]){
                 for(; i < 8; i++){
                     chprintf(chp, " 00");
                 }
-                
+
                 chprintf(chp, "\r\n");
 
             }
@@ -165,7 +157,7 @@ static void torqeedo_speed_cb(ch_virtual_timer* t, void * s) {
     tx.data[1] = *(uint8_t volatile *)s;
     
     sent = can.send(tx, deadline, flags);
-    chVTSetI(t, TIME_MS2I(50), torqeedo_accel_cb, s);
+    chVTSetI(t, TIME_MS2I(50), torqeedo_speed_cb, s);
     return;
 }
 
@@ -174,42 +166,55 @@ void test_torq(BaseSequentialStream *chp, int argc, char *argv[]){
     (void)argv;
 
     static uint8_t gear = 0x7D;
-    static uint8_t speed = 0;
+    static int16_t speed = 0;
+    static uint8_t speed_abs = 0;
 
-    if (argc == 1){
-        if (!strcmp(argv[0], "start")){
-            chVTObjectInit(&torqeedo_accel_vt);
-            chVTObjectInit(&torqeedo_gear_vt);
-            chVTSet(&torqeedo_accel_vt, TIME_MS2I(50), torqeedo_accel_cb, &accel);
-            chVTSet(&torqeedo_gear_vt, TIME_MS2I(100), torqeedo_gear_cb, &gear);
-        }
+    switch(argc){
+        case 1: {
+            if (!strcmp(argv[0], "init")){
+                bool init = can.init(250000, can.OperatingMode::NormalMode);
+                chprintf(chp, "\tcan init %s\r\n", (init == true) ? "pass" : "fail");
+                chVTObjectInit(&torqeedo_speed_vt);
+                chVTObjectInit(&torqeedo_gear_vt);
 
-        else if (!strcmp(argv[0], "stop")){
-            chVTReset(&torqeedo_accel_vt);
-            chVTReset(&torqeedo_gear_vt);
-        }
-        else { 
-            shellUsage(chp, "torq start|gear|speed");
-            return;
-        }
-    }
-
-    else if (argc == 2){
-        if (!strcmp(argv[0], "gear")){
-            switch((uint8_t)*argv[1]){
-                case 'r': gear = 0x7C; break;
-                case 'n': gear = 0x7D; break;
-                case 'f': gear = 0x7E; break;
+            }
+            if (!strcmp(argv[0], "start")){
+                chVTSet(&torqeedo_speed_vt, TIME_MS2I(50), torqeedo_speed_cb, &speed_abs);
+                chVTSet(&torqeedo_gear_vt, TIME_MS2I(100), torqeedo_gear_cb, &gear);
+            }
+            else if (!strcmp(argv[0], "stop")){
+                chVTReset(&torqeedo_speed_vt);
+                chVTReset(&torqeedo_gear_vt);
             }
         }
+        break;
 
-        else if (!strcmp(argv[0], "accel")){
-            accel = atoi(argv[1]) / 0.4f;
+        case 2: {
+            if (!strcmp(argv[0], "set")){
+
+                speed = strtol(argv[1], NULL, 10) / 0.4f;
+
+                if(0 > speed){ // reverse
+                    gear = 0x7C;
+                    speed_abs = -speed;
+                }
+                else if(0 < speed){ // forward
+                    gear = 0x7E;
+                    speed_abs = speed;
+                }
+                else{
+                    gear = 0x7D;
+                    speed_abs = 0;
+                }
+
+            }
+        } 
+        break;
+
+        default: {
+            // nop
         }
-        else { 
-            shellUsage(chp, "torq start|gear|accel");
-            return;
-        }
+        break;
     }
 
     return;
