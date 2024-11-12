@@ -16,6 +16,7 @@
 /*
    This driver supports communicating with the Iris Orca linear actuator via RS485
    ModBus protocol.
+   For further documentation, see: <https://irisdynamics.com/downloads>
  */
 
 #pragma once
@@ -43,6 +44,7 @@ namespace orca {
     // function codes
     enum class FunctionCode : uint8_t {
         WRITE_REGISTER = 0x06,
+        WRITE_MULTIPLE_REGISTERS = 0x10,
         MOTOR_COMMAND_STREAM = 0x64,
         MOTOR_READ_STREAM = 0x68
     };
@@ -57,10 +59,20 @@ namespace orca {
     // registers
     enum class Register : uint16_t {
         CTRL_REG_0 = 0,
+        CTRL_REG_2 = 2,
         CTRL_REG_3 = 3,
         CTRL_REG_4 = 4,
         POS_CMD = 30,
         POS_CMD_H = 31,
+        PC_PGAIN = 133,
+        PC_IGAIN = 134,
+        PC_DVGAIN = 135,
+        PC_DEGAIN = 136,
+        PC_FSATU = 137,
+        PC_FSATU_H = 138,
+        ZERO_MODE = 171,
+        AUTO_ZERO_FORCE_N = 172,
+        AUTO_ZERO_EXIT_MODE = 173
     };
 
     enum class OperatingMode : uint8_t {
@@ -74,8 +86,9 @@ namespace orca {
 
     // motor control states
     enum class MotorControlState : uint8_t {
-        AUTO_ZERO = 0,
-        POSITION_CONTROL = 1
+        CONFIGURING = 0,
+        AUTO_ZERO = 1,
+        POSITION_CONTROL = 2
     };
 
 
@@ -112,6 +125,50 @@ namespace orca {
         };
     };
 
+    // Specifies the meaning of the indices used for the modbus rtu
+    // function 0x10, write multiple registers
+    struct MultipleWriteReg {
+        enum Idx {
+            DEVICE_ADDR = 0,
+            FUNCTION_CODE = 1,
+            REG_ADDR_HI = 2,
+            REG_ADDR_LO = 3,
+            REG_COUNT_HI = 4,
+            REG_COUNT_LO = 5,
+            BYTE_COUNT = 6
+            // CRC indices will be calculated based on the number of registers
+        };
+
+        // Calculate the length of the message based on the number of registers
+        static constexpr uint8_t getMessageLength(uint8_t numRegisters) {
+            return BYTE_COUNT + (numRegisters * 2) + 2; // 2 bytes per register + 2 bytes for CRC
+        }
+
+        // Calculate the index of the CRC based on the number of registers
+        static constexpr uint8_t getCrcLoIndex(uint8_t numRegisters) {
+            return BYTE_COUNT + (numRegisters * 2);
+        }
+
+        static constexpr uint8_t getCrcHiIndex(uint8_t numRegisters) {
+            return BYTE_COUNT + (numRegisters * 2) + 1;
+        }
+    };
+
+    // Specifies the meaning of the indices used for the response to the
+    // modbus rtu function 0x10, write multiple registers
+    static constexpr uint8_t MULTIPLE_WRITE_REG_MSG_RSP_LEN = 8;
+    struct MultipleWriteRegRsp {
+        enum Idx {
+            DEVICE_ADDR = 0,
+            FUNCTION_CODE = 1,
+            REG_ADDR_HI = 2,
+            REG_ADDR_LO = 3,
+            REG_COUNT_HI = 4,
+            REG_COUNT_LO = 5,
+            CRC_LO = 6,
+            CRC_HI = 7
+        };
+    };
 
     // Specifies the data layout of the orca-specific motor
     // command stream message, 0x64
@@ -211,7 +268,8 @@ namespace orca {
         uint8_t temperature;
         uint16_t voltage;
         uint16_t errors{2048};
-
+        bool pc_gains_set{false};
+        bool auto_zero_params_set{false};
     };
 
     inline uint16_t u16_from_be(uint8_t *bytes, uint8_t start_idx) {
@@ -238,6 +296,18 @@ namespace orca {
      * @return false response parsing failed
      */
     bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
+
+    /**
+     * @brief Parse the response to a 0x10 Multiple Write Registers message.
+     * 
+     * @param[in] rcvd_buff The buffer containing received response data
+     * @param[in] buff_len The length of the received buffer
+     * @param[out] state (output parameter) State data of the actuator to populate with response.
+     * Currently only updates the position gains and zero mode config.
+     * @return true response successfully parsed 
+     * @return false response parsing failed
+     */
+    bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
 
     /**
      * @brief Parse the response to a 0x64 Motor Command Stream message.
@@ -318,12 +388,18 @@ private:
     // check for timeout waiting for reply
     void check_for_reply_timeout();
 
-    // mark reply received. should be called whenever a message is received regardless of whether we are actually waiting for a reply
+    // mark reply received. should be called whenever a message is received 
+    // regardless of whether we are actually waiting for a reply
     void set_reply_received();
 
     // send a 0x06 Write Register message to the actuator
     // returns true on success
     bool write_register(uint16_t reg_addr, uint16_t reg_value);
+
+    // send a 0x10 Multiple Write Registers message to the actuator
+    // starting from the given register address
+    // returns true on success
+    bool write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint8_t *data);
 
     // send a 0x64 Motor Command Stream message to the actuator
     // returns true on success
@@ -346,6 +422,14 @@ private:
     // send a request for actuator status
     void send_actuator_status_request();
 
+    // send a write multiple registers message to the actuator to set the 
+    // position controller params
+    void send_position_controller_params();
+
+    // send a write multiple registers message to the actuator to set the
+    // auto zero params
+    void send_auto_zero_params();
+
     // process a single byte received on serial port
     // return true if a complete message has been received (the message will be held in _received_buff)
     bool parse_byte(uint8_t b);
@@ -360,6 +444,12 @@ private:
     AP_Int16 _max_travel_mm;            // maximum travel of actuator in millimeters
     AP_Int16 _pad_travel_mm;            // padding travel of actuator in millimeters
     AP_Int8 _reverse_direction;         // reverse direction of actuator
+    AP_Int32 _f_max;                    // position control max force in milliNewtons
+    AP_Int16 _gain_p;                   // position control proportional gain
+    AP_Int16 _gain_i;                   // position control integral gain
+    AP_Int16 _gain_dv;                  // position control derivative gain
+    AP_Int16 _gain_de;                  // position control derivative error gain
+    AP_Int16 _auto_zero_f_max;          // maximum force for auto zero in Newtons
 
     // members
     AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator

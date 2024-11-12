@@ -61,6 +61,38 @@ bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len,
   return true;
 }
 
+bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
+                                    ActuatorState &state) {
+  if (buff_len < MULTIPLE_WRITE_REG_MSG_RSP_LEN) {
+    return false;
+  }
+
+  // Switch on the register address (bytes 2 and 3)
+  switch ((rcvd_buff[MultipleWriteRegRsp::Idx::REG_ADDR_HI] << 8) |
+          rcvd_buff[MultipleWriteRegRsp::Idx::REG_ADDR_LO]) {
+    case static_cast<uint16_t>(Register::PC_PGAIN):
+      // Position gains were set
+      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Position gains set: %d bytes.",
+                    (rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_HI] << 8) |
+                    rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_LO]);
+      state.pc_gains_set = true;
+      break;
+    case static_cast<uint16_t>(Register::ZERO_MODE):
+      // Zero Mode config was set
+      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Zero mode config set: %d bytes.",
+                    (rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_HI] << 8) |
+                    rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_LO]);
+      state.auto_zero_params_set = true;
+      break;
+    default:
+      GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
+                    "IrisOrca: Unsupported multiple write registers.");
+      return false;
+  }
+
+  return true;
+}
+
 bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
                                 ActuatorState &state) {
   if (buff_len < MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
@@ -148,6 +180,60 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @User: Standard
     AP_GROUPINFO("PAD_TRAVEL", 4, AP_IrisOrca, _pad_travel_mm, 10),
 
+    // @Param: F_MAX
+    // @DisplayName: Maximum force
+    // @Description: Maximum force for position control
+    // @Units: mN
+    // @Range: 0 1061000
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 638000),
+
+    // @Param: GAIN_P
+    // @DisplayName: Position control P gain
+    // @Description: Proportional gain for position control
+    // @Units: 64*N/mm
+    // @Range: 0 65535
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("GAIN_P", 5, AP_IrisOrca, _gain_p, 200),
+
+    // @Param: GAIN_I
+    // @DisplayName: Position control I gain
+    // @Description: Integral gain for position control
+    // @Units: 64*N*s/mm
+    // @Range: 0 65535
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("GAIN_I", 6, AP_IrisOrca, _gain_i, 1000),
+
+    // @Param: GAIN_DV
+    // @DisplayName: Position control Dv gain
+    // @Description: Derivative gain for position control
+    // @Units: 2*N*s/m
+    // @Range: 0 65535
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("GAIN_DV", 7, AP_IrisOrca, _gain_dv, 800),
+
+    // @Param: GAIN_DE
+    // @DisplayName: Position control De gain
+    // @Description: Derivative error gain for position control
+    // @Units: 2*N*s/m err
+    // @Range: 0 65535
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("GAIN_DE", 8, AP_IrisOrca, _gain_de, 0),
+
+    // @Param: AZ_F_MAX
+    // @DisplayName: Auto-zero max force
+    // @Description: Force threshold for auto-zero mode
+    // @Units: N
+    // @Range: 0 1061
+    // @Increment: 1
+    // @User: Standard
+    AP_GROUPINFO("AZ_F_MAX", 9, AP_IrisOrca, _auto_zero_f_max, 300),
+
     AP_GROUPEND
 };
 
@@ -208,7 +294,7 @@ void AP_IrisOrca::thread_main()
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialized");
 
-    _control_state = orca::MotorControlState::AUTO_ZERO;
+    _control_state = orca::MotorControlState::CONFIGURING;
     bool waiting_for_auto_zero = false;
 
     while (true)
@@ -233,6 +319,26 @@ void AP_IrisOrca::thread_main()
             // no errors - execute per control state
             switch (_control_state)
             {
+                case orca::MotorControlState::CONFIGURING:
+                    // Send a write multiple registers command to set the position controller params
+                    // and the auto-zero params
+                    // Exit this mode to auto-zero mode if both are set
+                    if (!_actuator_state.pc_gains_set) {
+                        if (safe_to_send()) {
+                            send_position_controller_params();
+                        }
+                    }
+                    else if (!_actuator_state.auto_zero_params_set) {
+                        if (safe_to_send()) {
+                            send_auto_zero_params();
+                        }
+                    }
+                    else {
+                        // both sets of params have been set
+                        _control_state = orca::MotorControlState::AUTO_ZERO;
+                    }
+                    break;
+
                 case orca::MotorControlState::AUTO_ZERO:
                     // Auto-zero mode is initiated by sending a write register command to the actuator with the 
                     // mode set to AUTO_ZERO. The actuator will then transition to AUTO_ZERO mode and will exit this mode
@@ -418,6 +524,56 @@ bool AP_IrisOrca::write_register(uint16_t reg_addr, uint16_t reg_value)
     return true;
 }
 
+// send a 0x10 Multiple Write Registers message to the actuator
+// returns true on success
+bool AP_IrisOrca::write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint8_t *data)
+{
+    using namespace orca;
+    // buffer for outgoing message
+    uint8_t msg_len = MultipleWriteReg::getMessageLength(reg_count);
+    uint8_t send_buff[msg_len];
+
+    // set expected reply message length
+    _reply_msg_len = MULTIPLE_WRITE_REG_MSG_RSP_LEN;
+
+    // build message
+    send_buff[MultipleWriteReg::Idx::DEVICE_ADDR] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[MultipleWriteReg::Idx::FUNCTION_CODE] = static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS);
+    send_buff[MultipleWriteReg::Idx::REG_ADDR_HI] = HIGHBYTE(reg_addr);
+    send_buff[MultipleWriteReg::Idx::REG_ADDR_LO] = LOWBYTE(reg_addr);
+    send_buff[MultipleWriteReg::Idx::REG_COUNT_HI] = HIGHBYTE(reg_count);
+    send_buff[MultipleWriteReg::Idx::REG_COUNT_LO] = LOWBYTE(reg_count);
+    send_buff[MultipleWriteReg::Idx::BYTE_COUNT] = reg_count * 2;
+
+    // copy data into message
+    for (uint8_t i = 0; i < reg_count; i++) {
+        // Ensure we do not read beyond the data buffer
+        if (i * 2 + 1 < sizeof(data)) {
+            send_buff[MultipleWriteReg::BYTE_COUNT + i * 2] = data[i * 2];
+            send_buff[MultipleWriteReg::BYTE_COUNT + i * 2 + 1] = data[i * 2 + 1];
+        } else {
+            return false;
+        }
+    }
+
+    // Add Modbus CRC-16
+    orca::add_crc_modbus(send_buff, msg_len - CRC_LEN);
+
+    // set send pin
+    send_start();
+
+    // write message
+    _uart->write(send_buff, sizeof(send_buff));
+
+    // record start and expected delay to send message
+    _send_start_us = AP_HAL::micros();
+    _send_delay_us = calc_send_delay_us(sizeof(send_buff));
+
+    _reply_wait_start_ms = AP_HAL::millis();
+
+    return true;
+}
+
 // send a 100/0x64 Motor Command Stream message to the actuator
 // returns true on success
 bool AP_IrisOrca::write_motor_command_stream(const uint8_t sub_code, const uint32_t data)
@@ -553,6 +709,52 @@ void AP_IrisOrca::send_actuator_status_request()
     }
 }
 
+// send a write multiple registers message to the actuator to set the position controller params
+void AP_IrisOrca::send_position_controller_params()
+{
+    // buffer for outgoing message
+    uint8_t data[12];
+    data[0] = HIGHBYTE(_gain_p);
+    data[1] = LOWBYTE(_gain_p);
+    data[2] = HIGHBYTE(_gain_i);
+    data[3] = LOWBYTE(_gain_i);
+    data[4] = HIGHBYTE(_gain_dv);
+    data[5] = LOWBYTE(_gain_dv);
+    data[6] = HIGHBYTE(_gain_de);
+    data[7] = LOWBYTE(_gain_de);
+    data[8] = HIGHBYTE(_f_max >> 16);
+    data[9] = LOWBYTE(_f_max >> 16);
+    data[10] = HIGHBYTE(_f_max);
+    data[11] = LOWBYTE(_f_max);
+
+    // send message
+    if (write_multiple_registers((uint16_t)orca::Register::PC_PGAIN, 3, (uint8_t *)data)){
+        // record time of send for health reporting
+        WITH_SEMAPHORE(_last_healthy_sem);
+        _last_send_actuator_ms = AP_HAL::millis();
+    }
+}
+
+// send a write multiple registers message to the actuator to set the auto-zero params
+void AP_IrisOrca::send_auto_zero_params()
+{
+    // buffer for outgoing message
+    uint8_t data[6];
+    data[0] = 0x00;
+    data[1] = 0x02; // Auto-zero enabled
+    data[2] = HIGHBYTE(_auto_zero_f_max);
+    data[3] = LOWBYTE(_auto_zero_f_max);
+    data[4] = 0x00;
+    data[5] = 0x01; // Exit to sleep mode after auto-zero
+
+    // send message
+    if (write_multiple_registers((uint16_t)orca::Register::ZERO_MODE, 1, (uint8_t *)data)){
+        // record time of send for health reporting
+        WITH_SEMAPHORE(_last_healthy_sem);
+        _last_send_actuator_ms = AP_HAL::millis();
+    }
+}
+
 // process a single byte received on serial port
 // return true if a complete message has been received (the message will be held in _received_buff)
 bool AP_IrisOrca::parse_byte(uint8_t b)
@@ -597,6 +799,8 @@ bool AP_IrisOrca::parse_message()
     {
         case orca::FunctionCode::WRITE_REGISTER:
             return parse_write_register(_received_buff, _reply_msg_len, _actuator_state);
+        case orca::FunctionCode::WRITE_MULTIPLE_REGISTERS:
+            return parse_multiple_write_registers(_received_buff, _reply_msg_len, _actuator_state);
         case orca::FunctionCode::MOTOR_COMMAND_STREAM:
             return parse_motor_command_stream(_received_buff, _reply_msg_len, _actuator_state);
         case orca::FunctionCode::MOTOR_READ_STREAM:
