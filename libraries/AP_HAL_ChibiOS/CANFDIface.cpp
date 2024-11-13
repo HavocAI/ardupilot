@@ -370,7 +370,7 @@ int16_t CANIface::send(const AP_HAL::CANFrame& frame, uint64_t tx_deadline,
     }
 
     {
-        CriticalSectionLocker lock;
+        // CriticalSectionLocker lock;
 
         /*
          * Seeking for an empty slot
@@ -1120,28 +1120,28 @@ bool CANIface::select(bool &read, bool &write,
 void CANIface::get_stats(ExpandingString &str)
 {
     CriticalSectionLocker lock;
-    str.printf("------- Clock Config -------\n"
-               "CAN_CLK_FREQ:   %luMHz\n"
-               "Std Timings: bitrate=%lu presc=%u\n"
-               "sjw=%u bs1=%u bs2=%u sample_point=%f%%\n"
-               "FD Timings:  bitrate=%lu presc=%u\n"
-               "sjw=%u bs1=%u bs2=%u sample_point=%f%%\n"
-               "------- CAN Interface Stats -------\n"
-               "tx_requests:    %lu\n"
-               "tx_rejected:    %lu\n"
-               "tx_overflow:    %lu\n"
-               "tx_success:     %lu\n"
-               "tx_timedout:    %lu\n"
-               "tx_abort:       %lu\n"
-               "rx_received:    %lu\n"
-               "rx_overflow:    %lu\n"
-               "rx_errors:      %lu\n"
-               "num_busoff_err: %lu\n"
-               "num_events:     %lu\n"
-               "ECR:            %lx\n"
-               "fdf_rx:         %lu\n"
-               "fdf_tx_req:     %lu\n"
-               "fdf_tx:         %lu\n",
+    str.printf("\t------- Clock Config -------\n"
+               "\tCAN_CLK_FREQ:   %luMHz\n"
+               "\tStd Timings: bitrate=%lu presc=%u\n"
+               "\tsjw=%u bs1=%u bs2=%u sample_point=%f%%\n"
+               "\tFD Timings:  bitrate=%lu presc=%u\n"
+               "\tsjw=%u bs1=%u bs2=%u sample_point=%f%%\n"
+               "\t------- CAN Interface Stats -------\n"
+               "\ttx_requests:    %lu\n"
+               "\ttx_rejected:    %lu\n"
+               "\ttx_overflow:    %lu\n"
+               "\ttx_success:     %lu\n"
+               "\ttx_timedout:    %lu\n"
+               "\ttx_abort:       %lu\n"
+               "\trx_received:    %lu\n"
+               "\trx_overflow:    %lu\n"
+               "\trx_errors:      %lu\n"
+               "\tnum_busoff_err: %lu\n"
+               "\tnum_events:     %lu\n"
+               "\tECR:            %lx\n"
+               "\tfdf_rx:         %lu\n"
+               "\tfdf_tx_req:     %lu\n"
+               "\tfdf_tx:         %lu\n",
                STM32_FDCANCLK/1000000UL,
                _bitrate, unsigned(timings.prescaler),
                unsigned(timings.sjw), unsigned(timings.bs1),

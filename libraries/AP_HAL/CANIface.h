@@ -162,6 +162,11 @@ public:
         uint32_t id = 0;
         uint32_t mask = 0;
 
+        CanFilterConfig(uint32_t _id){
+            id = _id;
+            mask = _id;
+        }
+
         bool operator==(const CanFilterConfig& rhs) const
         {
             return rhs.id == id && rhs.mask == mask;

@@ -1421,8 +1421,9 @@ bool AP_Param::configured_in_defaults_file(bool &read_only) const
 
 bool AP_Param::configured(void) const
 {
-    bool read_only;
-    return configured_in_defaults_file(read_only) || configured_in_storage();
+    // bool read_only;
+    return false;
+    // return configured_in_defaults_file(read_only) || configured_in_storage();
 }
 
 bool AP_Param::is_read_only(void) const

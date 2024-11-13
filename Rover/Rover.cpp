@@ -31,8 +31,6 @@
 
 #include "Rover.h"
 
-#define ENGINEERING_DEV 1
-
 #define FORCE_VERSION_H_INCLUDE
 #include "version.h"
 #undef FORCE_VERSION_H_INCLUDE
@@ -41,188 +39,122 @@
 
 /* Shell defines ----------------------------------------------------------------- */
 
-#include <ch.h>
-#include <halconf.h>
-#include <stm32_registry.h>
-#include <stm32_isr.h>
-#include <osal.h>
-#include <hal_pal.h>
-#include <hal_pal_lld.h>
-#include <hal_objects.h>
-#include <hal_streams.h>
-#include <hal_channels.h>
-#include <hal_queues.h>
-#include <hal_serial.h>
-#include <hal_serial_lld.h>
-#include <stm32_dma.h>
+#include <AP_Torqeedo/AP_Torqeedo.h>
 #include <AP_Common/ExpandingString.h>
-#include <AP_HAL_ChibiOS/UARTDriver.h>
 #include <chprintf.h>
 #include <shell.h>
 #include <shell_cmd.h>
 
-#include <AP_HAL_ChibiOS/CANFDIface.h>
-#include <AP_Torqeedo/AP_Torqeedo.h>
-
 #define SHELL_WA_SIZE THD_WORKING_AREA_SIZE(2048)
 
-HAL_CANIface can(0);
-
-void test_can(BaseSequentialStream *chp, int argc, char *argv[]){
-    
-    (void)argv;
-
-    if (argc != 1) {
-        return;
-    }
-    
-    else if (!strcmp(argv[0], "info")) {
-
-        ExpandingString info;
-        uint8_t info_buffer[512];
-        info.set_buffer((char *)info_buffer, 512, 0);
-
-        can.get_stats(info);
-        chprintf(chp, "%s\r\n", info.get_string());
-
-    }
-
-    else if (!strcmp(argv[0],  "read")) {
-
-        AP_HAL::CANFrame rx;
-        AP_HAL::CANIface::CanIOFlags flags;
-        uint64_t timestamp_us;
-
-        uint8_t const reads_req = 10 ;
-        uint8_t reads = 0;
-        uint8_t i;
-
-        while(reads < reads_req){
-
-            if(1 == can.receive(rx, timestamp_us, flags)){
-
-                reads++;
-                chprintf(chp, "\t%08X %02X | ", rx.id & ~(0x80000000), rx.dlc);
-                
-                for(i = 0; i < rx.dlc; i++){
-                    chprintf(chp, " %02X", rx.data[i]);
-                }
-                
-                for(; i < 8; i++){
-                    chprintf(chp, " 00");
-                }
-
-                chprintf(chp, "\r\n");
-
-            }
-
-        }
-
-    }
-
-    return;
-}
-
-static virtual_timer_t torqeedo_gear_vt;
-
-static void torqeedo_gear_cb(ch_virtual_timer* t, void * g) {
-
-    static AP_HAL::CANFrame tx;
-    static AP_HAL::CANIface::CanIOFlags flags = 0;
-    static uint64_t deadline = 0;
-    static int16_t sent __attribute__((unused)) = 0;
-
-    memset(tx.data, 0xFF, 8 * sizeof(uint8_t));
-    tx.id = 0x18F005D0 | (1u << 31);
-    tx.dlc = 8;
-    tx.data[0] = *(uint8_t volatile *)g;
-    
-    sent = can.send(tx, deadline, flags);
-    chVTSetI(t, TIME_MS2I(100), torqeedo_gear_cb, g);
-    return;
-}
-
-static virtual_timer_t torqeedo_speed_vt;
-
-static void torqeedo_speed_cb(ch_virtual_timer* t, void * s) {
-
-    static AP_HAL::CANFrame tx;
-    static AP_HAL::CANIface::CanIOFlags flags = 0;
-    static uint64_t deadline = 0;
-    static int16_t sent  __attribute__((unused)) = 0;
-
-    memset(tx.data, 0xFF, 8 * sizeof(uint8_t));
-    tx.id = 0x0CF003D0 | (1u << 31);
-    tx.dlc = 8;
-    tx.data[1] = *(uint8_t volatile *)s;
-    
-    sent = can.send(tx, deadline, flags);
-    chVTSetI(t, TIME_MS2I(50), torqeedo_speed_cb, s);
-    return;
-}
-
-void test_torq(BaseSequentialStream *chp, int argc, char *argv[]){
+void _torq(BaseSequentialStream *chp, int argc, char *argv[]){
 
     (void)argv;
-
-    static uint8_t gear = 0x7D;
-    static int16_t speed = 0;
-    static uint8_t speed_abs = 0;
+    static AP_Torqeedo torq;
 
     switch(argc){
         case 1: {
             if (!strcmp(argv[0], "init")){
-                bool init = can.init(250000, can.OperatingMode::NormalMode);
-                chprintf(chp, "\tcan init %s\r\n", (init == true) ? "pass" : "fail");
-                chVTObjectInit(&torqeedo_speed_vt);
-                chVTObjectInit(&torqeedo_gear_vt);
+                torq.init();
+            } 
+            else if (!strcmp(argv[0], "info")){
+                chprintf(chp, 
+                    "\t-------- Engrg Messages ---------\r\n"
+                    "\treq_speed:%02X\r\n\tcur_speed:%02X\r\n"
+                    "\treq_gear:%02X\r\n\tcur_gear:%02X\r\n"
+                    "\t-------- J1939 Messages ---------\r\n"
+                    "\tcur_throttle:%04X\r\n"
+                    "\tswitch:%02X\r\n"
+                    "\tchrg_pwr:%08X\r\n"
+                    "\tmotor_pwr:%08X\r\n"
+                    "\tsoc:%02X\r\n"
+                    "\trpm:%04X\r\n"
+                    "\tgear:%01X\r\n"
+                    "\tToE:%08X\r\n"
+                    "\tDoE:%08X\r\n", 
+                    torq._accel, torq._status_accel,
+                    torq._gear, torq._status_gear2,
+                    torq._status_throttle,
+                    torq._status_switch,
+                    torq._status_charge_power,
+                    torq._status_motor_power,
+                    torq._status_soc,
+                    torq._status_rpm,
+                    torq._status_gear,
+                    torq._status_time_to_empty_s,
+                    torq._status_distance_to_empty_m
+                    );
+            }
+            else if (!strcmp(argv[0], "canread")){
 
+                uint64_t ts = 0;
+                AP_HAL::CANIface::CanIOFlags flags = 0;
+                uint8_t const reads_req = 10 ;
+                uint8_t reads = 0;
+                uint8_t i;
+
+                if(torq._initialised){
+                    while(reads < reads_req){
+
+                        if(1 == torq._can->receive(torq._rx_frame, ts, flags)){
+
+                            reads++;
+                            chprintf(chp, "\t%08X %02X | ", torq._rx_frame.id & ~(0x80000000), torq._rx_frame.dlc);
+                            
+                            for(i = 0; i < torq._rx_frame.dlc; i++){
+                                chprintf(chp, " %02X", torq._rx_frame.data[i]);
+                            }
+                            
+                            for(; i < 8; i++){
+                                chprintf(chp, " 00");
+                            }
+
+                            chprintf(chp, "\r\n");
+
+                        }
+
+                    }
+                } else {
+                    chprintf(chp, "\tDriver not initialized!\r\n");
+                }
+            
             }
-            if (!strcmp(argv[0], "start")){
-                chVTSet(&torqeedo_speed_vt, TIME_MS2I(50), torqeedo_speed_cb, &speed_abs);
-                chVTSet(&torqeedo_gear_vt, TIME_MS2I(100), torqeedo_gear_cb, &gear);
-            }
-            else if (!strcmp(argv[0], "stop")){
-                chVTReset(&torqeedo_speed_vt);
-                chVTReset(&torqeedo_gear_vt);
+            else if (!strcmp(argv[0], "caninfo")){
+                
+                ExpandingString info;
+                uint8_t info_buffer[512];
+
+                if(torq._initialised){
+                    info.set_buffer((char *)info_buffer, 512, 0);
+                    torq._can->get_stats(info);
+                    chprintf(chp, "%s\r\n", info.get_string());
+                } else {
+                    chprintf(chp, "\tDriver not initialized!\r\n");
+                }
+
             }
         }
         break;
 
         case 2: {
             if (!strcmp(argv[0], "set")){
-
-                speed = strtol(argv[1], NULL, 10) / 0.4f;
-
-                if(0 > speed){ // reverse
-                    gear = 0x7C;
-                    speed_abs = -speed;
+                if(torq._initialised){
+                    int16_t speed = strtol(argv[1], NULL, 10);
+                    torq.set_motor_speed(speed);
+                } else {
+                    chprintf(chp, "\tDriver not initialized!\r\n");
                 }
-                else if(0 < speed){ // forward
-                    gear = 0x7E;
-                    speed_abs = speed;
-                }
-                else{
-                    gear = 0x7D;
-                    speed_abs = 0;
-                }
-
             }
-        } 
-        break;
-
-        default: {
-            // nop
         }
         break;
     }
 
+    
     return;
 }
 
 static const ShellCommand commands[] = {
-    {"can", test_can},
-    {"torq", test_torq},
+    {"torq", _torq},
     {NULL, NULL}
 
 };

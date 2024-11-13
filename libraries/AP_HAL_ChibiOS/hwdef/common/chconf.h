@@ -47,6 +47,10 @@
 #define TRUE                                1
 #endif
 
+#ifndef ENGINEERING_DEV
+  #define ENGINEERING_DEV TRUE
+#endif
+
 #ifdef HAL_CHIBIOS_ENABLE_ASSERTS
 #define CH_DBG_ENABLE_ASSERTS TRUE
 #define CH_DBG_ENABLE_CHECKS TRUE

@@ -48,8 +48,30 @@
 
 #if HAL_TORQEEDO_ENABLED
 
+#include <ch.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 #include <AP_Param/AP_Param.h>
+
+#if 1u == HAL_TORQEEDO_IFACE_TORQLINK_CAN
+    #if ENGINEERING_DEV
+        #include <ch.h>
+        #include <halconf.h>
+        #include <stm32_registry.h>
+        #include <stm32_isr.h>
+        #include <osal.h>
+        #include <hal_pal.h>
+        #include <hal_pal_lld.h>
+        #include <hal_objects.h>
+        #include <hal_streams.h>
+        #include <hal_channels.h>
+        #include <hal_queues.h>
+        #include <hal_serial.h>
+        #include <hal_serial_lld.h>
+        #include <stm32_dma.h>
+        #include <AP_HAL_ChibiOS/UARTDriver.h>
+    #endif
+    #include <AP_HAL_ChibiOS/CANFDIface.h>
+#endif
 
 #define TORQEEDO_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -85,52 +107,60 @@ public:
     bool get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const WARN_IF_UNUSED;
     bool get_batt_capacity_Ah(uint16_t &amp_hours) const;
 
+    void set_motor_speed(int16_t s) { _motor_speed_desired = s; return; }
+    int16_t get_motor_speed() const { return _motor_speed_desired; }
+
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
 
-    // message addresses
-    enum class MsgAddress : uint8_t {
-        BUS_MASTER = 0x00,
-        REMOTE1 = 0x14,
-        DISPLAY = 0x20,
-        MOTOR = 0x30,
-        BATTERY = 0x80
-    };
+    #if 1u == HAL_TORQEEDO_IFACE_TORQBUS_RS485
 
-    // Remote specific message ids
-    enum class RemoteMsgId : uint8_t {
-        INFO = 0x00,
-        REMOTE = 0x01,
-        SETUP = 0x02
-    };
+        // message addresses
+        enum class MsgAddress : uint8_t {
+            BUS_MASTER = 0x00,
+            REMOTE1 = 0x14,
+            DISPLAY = 0x20,
+            MOTOR = 0x30,
+            BATTERY = 0x80
+        };
 
-    // Display specific message ids
-    enum class DisplayMsgId : uint8_t {
-        INFO = 0x00,
-        SYSTEM_STATE = 0x41,
-        SYSTEM_SETUP = 0x42
-    };
+        // Remote specific message ids
+        enum class RemoteMsgId : uint8_t {
+            INFO = 0x00,
+            REMOTE = 0x01,
+            SETUP = 0x02
+        };
 
-    // Motor specific message ids
-    enum class MotorMsgId : uint8_t {
-        INFO = 0x00,
-        STATUS = 0x01,
-        PARAM = 0x03,
-        CONFIG = 0x04,
-        DRIVE = 0x82
-    };
+        // Display specific message ids
+        enum class DisplayMsgId : uint8_t {
+            INFO = 0x00,
+            SYSTEM_STATE = 0x41,
+            SYSTEM_SETUP = 0x42
+        };
 
-    // Battery specific message ids
-    enum class BatteryMsgId : uint8_t {
-        INFO = 0x01,
-        STATUS = 0x04
-    };
+        // Motor specific message ids
+        enum class MotorMsgId : uint8_t {
+            INFO = 0x00,
+            STATUS = 0x01,
+            PARAM = 0x03,
+            CONFIG = 0x04,
+            DRIVE = 0x82
+        };
 
-    enum class ParseState {
-        WAITING_FOR_HEADER = 0,
-        WAITING_FOR_FOOTER,
-    };
+        // Battery specific message ids
+        enum class BatteryMsgId : uint8_t {
+            INFO = 0x01,
+            STATUS = 0x04
+        };
+
+        enum class ParseState {
+            WAITING_FOR_HEADER = 0,
+            WAITING_FOR_FOOTER,
+        };
+
+    #endif /* HAL_TORQEEDO_IFACE_TORQBUS_RS485 */
+
 
     // TYPE parameter values
     enum class ConnectionType : uint8_t {
@@ -152,62 +182,76 @@ private:
     // returns true if the driver is enabled
     bool enabled() const;
 
-    // process a single byte received on serial port
-    // return true if a complete message has been received (the message will be held in _received_buff)
-    bool parse_byte(uint8_t b);
-
     // process message held in _received_buff
     void parse_message();
-
-    // returns true if it is safe to send a message
-    bool safe_to_send() const { return ((_send_delay_us == 0) && (_reply_wait_start_us == 0)); }
 
     // set pin to enable sending a message
     void send_start();
 
-    // check for timeout after sending a message and unset pin if required
-    void check_for_send_end();
+    #if 1u == HAL_TORQEEDO_IFACE_TORQBUS_RS485
+        // process a single byte received on serial port
+        // return true if a complete message has been received (the message will be held in _received_buff)
+        bool parse_byte(uint8_t b);
 
-    // calculate delay required to allow message to be completely sent
-    uint32_t calc_send_delay_us(uint8_t num_bytes);
+        // returns true if it is safe to send a message
+        bool safe_to_send() const { return ((_send_delay_us == 0) && (_reply_wait_start_us == 0)); }
 
-    // record msgid of message to wait for and set timer for reply timeout handling
-    void set_expected_reply_msgid(uint8_t msg_id);
+        // check for timeout after sending a message and unset pin if required
+        void check_for_send_end();
+        
+        // calculate delay required to allow message to be completely sent
+        uint32_t calc_send_delay_us(uint8_t num_bytes);
+        
+        // record msgid of message to wait for and set timer for reply timeout handling
+        void set_expected_reply_msgid(uint8_t msg_id);
 
-    // check for timeout waiting for reply
-    void check_for_reply_timeout();
+        // check for timeout waiting for reply
+        void check_for_reply_timeout();
 
-    // mark reply received. should be called whenever a message is received regardless of whether we are actually waiting for a reply
-    void set_reply_received();
+        // mark reply received. should be called whenever a message is received regardless of whether we are actually waiting for a reply
+        void set_reply_received();
 
-    // send a message to the motor with the specified message contents
-    // msg_contents should not include the header, footer or CRC
-    // returns true on success
-    bool send_message(const uint8_t msg_contents[], uint8_t num_bytes);
+        // send a message to the motor with the specified message contents
+        // msg_contents should not include the header, footer or CRC
+        // returns true on success
+        bool send_message(const uint8_t msg_contents[], uint8_t num_bytes);
 
-    // add a byte to a message buffer including adding the escape character (0xAE) if necessary
-    // this should only be used when adding the contents to the buffer, not the header and footer
-    // num_bytes is updated to the next free byte
-    bool add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buff[], uint8_t msg_buff_size, uint8_t &num_bytes) const;
+        // add a byte to a message buffer including adding the escape character (0xAE) if necessary
+        // this should only be used when adding the contents to the buffer, not the header and footer
+        // num_bytes is updated to the next free byte
+        bool add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buff[], uint8_t msg_buff_size, uint8_t &num_bytes) const;
+        
+        // send a motor speed command as a value from -1000 to +1000
+        // value is taken directly from SRV_Channel unless set_zero_speed is true
+        // (if set_zero_speed is true then the motor speed is set to zero)
+        void send_motor_speed_cmd(bool set_zero_speed = false);
 
-    // send a motor speed command as a value from -1000 to +1000
-    // value is taken directly from SRV_Channel unless set_zero_speed is true
-    // (if set_zero_speed is true then the motor speed is set to zero)
-    void send_motor_speed_cmd(bool set_zero_speed = false);
+        // send request to motor to reply with a particular message
+        // msg_id can be INFO, STATUS or PARAM
+        void send_motor_msg_request(MotorMsgId msg_id);
 
-    // send request to motor to reply with a particular message
-    // msg_id can be INFO, STATUS or PARAM
-    void send_motor_msg_request(MotorMsgId msg_id);
+        // send request to battery to reply with a particular message
+        // msg_id can be STATUS
+        void send_battery_msg_request(BatteryMsgId msg_id);
 
-    // send request to battery to reply with a particular message
-    // msg_id can be STATUS
-    void send_battery_msg_request(BatteryMsgId msg_id);
+        // calculate the limited motor speed that is sent to the motors
+        // desired_motor_speed argument and returned value are in the range -1000 to 1000
+        int16_t calc_motor_speed_limited(int16_t desired_motor_speed);
+        int16_t get_motor_speed_limited() const { return (int16_t)_motor_speed_limited; }
 
-    // calculate the limited motor speed that is sent to the motors
-    // desired_motor_speed argument and returned value are in the range -1000 to 1000
-    int16_t calc_motor_speed_limited(int16_t desired_motor_speed);
-    int16_t get_motor_speed_limited() const { return (int16_t)_motor_speed_limited; }
 
+    #endif /* HAL_TORQEEDO_IFACE_TORQBUS_RS485 */
+
+    #if 1u == HAL_TORQEEDO_IFACE_TORQLINK_CAN
+
+        #if ENGINEERING_DEV
+            friend void _torq(BaseSequentialStream *chp, int argc, char *argv[]);
+        #endif
+        friend void torq_engine_ctrl_cb(ch_virtual_timer* t, void * a);
+        friend void torq_trans_ctrl_cb(ch_virtual_timer* t, void * g);
+
+    #endif
+    
     // log TRQD message which holds high level status and latest desired motors peed
     // force_logging should be true to immediately write log bypassing timing check to avoid spamming
     void log_TRQD(bool force_logging);
@@ -220,46 +264,113 @@ private:
 
     // parameters
     AP_Enum<ConnectionType> _type;      // connector type used (0:disabled, 1:tiller connector, 2: motor connector)
-    AP_Int8 _pin_onoff;     // Pin number connected to Torqeedo's on/off pin. -1 to disable turning motor on/off from autopilot
-    AP_Int8 _pin_de;        // Pin number connected to RS485 to Serial converter's DE pin. -1 to disable sending commands to motor
-    AP_Int16 _options;      // options bitmask
-    AP_Int8 _motor_power;   // motor power (0 ~ 100).  only applied when using motor connection
-    AP_Float _slew_time;    // slew rate specified as the minimum number of seconds required to increase the throttle from 0 to 100%.  A value of zero disables the limit
-    AP_Float _dir_delay;    // direction change delay.  output will remain at zero for this many seconds when transitioning between forward and backwards rotation
-    AP_Int8 _auto_reset;    // whether to auto reset the motor if it goes into an error state (0:disabled, 1:enabled)
-    AP_Int8 _ext_batt;      // whether to use external battery (0:disabled, 1:enabled)
+    AP_Int8 _pin_onoff;                 // Pin number connected to Torqeedo's on/off pin. -1 to disable turning motor on/off from autopilot
+    AP_Int8 _pin_de;                    // Pin number connected to RS485 to Serial converter's DE pin. -1 to disable sending commands to motor
+    AP_Int16 _options;                  // options bitmask
+    AP_Int8 _motor_power;               // motor power (0 ~ 100).  only applied when using motor connection
+    AP_Float _slew_time;                // slew rate specified as the minimum number of seconds required to increase the throttle from 0 to 100%.  A value of zero disables the limit
+    AP_Float _dir_delay;                // direction change delay.  output will remain at zero for this many seconds when transitioning between forward and backwards rotation
+    AP_Int8 _auto_reset;                // whether to auto reset the motor if it goes into an error state (0:disabled, 1:enabled)
+    AP_Int8 _ext_batt;                  // whether to use external battery (0:disabled, 1:enabled)
 
     // members
-    AP_HAL::UARTDriver *_uart;      // serial port to communicate with motor
-    bool _initialised;              // true once driver has been initialised
-    bool _send_motor_speed;         // true if motor speed should be sent at next opportunity
-    int16_t _motor_speed_desired;   // desired motor speed (set from within update method)
-    uint32_t _last_send_motor_ms;   // system time (in millis) last motor speed command was sent (used for health reporting)
-    bool _motor_clear_error;        // true if the motor error should be cleared (sent in "Drive" message)
-    uint32_t _send_start_us;        // system time (in micros) when last message started being sent (used for timing to unset DE pin)
-    uint32_t _send_delay_us;        // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
+    #if 1u == HAL_TORQEEDO_IFACE_TORQBUS_RS485
+        
+        AP_HAL::UARTDriver *_uart;      // serial port to communicate with motor
+        bool _send_motor_speed;         // true if motor speed should be sent at next opportunity
+        uint32_t _send_start_us;        // system time (in micros) when last message started being sent (used for timing to unset DE pin)
+        uint32_t _send_delay_us;        // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
+        
+        // motor speed limit variables
+        float _motor_speed_limited;         // limited desired motor speed. this value is actually sent to the motor
+        uint32_t _motor_speed_limited_ms;   // system time that _motor_speed_limited was last updated
+        int8_t _dir_limit;                  // acceptable directions for output to motor (+1 = positive OK, -1 = negative OK, 0 = either positive or negative OK)
+        uint32_t _motor_speed_zero_ms;      // system time that _motor_speed_limited reached zero.  0 if currently not zero
 
-    // motor speed limit variables
-    float _motor_speed_limited;     // limited desired motor speed. this value is actually sent to the motor
-    uint32_t _motor_speed_limited_ms; // system time that _motor_speed_limited was last updated
-    int8_t _dir_limit;              // acceptable directions for output to motor (+1 = positive OK, -1 = negative OK, 0 = either positive or negative OK)
-    uint32_t _motor_speed_zero_ms;  // system time that _motor_speed_limited reached zero.  0 if currently not zero
+    #endif
+
+    #if 1u == HAL_TORQEEDO_IFACE_TORQLINK_CAN
+
+        HAL_CANIface *_can;             // can port to communicate with motor
+        AP_HAL::CANFrame _tx_frame;
+        AP_HAL::CANFrame _rx_frame;
+        AP_HAL::CANIface::CanIOFlags _tx_flags;
+        AP_HAL::CANIface::CanIOFlags _rx_flags;
+        
+        virtual_timer_t _torq_trans_ctrl_vt;  // virtual timer for asynch gear select messaging
+        virtual_timer_t _torq_engine_ctrl_vt; // virtual timer for asynch accel select messaging
+        uint8_t _accel;                 // desired motor acceleration setting (0-250)
+        uint8_t _gear;                  // desiged motor gear setting (0x7C, 0x7D, 0x7E)
+
+        // MSG (0x18EF646E) - Motor Status
+        uint8_t _status_accel;
+        uint8_t _status_gear2;
+        uint16_t _status_throttle;
+
+        // MSG (0x18FF1316) - Manufacturer PGN , PGN=065299
+        #define SWITCH_STATUS_DriveEnable       (1u << 0u)
+        #define SWITCH_STATUS_ChargerPresent    (1u << 1u)
+        #define SWITCH_STATUS_Emergency         (1u << 2u)
+        #define SWITCH_STATUS_BattConnected     (1u << 4u)
+        #define SWITCH_STATUS_ThrottleReady     (1u << 5u)
+        #define SWITCH_STATUS_MasterReady       (1u << 6u)
+        #define SWITCH_STATUS_DriverReady       (1u << 7u)
+        uint8_t _status_switch;
+        uint32_t _status_charge_power;
+
+        // MSG (0x18FF1416) - Manufacturer PGN2 , PGN=065300
+        uint32_t _status_motor_power;
+
+        // MSG (0x19F21216) - Detailed Status , PGN=127506
+        // ONLY SOC
+        uint8_t _status_soc;
+
+        // MSG (0x0DF20016) - Engine Rapid Update , PGN=127488
+        // ONLY RPM
+        uint16_t _status_rpm;
+
+        // MSG (0x19F20116) - Engine Param Dynamic , PGN=127489
+        // ONLY TORQUE
+        // Need more info
+
+        // MSG (0x19F20516) - Transmission Param , PGN=127493
+        // ONLY GEAR
+        #define STATUS_GEAR_FORWARD     0
+        #define STATUS_GEAR_NEUTRAL     1
+        #define STATUS_GEAR_REVERSE     2
+        #define STATUS_GEAR_UNKNOWN     3
+        uint8_t _status_gear;
+
+        // MSG (0x15F20816) - Trip Params , PGN=127496
+        // ONLY ToE, DoE
+        uint32_t _status_time_to_empty_s;
+        uint32_t _status_distance_to_empty_m;
+
+    #endif
+    
+    bool _initialised;                  // true once driver has been initialised
+    uint32_t _last_send_motor_ms;       // system time (in millis) last motor speed command was sent (used for health reporting)
+    uint32_t _last_received_motor_ms;   // system time (in millis) that a motor message was successfully parsed (for health reporting)
+    
+    int16_t _motor_speed_desired;       // desired motor speed (set from within update method)
+    bool _motor_clear_error;            // true if the motor error should be cleared (sent in "Drive" message)
 
     // health reporting
     HAL_Semaphore _last_motor_healthy_sem;// semaphore protecting reading and updating of _last_send_motor_ms and _last_received_motor_ms
-    uint32_t _last_log_TRQD_ms;     // system time (in millis) that TRQD was last logged
+    uint32_t _last_log_TRQD_ms;         // system time (in millis) that TRQD was last logged
 
     // reset/wake
-    uint32_t _last_reset_ms;        // system time (in millis) since hard reset/wake button was last pressed
+    uint32_t _last_reset_ms;            // system time (in millis) since hard reset/wake button was last pressed
 
     // message parsing members
-    ParseState _parse_state;        // current state of parsing
-    bool _parse_escape_received;    // true if the escape character has been received so we must XOR the next byte
-    uint32_t _parse_error_count;    // total number of parsing errors (for reporting)
-    uint32_t _parse_success_count;  // number of messages successfully parsed (for reporting)
-    uint8_t _received_buff[TORQEEDO_MESSAGE_LEN_MAX];   // characters received
-    uint8_t _received_buff_len;     // number of characters received
-    uint32_t _last_received_motor_ms;     // system time (in millis) that a motor message was successfully parsed (for health reporting)
+    #if 1u == HAL_TORQEEDO_IFACE_TORQBUS_RS485
+        ParseState _parse_state;        // current state of parsing
+        bool _parse_escape_received;    // true if the escape character has been received so we must XOR the next byte
+        uint32_t _parse_error_count;    // total number of parsing errors (for reporting)
+        uint32_t _parse_success_count;  // number of messages successfully parsed (for reporting)
+        uint8_t _received_buff[TORQEEDO_MESSAGE_LEN_MAX];   // characters received
+        uint8_t _received_buff_len;     // number of characters received
+    #endif
 
     // reply message handling
     uint8_t _reply_msgid;           // replies expected msgid (reply often does not specify the msgid so we must record it)
