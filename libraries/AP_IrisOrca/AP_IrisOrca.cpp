@@ -187,6 +187,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 1061000
     // @Increment: 1
     // @User: Standard
+    // @RebootRequired: True
     AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 638000),
 
     // @Param: GAIN_P
@@ -196,6 +197,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 65535
     // @Increment: 1
     // @User: Standard
+    // @RebootRequired: True
     AP_GROUPINFO("GAIN_P", 6, AP_IrisOrca, _gain_p, 200),
 
     // @Param: GAIN_I
@@ -205,6 +207,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 65535
     // @Increment: 1
     // @User: Standard
+    // @RebootRequired: True
     AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 1000),
 
     // @Param: GAIN_DV
@@ -214,6 +217,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 65535
     // @Increment: 1
     // @User: Standard
+    // @RebootRequired: True
     AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 800),
 
     // @Param: GAIN_DE
@@ -223,6 +227,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 65535
     // @Increment: 1
     // @User: Standard
+    // @RebootRequired: True
     AP_GROUPINFO("GAIN_DE", 9, AP_IrisOrca, _gain_de, 0),
 
     // @Param: AZ_F_MAX
@@ -232,6 +237,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 1061
     // @Increment: 1
     // @User: Standard
+    // @RebootRequired: True
     AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
 
     AP_GROUPEND
