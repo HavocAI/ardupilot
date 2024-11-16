@@ -71,22 +71,18 @@ bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
   switch ((rcvd_buff[MultipleWriteRegRsp::Idx::REG_ADDR_HI] << 8) |
           rcvd_buff[MultipleWriteRegRsp::Idx::REG_ADDR_LO]) {
     case static_cast<uint16_t>(Register::PC_PGAIN):
-      // Position gains were set
-      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Position gains set: %d bytes.",
-                    (rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_HI] << 8) |
-                    rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_LO]);
-      state.pc_gains_set = true;
+      // Position params (starting with P gain) were set
+      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Position params set");
+      state.pc_params_set = true;
       break;
     case static_cast<uint16_t>(Register::ZERO_MODE):
-      // Zero Mode config was set
-      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Zero mode config set: %d bytes.",
-                    (rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_HI] << 8) |
-                    rcvd_buff[MultipleWriteRegRsp::Idx::REG_COUNT_LO]);
+      // Zero Mode params were set
+      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Zero mode params set");
       state.auto_zero_params_set = true;
       break;
     default:
       GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
-                    "IrisOrca: Unsupported multiple write registers.");
+                    "IrisOrca: Unsupported multiple write registers");
       return false;
   }
 
@@ -96,6 +92,8 @@ bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
 bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
                                 ActuatorState &state) {
   if (buff_len < MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
+                  "IrisOrca: Motor Command Stream response too short.");
     return false;
   }
 
@@ -116,6 +114,8 @@ bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
 bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len,
                              ActuatorState &state) {
   if (buff_len < MOTOR_READ_STREAM_MSG_RSP_LEN) {
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
+                  "IrisOrca: Motor Read Stream response too short.");
     return false;
   }
   // Ignore the read register value and set the other state members
@@ -323,18 +323,21 @@ void AP_IrisOrca::thread_main()
                     // Send a write multiple registers command to set the position controller params
                     // and the auto-zero params
                     // Exit this mode to auto-zero mode if both are set
-                    if (!_actuator_state.pc_gains_set) {
+                    if (!_actuator_state.pc_params_set) {
                         if (safe_to_send()) {
                             send_position_controller_params();
+                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring position controller params");
                         }
                     }
                     else if (!_actuator_state.auto_zero_params_set) {
                         if (safe_to_send()) {
                             send_auto_zero_params();
+                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring zero params");
                         }
                     }
                     else {
                         // both sets of params have been set
+                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuration complete");
                         _control_state = orca::MotorControlState::AUTO_ZERO;
                     }
                     break;
@@ -529,8 +532,8 @@ bool AP_IrisOrca::write_register(uint16_t reg_addr, uint16_t reg_value)
 bool AP_IrisOrca::write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint8_t *data)
 {
     using namespace orca;
-    // buffer for outgoing message
     uint8_t msg_len = MultipleWriteReg::getMessageLength(reg_count);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Multiple Write Registers message length: %d bytes", msg_len);
     uint8_t send_buff[msg_len];
 
     // set expected reply message length
@@ -543,17 +546,11 @@ bool AP_IrisOrca::write_multiple_registers(uint16_t reg_addr, uint16_t reg_count
     send_buff[MultipleWriteReg::Idx::REG_ADDR_LO] = LOWBYTE(reg_addr);
     send_buff[MultipleWriteReg::Idx::REG_COUNT_HI] = HIGHBYTE(reg_count);
     send_buff[MultipleWriteReg::Idx::REG_COUNT_LO] = LOWBYTE(reg_count);
-    send_buff[MultipleWriteReg::Idx::BYTE_COUNT] = reg_count * 2;
+    send_buff[MultipleWriteReg::Idx::BYTE_COUNT] = LOWBYTE(reg_count * 2);
 
     // copy data into message
-    for (uint8_t i = 0; i < reg_count; i++) {
-        // Ensure we do not read beyond the data buffer
-        if (i * 2 + 1 < sizeof(data)) {
-            send_buff[MultipleWriteReg::BYTE_COUNT + i * 2] = data[i * 2];
-            send_buff[MultipleWriteReg::BYTE_COUNT + i * 2 + 1] = data[i * 2 + 1];
-        } else {
-            return false;
-        }
+    for (uint16_t i = 0; i < reg_count * 2; i++) {
+            send_buff[MultipleWriteReg::DATA_START + i] = data[i];
     }
 
     // Add Modbus CRC-16
@@ -722,13 +719,13 @@ void AP_IrisOrca::send_position_controller_params()
     data[5] = LOWBYTE(_gain_dv);
     data[6] = HIGHBYTE(_gain_de);
     data[7] = LOWBYTE(_gain_de);
-    data[8] = HIGHBYTE(_f_max >> 16);
-    data[9] = LOWBYTE(_f_max >> 16);
-    data[10] = HIGHBYTE(_f_max);
-    data[11] = LOWBYTE(_f_max);
+    data[8] = HIGHBYTE(static_cast<uint16_t>(_f_max << 16 >> 16));
+    data[9] = LOWBYTE(static_cast<uint16_t>(_f_max << 16 >> 16));
+    data[10] = HIGHBYTE(static_cast<uint16_t>(_f_max >> 16));
+    data[11] = LOWBYTE(static_cast<uint16_t>(_f_max >> 16));
 
     // send message
-    if (write_multiple_registers((uint16_t)orca::Register::PC_PGAIN, 3, (uint8_t *)data)){
+    if (write_multiple_registers((uint16_t)orca::Register::PC_PGAIN, 6, (uint8_t *)data)){
         // record time of send for health reporting
         WITH_SEMAPHORE(_last_healthy_sem);
         _last_send_actuator_ms = AP_HAL::millis();
@@ -748,7 +745,7 @@ void AP_IrisOrca::send_auto_zero_params()
     data[5] = 0x01; // Exit to sleep mode after auto-zero
 
     // send message
-    if (write_multiple_registers((uint16_t)orca::Register::ZERO_MODE, 1, (uint8_t *)data)){
+    if (write_multiple_registers((uint16_t)orca::Register::ZERO_MODE, 3, (uint8_t *)data)){
         // record time of send for health reporting
         WITH_SEMAPHORE(_last_healthy_sem);
         _last_send_actuator_ms = AP_HAL::millis();

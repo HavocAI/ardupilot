@@ -135,22 +135,14 @@ namespace orca {
             REG_ADDR_LO = 3,
             REG_COUNT_HI = 4,
             REG_COUNT_LO = 5,
-            BYTE_COUNT = 6
+            BYTE_COUNT = 6,
+            DATA_START = 7
             // CRC indices will be calculated based on the number of registers
         };
 
         // Calculate the length of the message based on the number of registers
         static constexpr uint8_t getMessageLength(uint8_t numRegisters) {
-            return BYTE_COUNT + (numRegisters * 2) + 2; // 2 bytes per register + 2 bytes for CRC
-        }
-
-        // Calculate the index of the CRC based on the number of registers
-        static constexpr uint8_t getCrcLoIndex(uint8_t numRegisters) {
-            return BYTE_COUNT + (numRegisters * 2);
-        }
-
-        static constexpr uint8_t getCrcHiIndex(uint8_t numRegisters) {
-            return BYTE_COUNT + (numRegisters * 2) + 1;
+            return 9 + (numRegisters * 2); // 2 bytes per register + 2 bytes for CRC
         }
     };
 
@@ -268,7 +260,7 @@ namespace orca {
         uint8_t temperature;
         uint16_t voltage;
         uint16_t errors{2048};
-        bool pc_gains_set{false};
+        bool pc_params_set{false};
         bool auto_zero_params_set{false};
     };
 
@@ -303,7 +295,7 @@ namespace orca {
      * @param[in] rcvd_buff The buffer containing received response data
      * @param[in] buff_len The length of the received buffer
      * @param[out] state (output parameter) State data of the actuator to populate with response.
-     * Currently only updates the position gains and zero mode config.
+     * Currently only updates the position params and zero mode config.
      * @return true response successfully parsed 
      * @return false response parsing failed
      */
