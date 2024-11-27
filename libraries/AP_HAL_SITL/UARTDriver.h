@@ -9,6 +9,7 @@
 #include <AP_HAL/utility/Socket_native.h>
 #include <AP_HAL/utility/RingBuffer.h>
 #include <AP_CSVReader/AP_CSVReader.h>
+#include <AP_HAL/utility/DataRateLimit.h>
 
 #include <SITL/SIM_SerialDevice.h>
 
@@ -113,8 +114,10 @@ private:
     uint16_t _mc_myport;
 
     // for baud-rate limiting:
-    uint32_t last_read_tick_us;
-    uint32_t last_write_tick_us;
+    struct {
+        DataRateLimit write;
+        DataRateLimit read;
+    } baud_limits;
 
     HAL_Semaphore write_mtx;
 
@@ -158,6 +161,7 @@ private:
     // statistics
     uint32_t _tx_stats_bytes;
     uint32_t _rx_stats_bytes;
+
 };
 
 #endif

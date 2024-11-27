@@ -4,7 +4,7 @@
 
   // set 0 in 4.6, remove feature in 4.7:
 #ifndef AP_MAVLINK_MAV_CMD_NAV_SET_YAW_SPEED_ENABLED
-#define AP_MAVLINK_MAV_CMD_NAV_SET_YAW_SPEED_ENABLED 1
+#define AP_MAVLINK_MAV_CMD_NAV_SET_YAW_SPEED_ENABLED 0
 #endif
 
 #include "defines.h"
@@ -39,6 +39,10 @@ protected:
 #if HAL_LOGGING_ENABLED
     uint32_t log_radio_bit() const override { return MASK_LOG_PM; }
 #endif
+
+    // Send the mode with the given index (not mode number!) return the total number of modes
+    // Index starts at 1
+    uint8_t send_available_mode(uint8_t index) const override;
 
 private:
 

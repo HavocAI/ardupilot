@@ -428,7 +428,7 @@ def start_SITL(binary,
                disable_breakpoints=False,
                customisations=[],
                lldb=False,
-               enable_fgview_output=False,
+               enable_fgview=False,
                supplementary=False,
                stdout_prefix=None):
 
@@ -534,13 +534,16 @@ def start_SITL(binary,
             cmd.extend(['--unhide-groups'])
         # somewhere for MAVProxy to connect to:
         cmd.append('--serial1=tcp:2')
-        if enable_fgview_output:
+        if enable_fgview:
             cmd.append("--enable-fgview")
 
     if len(defaults):
         cmd.extend(['--defaults', ",".join(defaults)])
 
     cmd.extend(customisations)
+
+    if "--defaults" in customisations:
+        raise ValueError("--defaults must be passed in via defaults_filepath keyword argument, not as part of customisation list")  # noqa
 
     pexpect_logfile_prefix = stdout_prefix
     if pexpect_logfile_prefix is None:

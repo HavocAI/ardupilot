@@ -37,6 +37,7 @@ public:
         ICM42605, // No HiRes
         ICM40605, // No HiRes
         IIM42652, // HiRes 19bit
+        IIM42653, // HiRes 19bit
         ICM42670, // HiRes 19bit
         ICM45686  // HiRes 20bit
     };
@@ -73,10 +74,6 @@ private:
 
     bool accumulate_samples(const struct FIFOData *data, uint8_t n_samples);
     bool accumulate_highres_samples(const struct FIFODataHighRes *data, uint8_t n_samples);
-
-    // instance numbers of accel and gyro data
-    uint8_t gyro_instance;
-    uint8_t accel_instance;
 
     // reset FIFO configure1 register
     uint8_t fifo_config1;

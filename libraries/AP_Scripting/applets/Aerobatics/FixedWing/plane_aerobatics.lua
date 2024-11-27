@@ -5,6 +5,13 @@
    assistance from Paul Riseborough, testing by Henry Wurzburg
 ]]--
 -- luacheck: ignore 212 (Unused argument)
+---@diagnostic disable: param-type-mismatch
+---@diagnostic disable: undefined-field
+---@diagnostic disable: missing-parameter
+---@diagnostic disable: cast-local-type
+---@diagnostic disable: need-check-nil
+---@diagnostic disable: undefined-global
+---@diagnostic disable: inject-field
 
 -- setup param block for aerobatics, reserving 35 params beginning with AERO_
 local PARAM_TABLE_KEY = 70
@@ -2117,7 +2124,9 @@ end
 
 -- log a pose from position and quaternion attitude
 function log_pose(logname, pos, quat)
-   logger.write(logname, 'px,py,pz,q1,q2,q3,q4,r,p,y', 'ffffffffff',
+   local loc = ahrs:get_origin():copy()
+   loc:offset(pos:x(),pos:y())
+   logger.write(logname, 'px,py,pz,q1,q2,q3,q4,r,p,y,Lat,Lon', 'ffffffffffLL',
                 pos:x(),
                 pos:y(),
                 pos:z(),
@@ -2127,7 +2136,9 @@ function log_pose(logname, pos, quat)
                 quat:q4(),
                 math.deg(quat:get_euler_roll()),
                 math.deg(quat:get_euler_pitch()),
-                math.deg(quat:get_euler_yaw()))
+                math.deg(quat:get_euler_yaw()),
+                loc:lat(),
+                loc:lng())
 end
 
 --[[

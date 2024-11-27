@@ -1,5 +1,9 @@
-#include "AP_Mount_Backend.h"
+#include "AP_Mount_config.h"
+
 #if HAL_MOUNT_ENABLED
+
+#include "AP_Mount_Backend.h"
+
 #include <AP_AHRS/AP_AHRS.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_Logger/AP_Logger.h>
@@ -66,7 +70,31 @@ bool AP_Mount_Backend::set_mode(MAV_MOUNT_MODE mode)
     return true;
 }
 
+// called when mount mode is RC-targetting, updates the mnt_target object from RC inputs:
+void AP_Mount_Backend::update_mnt_target_from_rc_target()
+{
+    if (rc().in_rc_failsafe()) {
+        if (option_set(Options::NEUTRAL_ON_RC_FS)) {
+            mnt_target.angle_rad.set(_params.neutral_angles.get() * DEG_TO_RAD, false);
+            mnt_target.target_type = MountTargetType::ANGLE;
+            return;
+        }
+    }
+
+    MountTarget rc_target;
+    get_rc_target(mnt_target.target_type, rc_target);
+    switch (mnt_target.target_type) {
+    case MountTargetType::ANGLE:
+        mnt_target.angle_rad = rc_target;
+        break;
+    case MountTargetType::RATE:
+        mnt_target.rate_rads = rc_target;
+        break;
+    }
+}
+
 // set angle target in degrees
+// roll and pitch are in earth-frame
 // yaw_is_earth_frame (aka yaw_lock) should be true if yaw angle is earth-frame, false if body-frame
 void AP_Mount_Backend::set_angle_target(float roll_deg, float pitch_deg, float yaw_deg, bool yaw_is_earth_frame)
 {
@@ -277,8 +305,8 @@ void AP_Mount_Backend::handle_mount_control(const mavlink_mount_control_t &packe
 {
     switch (get_mode()) {
     case MAV_MOUNT_MODE_MAVLINK_TARGETING:
-        // input_a : Pitch in centi-degrees
-        // input_b : Roll in centi-degrees
+        // input_a : Pitch in centi-degrees (earth-frame)
+        // input_b : Roll in centi-degrees (earth-frame)
         // input_c : Yaw in centi-degrees (interpreted as body-frame)
         set_angle_target(packet.input_b * 0.01, packet.input_a * 0.01, packet.input_c * 0.01, false);
         break;
@@ -325,10 +353,10 @@ MAV_RESULT AP_Mount_Backend::handle_command_do_mount_control(const mavlink_comma
         return MAV_RESULT_ACCEPTED;
 
     case MAV_MOUNT_MODE_MAVLINK_TARGETING: {
-        // set body-frame target angles (in degrees) from mavlink message
-        const float pitch_deg = packet.param1;  // param1: pitch (in degrees)
-        const float roll_deg = packet.param2;   // param2: roll in degrees
-        const float yaw_deg = packet.param3;    // param3: yaw in degrees
+        // set target angles (in degrees) from mavlink message
+        const float pitch_deg = packet.param1;  // param1: pitch (earth-frame, degrees)
+        const float roll_deg = packet.param2;   // param2: roll (earth-frame, degrees)
+        const float yaw_deg = packet.param3;    // param3: yaw (body-frame, degrees)
 
         // warn if angles are invalid to catch angles sent in centi-degrees
         if ((fabsf(pitch_deg) > 90) || (fabsf(roll_deg) > 180) || (fabsf(yaw_deg) > 360)) {

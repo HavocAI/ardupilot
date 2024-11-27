@@ -124,11 +124,11 @@ void GCS_MAVLINK_Rover::send_servo_out()
 {
     float motor1, motor3;
     if (rover.g2.motors.have_skid_steering()) {
-        motor1 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_throttleLeft) / 1000.0f);
-        motor3 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_throttleRight) / 1000.0f);
+        motor1 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_throttleLeft) * 0.001f);
+        motor3 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_throttleRight) * 0.001f);
     } else {
         motor1 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_steering) / 4500.0f);
-        motor3 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_throttle) / 100.0f);
+        motor3 = 10000 * (SRV_Channels::get_output_scaled(SRV_Channel::k_throttle) * 0.01f);
     }
     mavlink_msg_rc_channels_scaled_send(
         chan,
@@ -142,7 +142,12 @@ void GCS_MAVLINK_Rover::send_servo_out()
         0,
         0,
         0,
-        receiver_rssi());
+#if AP_RSSI_ENABLED
+        receiver_rssi()
+#else
+        255
+#endif
+        );
 }
 
 int16_t GCS_MAVLINK_Rover::vfr_hud_throttle() const
@@ -416,7 +421,7 @@ void GCS_MAVLINK_Rover::packetReceived(const mavlink_status_t &status, const mav
 const AP_Param::GroupInfo GCS_MAVLINK_Parameters::var_info[] = {
     // @Param: RAW_SENS
     // @DisplayName: Raw sensor stream rate
-    // @Description: MAVLink Stream rate of RAW_IMU, SCALED_IMU2, SCALED_IMU3, SCALED_PRESSURE, SCALED_PRESSURE2, and SCALED_PRESSURE3
+    // @Description: MAVLink Stream rate of RAW_IMU, SCALED_IMU2, SCALED_IMU3, SCALED_PRESSURE, SCALED_PRESSURE2, SCALED_PRESSURE3 and AIRSPEED
     // @Units: Hz
     // @Range: 0 50
     // @Increment: 1
@@ -524,6 +529,9 @@ static const ap_message STREAM_RAW_SENSORS_msgs[] = {
     MSG_SCALED_PRESSURE,
     MSG_SCALED_PRESSURE2,
     MSG_SCALED_PRESSURE3,
+#if AP_AIRSPEED_ENABLED
+    MSG_AIRSPEED,
+#endif
 };
 static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
     MSG_SYS_STATUS,
@@ -533,10 +541,16 @@ static const ap_message STREAM_EXTENDED_STATUS_msgs[] = {
 #endif
     MSG_MEMINFO,
     MSG_CURRENT_WAYPOINT,
+#if AP_GPS_GPS_RAW_INT_SENDING_ENABLED
     MSG_GPS_RAW,
+#endif
+#if AP_GPS_GPS_RTK_SENDING_ENABLED
     MSG_GPS_RTK,
-#if GPS_MAX_RECEIVERS > 1
+#endif
+#if AP_GPS_GPS2_RAW_SENDING_ENABLED
     MSG_GPS2_RAW,
+#endif
+#if AP_GPS_GPS2_RTK_SENDING_ENABLED
     MSG_GPS2_RTK,
 #endif
     MSG_NAV_CONTROLLER_OUTPUT,
@@ -555,7 +569,9 @@ static const ap_message STREAM_RAW_CONTROLLER_msgs[] = {
 static const ap_message STREAM_RC_CHANNELS_msgs[] = {
     MSG_SERVO_OUTPUT_RAW,
     MSG_RC_CHANNELS,
+#if AP_MAVLINK_MSG_RC_CHANNELS_RAW_ENABLED
     MSG_RC_CHANNELS_RAW, // only sent on a mavlink1 connection
+#endif
 };
 static const ap_message STREAM_EXTRA1_msgs[] = {
     MSG_ATTITUDE,
@@ -603,7 +619,8 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #endif
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
-    MSG_NEXT_PARAM
+    MSG_NEXT_PARAM,
+    MSG_AVAILABLE_MODES
 };
 static const ap_message STREAM_ADSB_msgs[] = {
     MSG_ADSB_VEHICLE,
@@ -694,6 +711,10 @@ MAV_RESULT GCS_MAVLINK_Rover::handle_command_int_packet(const mavlink_command_in
                                               packet.param4);
 
     case MAV_CMD_MISSION_START:
+        if (!is_zero(packet.param1) || !is_zero(packet.param2)) {
+            // first-item/last item not supported
+            return MAV_RESULT_DENIED;
+        }
         if (rover.set_mode(rover.mode_auto, ModeReason::GCS_COMMAND)) {
             return MAV_RESULT_ACCEPTED;
         }
@@ -851,10 +872,14 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
     }
 
     // check for supported coordinate frames
-    if (packet.coordinate_frame != MAV_FRAME_LOCAL_NED &&
-        packet.coordinate_frame != MAV_FRAME_LOCAL_OFFSET_NED &&
-        packet.coordinate_frame != MAV_FRAME_BODY_NED &&
-        packet.coordinate_frame != MAV_FRAME_BODY_OFFSET_NED) {
+    switch (packet.coordinate_frame) {
+    case MAV_FRAME_LOCAL_NED:
+    case MAV_FRAME_LOCAL_OFFSET_NED:
+    case MAV_FRAME_BODY_NED:
+    case MAV_FRAME_BODY_OFFSET_NED:
+        break;
+
+    default:
         return;
     }
 
@@ -970,14 +995,19 @@ void GCS_MAVLINK_Rover::handle_set_position_target_global_int(const mavlink_mess
         return;
     }
     // check for supported coordinate frames
-    if (packet.coordinate_frame != MAV_FRAME_GLOBAL &&
-        packet.coordinate_frame != MAV_FRAME_GLOBAL_INT &&
-        packet.coordinate_frame != MAV_FRAME_GLOBAL_RELATIVE_ALT &&
-        packet.coordinate_frame != MAV_FRAME_GLOBAL_RELATIVE_ALT_INT &&
-        packet.coordinate_frame != MAV_FRAME_GLOBAL_TERRAIN_ALT &&
-        packet.coordinate_frame != MAV_FRAME_GLOBAL_TERRAIN_ALT_INT) {
+    switch (packet.coordinate_frame) {
+    case MAV_FRAME_GLOBAL:
+    case MAV_FRAME_GLOBAL_INT:
+    case MAV_FRAME_GLOBAL_RELATIVE_ALT:
+    case MAV_FRAME_GLOBAL_RELATIVE_ALT_INT:
+    case MAV_FRAME_GLOBAL_TERRAIN_ALT:
+    case MAV_FRAME_GLOBAL_TERRAIN_ALT_INT:
+        break;
+
+    default:
         return;
     }
+    
     bool pos_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_POS_IGNORE;
     bool vel_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_VEL_IGNORE;
     bool acc_ignore = packet.type_mask & MAVLINK_SET_POS_TYPE_MASK_ACC_IGNORE;
@@ -1125,3 +1155,54 @@ uint8_t GCS_MAVLINK_Rover::high_latency_wind_direction() const
     return 0;
 }
 #endif // HAL_HIGH_LATENCY2_ENABLED
+
+// Send the mode with the given index (not mode number!) return the total number of modes
+// Index starts at 1
+uint8_t GCS_MAVLINK_Rover::send_available_mode(uint8_t index) const
+{
+    const Mode* modes[] {
+        &rover.mode_manual,
+        &rover.mode_acro,
+        &rover.mode_steering,
+        &rover.mode_hold,
+        &rover.mode_loiter,
+#if MODE_FOLLOW_ENABLED
+        &rover.mode_follow,
+#endif
+        &rover.mode_simple,
+        &rover.g2.mode_circle,
+        &rover.mode_auto,
+        &rover.mode_rtl,
+        &rover.mode_smartrtl,
+        &rover.mode_guided,
+        &rover.mode_initializing,
+#if MODE_DOCK_ENABLED
+        (Mode *)rover.g2.mode_dock_ptr,
+#endif
+    };
+
+    const uint8_t mode_count = ARRAY_SIZE(modes);
+
+    // Convert to zero indexed
+    const uint8_t index_zero = index - 1;
+    if (index_zero >= mode_count) {
+        // Mode does not exist!?
+        return mode_count;
+    }
+
+    // Ask the mode for its name and number
+    const char* name = modes[index_zero]->name4();
+    const uint8_t mode_number = (uint8_t)modes[index_zero]->mode_number();
+
+    mavlink_msg_available_modes_send(
+        chan,
+        mode_count,
+        index,
+        MAV_STANDARD_MODE::MAV_STANDARD_MODE_NON_STANDARD,
+        mode_number,
+        0, // MAV_MODE_PROPERTY bitmask
+        name
+    );
+
+    return mode_count;
+}
