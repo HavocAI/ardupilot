@@ -185,7 +185,7 @@ void AP_Torqeedo_TQBus::thread_main()
                 log_update = true;
             }
             // if not sending motor speed, send battery status request (if connected to external battery)
-            else if (_type == ConnectionType::TYPE_TILLER && _ext_batt) {
+            else if ((get_type() == AP_Torqeedo::ConnectionType::TYPE_TILLER) && _params.ext_batt) {
                 // send request for battery status
                 if (now_ms - _last_send_battery_status_request_ms > TORQEEDO_SEND_BATTERY_STATUS_REQUEST_INTERVAL_MS) {
                     send_battery_msg_request(BatteryMsgId::STATUS);
@@ -196,7 +196,7 @@ void AP_Torqeedo_TQBus::thread_main()
 
         // if motor is not healthy and auto reset is enabled,
         // toggle the on/off pin to try to hard wake or reset the motor
-        if (!motor_healthy() && _auto_reset) {
+        if (!healthy() && _params.auto_reset) {
             const uint32_t now_ms = AP_HAL::millis();
             // only reset if not reset recently (to avoid infinite reset loop)
             if ((now_ms - _last_reset_ms > TORQEEDO_MIN_RESET_INTERVAL_MS)) {
@@ -381,7 +381,7 @@ void AP_Torqeedo_TQBus::report_error_codes()
 bool AP_Torqeedo_TQBus::get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const
 {
 
-    if (_ext_batt) {
+    if (_params.ext_batt) {
         // always use external battery info if selected
         if ((AP_HAL::millis() - _battery_status.last_update_ms) <= TORQEEDO_BATT_TIMEOUT_MS) {
             voltage = _battery_status.voltage;
@@ -416,7 +416,7 @@ bool AP_Torqeedo_TQBus::get_batt_info(float &voltage, float &current_amps, float
 // get battery capacity.  returns true on success and populates argument
 bool AP_Torqeedo_TQBus::get_batt_capacity_Ah(uint16_t &amp_hours) const
 {
-    if (_ext_batt) {
+    if (_params.ext_batt) {
         if (_battery_status.capacity <= 0.0) {
             return false;
         }
@@ -670,7 +670,7 @@ void AP_Torqeedo_TQBus::parse_message()
     // handle reply from battery
     // For now, only process battery messages if in tiller type mode to avoid changing
     // code for motor type mode. This is because both reply to the bus master.
-    if ((_type == AP_Torqeedo::ConnectionType::TYPE_TILLER) && (msg_addr == MsgAddress::BUS_MASTER)) {
+    if ((get_type() == AP_Torqeedo::ConnectionType::TYPE_TILLER) && (msg_addr == MsgAddress::BUS_MASTER)) {
         // replies strangely do not return the msgid so we must have stored it
         BatteryMsgId msg_id = (BatteryMsgId)_reply_msgid;
         switch (msg_id) {
@@ -694,7 +694,7 @@ void AP_Torqeedo_TQBus::parse_message()
 #if HAL_LOGGING_ENABLED
 
                 // log data
-                if ((_options & options::LOG) != 0) {
+                if (option_enabled(AP_Torqeedo::options::LOG)) {
                     // @LoggerMessage: TRBS
                     // @Description: Torqeedo Battery Status
                     // @Field: TimeUS: Time since system startup
@@ -729,7 +729,7 @@ void AP_Torqeedo_TQBus::parse_message()
 #endif
                     
                 // send to GCS
-                if ((_options & options::DEBUG_TO_GCS) != 0) {
+                if (option_enabled(AP_Torqeedo::options::DEBUG_TO_GCS)) {
                     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TRBS S:%d W:%d E:%d V:%4.1f C:%4.1f P:%u Cap:%4.0f Rem:%u",
                                 _battery_status.status_flags.value,
                                 _battery_status.warning_flags.value,
@@ -1044,10 +1044,10 @@ bool AP_Torqeedo_TQBus::add_byte_to_message(uint8_t byte_to_add, uint8_t msg_buf
 // value is taken directly from SRV_Channel
 // for tiller connection this sends the "Remote (0x01)" message
 // for motor connection this sends the "Motor Drive (0x82)" message
-void AP_Torqeedo_TQBus::send_motor_speed_cmd()
+void AP_Torqeedo_TQBus::send_motor_speed_cmd(bool set_zero_speed)
 {
     // calculate desired motor speed
-    if (!hal.util->get_soft_armed()) {
+    if (!hal.util->get_soft_armed() || set_zero_speed) {
         _motor_speed_desired = 0;
     } else {
         // convert throttle output to motor output in range -1000 to +1000
@@ -1186,12 +1186,12 @@ int16_t AP_Torqeedo_TQBus::calc_motor_speed_limited(int16_t desired_motor_speed)
 // set the on/off pin to on momentarily to wake the motor or clear an error state
 void AP_Torqeedo_TQBus::press_on_off_button()
 {
-    if (_type == AP_Torqeedo::ConnectionType::TYPE_TILLER) {
-        if (_pin_onoff > -1) {
-            hal.gpio->pinMode(_pin_onoff, HAL_GPIO_OUTPUT);
-            hal.gpio->write(_pin_onoff, 1);
+    if (get_type() == AP_Torqeedo::ConnectionType::TYPE_TILLER) {
+        if (_params.pin_onoff > -1) {
+            hal.gpio->pinMode(_params.pin_onoff, HAL_GPIO_OUTPUT);
+            hal.gpio->write(_params.pin_onoff, 1);
             hal.scheduler->delay(500);
-            hal.gpio->write(_pin_onoff, 0);
+            hal.gpio->write(_params.pin_onoff, 0);
         } else {
             // use serial port's RTS pin to turn on battery
             _uart->set_RTS_pin(true);

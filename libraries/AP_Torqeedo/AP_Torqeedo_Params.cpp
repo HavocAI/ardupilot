@@ -70,6 +70,20 @@ const AP_Param::GroupInfo AP_Torqeedo_Params::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SERVO_FN", 8, AP_Torqeedo_Params, servo_fn, (int16_t)SRV_Channel::k_throttle),
 
+    // @Param: AUTO_RST
+    // @DisplayName: Torqeedo Auto Reset
+    // @Description: Torqeedo auto reset.  If enabled, the motor will be reset if it is not healthy
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    AP_GROUPINFO("AUTO_RST", 8, AP_Torqeedo_Params, auto_reset, 1),
+
+    // @Param: EXT_BATT
+    // @DisplayName: Torqeedo External Battery
+    // @Description: Torqeedo external battery.  If enabled, battery status will be requested from the battery
+    // @Values: 0:Disabled,1:Enabled
+    // @User: Advanced
+    AP_GROUPINFO("EXT_BATT", 9, AP_Torqeedo_Params, ext_batt, 0),
+
     AP_GROUPEND
 };
 

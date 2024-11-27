@@ -21,6 +21,6 @@ public:
     AP_Float slew_time;    // slew rate specified as the minimum number of seconds required to increase the throttle from 0 to 100%.  A value of zero disables the limit
     AP_Float dir_delay;    // direction change delay.  output will remain at zero for this many seconds when transitioning between forward and backwards rotation
     AP_Int16 servo_fn;     // servo output function number
-    AP_Int8 _auto_reset;    // whether to auto reset the motor if it goes into an error state (0:disabled, 1:enabled)
-    AP_Int8 _ext_batt;      // whether to use external battery (0:disabled, 1:enabled)
+    AP_Int8 auto_reset;    // whether to auto reset the motor if it goes into an error state (0:disabled, 1:enabled)
+    AP_Int8 ext_batt;      // whether to use external battery (0:disabled, 1:enabled)
 };
