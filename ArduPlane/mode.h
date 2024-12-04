@@ -9,6 +9,13 @@
 #include "quadplane.h"
 #include <AP_AHRS/AP_AHRS.h>
 #include <AP_Mission/AP_Mission.h>
+#include "pullup.h"
+
+#ifndef AP_QUICKTUNE_ENABLED
+#define AP_QUICKTUNE_ENABLED HAL_QUADPLANE_ENABLED
+#endif
+
+#include <AP_Quicktune/AP_Quicktune.h>
 
 class AC_PosControl;
 class AC_AttitudeControl_Multi;
@@ -80,7 +87,7 @@ public:
     // returns true if the vehicle can be armed in this mode
     bool pre_arm_checks(size_t buflen, char *buffer) const;
 
-    // Reset rate and steering controllers
+    // Reset rate and steering and TECS controllers
     void reset_controllers();
 
     //
@@ -141,6 +148,11 @@ public:
     // true if voltage correction should be applied to throttle
     virtual bool use_battery_compensation() const;
 
+#if AP_QUICKTUNE_ENABLED
+    // does this mode support VTOL quicktune?
+    virtual bool supports_quicktune() const { return false; }
+#endif
+
 protected:
 
     // subclasses override this to perform checks before entering the mode
@@ -157,6 +169,9 @@ protected:
 
     // Output pilot throttle, this is used in stabilized modes without auto throttle control
     void output_pilot_throttle();
+
+    // makes the initialiser list in the constructor manageable
+    uint8_t unused_integer;
 
 #if HAL_QUADPLANE_ENABLED
     // References for convenience, used by QModes
@@ -208,6 +223,7 @@ protected:
 class ModeAuto : public Mode
 {
 public:
+    friend class Plane;
 
     Number mode_number() const override { return Number::AUTO; }
     const char *name() const override { return "AUTO"; }
@@ -233,7 +249,13 @@ public:
     void do_nav_delay(const AP_Mission::Mission_Command& cmd);
     bool verify_nav_delay(const AP_Mission::Mission_Command& cmd);
 
+    bool verify_altitude_wait(const AP_Mission::Mission_Command& cmd);
+
     void run() override;
+
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+    bool in_pullup() const { return pullup.in_pullup(); }
+#endif
 
 protected:
 
@@ -249,6 +271,16 @@ private:
         uint32_t time_start_ms;
     } nav_delay;
 
+    // wiggle state and timer for NAV_ALTITUDE_WAIT
+    void wiggle_servos();
+    struct {
+        uint8_t stage;
+        uint32_t last_ms;
+    } wiggle;
+
+#if AP_PLANE_GLIDER_PULLUP_ENABLED
+    GliderPullup pullup;
+#endif // AP_PLANE_GLIDER_PULLUP_ENABLED
 };
 
 
@@ -304,6 +336,9 @@ protected:
 
     bool _enter() override;
     bool _pre_arm_checks(size_t buflen, char *buffer) const override { return true; }
+#if AP_QUICKTUNE_ENABLED
+    bool supports_quicktune() const override { return true; }
+#endif
 
 private:
     float active_radius_m;
@@ -641,6 +676,9 @@ public:
 protected:
 
     bool _enter() override;
+#if AP_QUICKTUNE_ENABLED
+    bool supports_quicktune() const override { return true; }
+#endif
 };
 
 class ModeQLoiter : public Mode
@@ -667,6 +705,10 @@ protected:
 
     bool _enter() override;
     uint32_t last_target_loc_set_ms;
+
+#if AP_QUICKTUNE_ENABLED
+    bool supports_quicktune() const override { return true; }
+#endif
 };
 
 class ModeQLand : public Mode
@@ -808,6 +850,12 @@ protected:
     Location start_loc;
 
     bool _enter() override;
+
+private:
+
+    // flag that we have already called autoenable fences once in MODE TAKEOFF
+    bool have_autoenabled_fences;
+
 };
 
 #if HAL_SOARING_ENABLED

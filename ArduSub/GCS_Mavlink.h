@@ -22,6 +22,7 @@ protected:
     MAV_RESULT _handle_command_preflight_calibration(const mavlink_command_int_t &packet, const mavlink_message_t &msg) override;
 
     MAV_RESULT handle_command_int_packet(const mavlink_command_int_t &packet, const mavlink_message_t &msg) override;
+    MAV_RESULT handle_command_int_do_reposition(const mavlink_command_int_t &packet);
 
     // override sending of scaled_pressure3 to send on-board temperature:
     void send_scaled_pressure3() override;
@@ -35,6 +36,10 @@ protected:
     void send_pid_tuning() override;
 
     uint64_t capabilities() const override;
+
+    // Send the mode with the given index (not mode number!) return the total number of modes
+    // Index starts at 1
+    uint8_t send_available_mode(uint8_t index) const override;
 
 private:
 
