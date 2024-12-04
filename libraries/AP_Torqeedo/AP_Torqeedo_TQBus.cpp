@@ -987,6 +987,13 @@ bool AP_Torqeedo_TQBus::send_message(const uint8_t msg_contents[], uint8_t num_b
     }
     send_buff[send_buff_num_bytes++] = TORQEEDO_PACKET_FOOTER;
 
+    // add padding byte
+    if (send_buff_num_bytes >= ARRAY_SIZE(send_buff)) {
+        _parse_error_count++;
+        return false;
+    }
+    send_buff[send_buff_num_bytes++] = 0xFF;
+
     // set send pin
     send_start();
 
