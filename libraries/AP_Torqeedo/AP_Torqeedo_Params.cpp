@@ -75,14 +75,14 @@ const AP_Param::GroupInfo AP_Torqeedo_Params::var_info[] = {
     // @Description: Torqeedo auto reset.  If enabled, the motor will be reset if it is not healthy
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("AUTO_RST", 8, AP_Torqeedo_Params, auto_reset, 1),
+    AP_GROUPINFO("AUTO_RST", 9, AP_Torqeedo_Params, auto_reset, 1),
 
     // @Param: EXT_BATT
     // @DisplayName: Torqeedo External Battery
     // @Description: Torqeedo external battery.  If enabled, battery status will be requested from the battery
     // @Values: 0:Disabled,1:Enabled
     // @User: Advanced
-    AP_GROUPINFO("EXT_BATT", 9, AP_Torqeedo_Params, ext_batt, 0),
+    AP_GROUPINFO("EXT_BATT", 10, AP_Torqeedo_Params, ext_batt, 0),
 
     AP_GROUPEND
 };
