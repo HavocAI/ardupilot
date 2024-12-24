@@ -38,8 +38,7 @@
 
 namespace orca {
 
-bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len,
-                          ActuatorState &state) {
+bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len) {
   if (buff_len < WRITE_REG_MSG_RSP_LEN) {
     return false;
   }
@@ -49,8 +48,6 @@ bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len,
           rcvd_buff[WriteRegRsp::Idx::REG_ADDR_LO]) {
     case static_cast<uint16_t>(Register::CTRL_REG_3):
       // Mode of operation was set
-      state.mode =
-          static_cast<OperatingMode>(rcvd_buff[WriteRegRsp::Idx::DATA_LO]);
       break;
     default:
       GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
@@ -301,7 +298,8 @@ void AP_IrisOrca::thread_main()
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialized");
 
     _control_state = orca::MotorControlState::CONFIGURING;
-    bool waiting_for_auto_zero = false;
+    bool auto_zero_commanded = false;
+    bool auto_zero_in_progress = false;
 
     while (true)
     {
@@ -314,80 +312,92 @@ void AP_IrisOrca::thread_main()
                 // send sleep command if in error state to attempt to clear the error
                 // Note: Errors are initialized to 2048 (comm error) so that sleep should be the
                 // first command sent on boot
-                send_actuator_sleep_cmd();
+                if (safe_to_send()) {
+                    send_actuator_sleep_cmd();
+                }
                 if (now_ms - _last_error_report_ms > IRISORCA_ERROR_REPORT_INTERVAL_MAX_MS) {
                     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: Error %i", _actuator_state.errors);
                     _last_error_report_ms = now_ms;
                 }
-                continue;
             }
             
             // no errors - execute per control state
-            switch (_control_state)
+            else 
             {
-                case orca::MotorControlState::CONFIGURING:
-                    // Send a write multiple registers command to set the position controller params
-                    // and the auto-zero params
-                    // Exit this mode to auto-zero mode if both are set
-                    if (!_actuator_state.pc_params_set) {
-                        if (safe_to_send()) {
-                            send_position_controller_params();
-                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring position controller params");
+                switch (_control_state)
+                {
+                    case orca::MotorControlState::CONFIGURING:
+                        // Send a write multiple registers command to set the position controller params
+                        // and the auto-zero params
+                        // Exit this mode to auto-zero mode if both are set
+                        if (!_actuator_state.pc_params_set) {
+                            if (safe_to_send()) {
+                                send_position_controller_params();
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring position controller params");
+                            }
                         }
-                    }
-                    else if (!_actuator_state.auto_zero_params_set) {
-                        if (safe_to_send()) {
-                            send_auto_zero_params();
-                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring zero params");
+                        else if (!_actuator_state.auto_zero_params_set) {
+                            if (safe_to_send()) {
+                                send_auto_zero_params();
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring zero params");
+                            }
                         }
-                    }
-                    else {
-                        // both sets of params have been set
-                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuration complete");
-                        _control_state = orca::MotorControlState::AUTO_ZERO;
-                    }
-                    break;
+                        else {
+                            // both sets of params have been set
+                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuration complete");
+                            _control_state = orca::MotorControlState::AUTO_ZERO;
+                        }
+                        break;
 
-                case orca::MotorControlState::AUTO_ZERO:
-                    // Auto-zero mode is initiated by sending a write register command to the actuator with the 
-                    // mode set to AUTO_ZERO. The actuator will then transition to AUTO_ZERO mode and will exit this mode
-                    // to another mode (either SLEEP or POSITION) when the zero position is found.
-                    if (!waiting_for_auto_zero) {
-                        if (_actuator_state.mode == orca::OperatingMode::AUTO_ZERO) {
-                            // Capture the entry into auto-zero mode
-                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero started");
-                            waiting_for_auto_zero = true;
-                        }
-                        else if (safe_to_send()) {
+                    case orca::MotorControlState::AUTO_ZERO:
+                        // Auto-zero mode is initiated by sending a write register command to the actuator with the 
+                        // mode set to AUTO_ZERO. The actuator will then transition to AUTO_ZERO mode and will exit this mode
+                        // to another mode (either SLEEP or POSITION) when the zero position is found.
+                        if (!auto_zero_commanded) {
                             // Initiate auto-zero mode
-                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero commanded");
-                            send_auto_zero_mode_cmd();
+                            if (safe_to_send()) {
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero commanded");
+                                send_auto_zero_mode_cmd();
+                                auto_zero_commanded = true;
+                            }
+                            break;
                         }
-                    }
-                    else {
-                        // waiting for auto-zero to complete
-                        if (_actuator_state.mode != orca::OperatingMode::AUTO_ZERO) {
-                            // was auto-zeroing and has exited to another mode, therefore auto-zeroing is complete
-                            waiting_for_auto_zero = false;
-                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero complete");
-                            _control_state = orca::MotorControlState::POSITION_CONTROL;
+                        else if (auto_zero_commanded && !auto_zero_in_progress){
+                            // check if the actuator reports that it is in auto-zero mode
+                            if (_actuator_state.mode == orca::OperatingMode::AUTO_ZERO) {
+                                auto_zero_in_progress = true;
+                            }
+                            else {
+                                // try to set the mode again on next loop
+                                auto_zero_commanded = false;
+                            }
                         }
-                        else if (safe_to_send()) {
-                            // read the mode of operation to check if auto-zero is complete
+                        else if (auto_zero_commanded && auto_zero_in_progress)
+                        {
+                            if (_actuator_state.mode != orca::OperatingMode::AUTO_ZERO) {
+                                // auto-zero complete, exit to position control mode
+                                auto_zero_commanded = false;
+                                auto_zero_in_progress = false;
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero complete");
+                                _control_state = orca::MotorControlState::POSITION_CONTROL;
+                            }
+                        }
+                        if (safe_to_send()) {
+                            // read the mode of operation
                             send_actuator_status_request();
                         }
-                    }
-                    break;
-                    
-                case orca::MotorControlState::POSITION_CONTROL:
-                    // Send a position control command
-                    if (safe_to_send()) {
-                        send_actuator_position_cmd();
-                    }
-                    break;
+                        break;
+                        
+                    case orca::MotorControlState::POSITION_CONTROL:
+                        // Send a position control command
+                        if (safe_to_send()) {
+                            send_actuator_position_cmd();
+                        }
+                        break;
 
-                default:
-                    break;
+                    default:
+                        break;
+                }
             }
         }
         
@@ -801,13 +811,13 @@ bool AP_IrisOrca::parse_message()
     switch (static_cast<orca::FunctionCode>(_received_buff[1])) 
     {
         case orca::FunctionCode::WRITE_REGISTER:
-            return parse_write_register(_received_buff, _reply_msg_len, _actuator_state);
+            return orca::parse_write_register(_received_buff, _reply_msg_len);
         case orca::FunctionCode::WRITE_MULTIPLE_REGISTERS:
-            return parse_multiple_write_registers(_received_buff, _reply_msg_len, _actuator_state);
+            return orca::parse_multiple_write_registers(_received_buff, _reply_msg_len, _actuator_state);
         case orca::FunctionCode::MOTOR_COMMAND_STREAM:
-            return parse_motor_command_stream(_received_buff, _reply_msg_len, _actuator_state);
+            return orca::parse_motor_command_stream(_received_buff, _reply_msg_len, _actuator_state);
         case orca::FunctionCode::MOTOR_READ_STREAM:
-            return parse_motor_read_stream(_received_buff, _reply_msg_len, _actuator_state);
+            return orca::parse_motor_read_stream(_received_buff, _reply_msg_len, _actuator_state);
         default:
             GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: Unexpected message");
             return false;

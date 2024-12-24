@@ -282,12 +282,10 @@ namespace orca {
      * 
      * @param[in] rcvd_buff The buffer containing received response data
      * @param[in] buff_len The length of the received buffer
-     * @param[out] state (output parameter) State data of the actuator to populate with response.
-     * Currently only updates the mode.
      * @return true response successfully parsed 
      * @return false response parsing failed
      */
-    bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
+    bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len);
 
     /**
      * @brief Parse the response to a 0x10 Multiple Write Registers message.
