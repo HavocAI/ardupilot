@@ -315,6 +315,7 @@ void AP_IrisOrca::thread_main()
                 if (safe_to_send()) {
                     send_actuator_sleep_cmd();
                 }
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: Error %i - sending sleep command", _actuator_state.errors);
                 if (now_ms - _last_error_report_ms > IRISORCA_ERROR_REPORT_INTERVAL_MAX_MS) {
                     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: Error %i", _actuator_state.errors);
                     _last_error_report_ms = now_ms;
@@ -353,12 +354,13 @@ void AP_IrisOrca::thread_main()
                         // Auto-zero mode is initiated by sending a write register command to the actuator with the 
                         // mode set to AUTO_ZERO. The actuator will then transition to AUTO_ZERO mode and will exit this mode
                         // to another mode (either SLEEP or POSITION) when the zero position is found.
-                        if (!auto_zero_commanded) {
+                        if (!auto_zero_commanded || _actuator_state.mode == orca::OperatingMode::SLEEP) {
                             // Initiate auto-zero mode
                             if (safe_to_send()) {
                                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero commanded");
                                 send_auto_zero_mode_cmd();
                                 auto_zero_commanded = true;
+                                auto_zero_in_progress = false;
                             }
                             break;
                         }
@@ -366,16 +368,19 @@ void AP_IrisOrca::thread_main()
                             // check if the actuator reports that it is in auto-zero mode
                             if (_actuator_state.mode == orca::OperatingMode::AUTO_ZERO) {
                                 auto_zero_in_progress = true;
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero in progress");
                             }
                             else {
                                 // try to set the mode again on next loop
                                 auto_zero_commanded = false;
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero command failed");
                             }
                         }
                         else if (auto_zero_commanded && auto_zero_in_progress)
                         {
-                            if (_actuator_state.mode != orca::OperatingMode::AUTO_ZERO) {
-                                // auto-zero complete, exit to position control mode
+                            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero in progress 2");
+                            if (_actuator_state.mode == orca::OperatingMode::POSITION) {
+                                // auto-zero complete (Orca exits to position mode), exit to position control mode
                                 auto_zero_commanded = false;
                                 auto_zero_in_progress = false;
                                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto-zero complete");
@@ -401,8 +406,8 @@ void AP_IrisOrca::thread_main()
             }
         }
         
-        // 1ms loop delay
-        hal.scheduler->delay_microseconds(1000);
+        // 2ms loop delay
+        hal.scheduler->delay_microseconds(2000);
 
         // check if transmit pin should be unset
         check_for_send_end();
@@ -758,7 +763,7 @@ void AP_IrisOrca::send_auto_zero_params()
     data[2] = HIGHBYTE(_auto_zero_f_max);
     data[3] = LOWBYTE(_auto_zero_f_max);
     data[4] = 0x00;
-    data[5] = 0x01; // Exit to sleep mode after auto-zero
+    data[5] = 0x03; // Exit to position mode after auto-zero
 
     // send message
     if (write_multiple_registers((uint16_t)orca::Register::ZERO_MODE, 3, (uint8_t *)data)){

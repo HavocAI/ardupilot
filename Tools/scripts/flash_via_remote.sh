@@ -83,7 +83,7 @@ fi
 # Run the uploader.py script on the remote machine
 sshpass -p "$PASSWORD" ssh -o StrictHostKeyChecking=no "$IP_ADDRESS" << EOF
     cd "$REMOTE_DIR"
-    python3 uploader.py ardurover.apj
+    python3 uploader.py ardurover.apj --port /dev/ttyACM0
 EOF
 
 # Check the exit status of the ssh command, if it failed, display error and exit
