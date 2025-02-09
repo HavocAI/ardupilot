@@ -125,15 +125,17 @@ class FixedMagCal(MavCommandHandler):
         gps_message = self.master.recv_match(type='GPS_RAW_INT', blocking=True, timeout=5)
         if gps_message is None or gps_message.fix_type < 2:
             self.print_error("No lat/lon specified and invalid GPS fix. Mag cal failed.")
-            return False
+            return 0.0, 0.0
         print(f"GPS fix acquired: fix_type={gps_message.fix_type}, lat={gps_message.lat / 1e7}, lon={gps_message.lon / 1e7}")
-        return True
+        return gps_message.lat / 1e7, gps_message.lon / 1e7
 
     def calibrate_fixed_mag(self, yaw_deg, lat_deg, lon_deg):
         """Perform fixed magnetometer calibration with the given yaw and coordinates."""
         if lat_deg == 0.0 and lon_deg == 0.0:
-            if not self.check_gps_fix():
+            if self.check_gps_fix() == (0.0, 0.0):
                 return  # Exit if no valid GPS fix
+            else:
+                lat_deg, lon_deg = self.check_gps_fix()
 
         params = [yaw_deg, 0.0, lat_deg, lon_deg, 0.0, 0.0, 0.0]
         self.send_command(self.MAV_CMD_FIXED_MAG_CAL_YAW, params)
