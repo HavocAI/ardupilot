@@ -1,5 +1,5 @@
 """
-update_bootloader.py
+ap_initial_setup.py
 
 This script uses pymavlink to send commands to do the following:
 1. Update the bootloader (assuming a new bootloader has been uploaded to the vehicle)
@@ -9,7 +9,7 @@ This script uses pymavlink to send commands to do the following:
     vehicle and only updating those that are different
 
 Usage:
-    python3 update_bootloader.py --connect <connection_string> --lat <latitude> 
+    python3 ap_initial_setup.py --connect <connection_string> --lat <latitude> 
         --lon <longitude> --heading <heading> --param-file <param_file>
 
 Arguments:
@@ -281,7 +281,7 @@ class ParamSetter(MavCommandHandler):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MAVLink command handler script.")
+    parser = argparse.ArgumentParser(description="Initial setup script for Autopilot.")
     parser.add_argument('--connect', required=True, help="Connection string (e.g., /dev/ttyACM0, tcp:127.0.0.1:5760)")
     parser.add_argument('--lat', type=float, default=0.0, help="Latitude for calibration (default: 0.0 to use current GPS)")
     parser.add_argument('--lon', type=float, default=0.0, help="Longitude for calibration (default: 0.0 to use current GPS)")
