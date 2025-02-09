@@ -44,7 +44,7 @@ fi
 # Assign arguments to variables
 IP_ADDRESS=$1
 PASSWORD=$2
-ARDUROVER_DIR=${3:-../../build/CubeOrangePlus/bin}
+ARDUROVER_DIR=${3:-../../../build/CubeOrangePlus/bin}
 
 # Define the remote directory
 REMOTE_DIR="/havoc/ardurover_flash"
@@ -71,7 +71,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Copy uploader.py and contents of ARDUROVER_DIR to the remote machine
-sshpass -p "$PASSWORD" scp -O -o StrictHostKeyChecking=no uploader.py "$IP_ADDRESS:$REMOTE_DIR/"
+sshpass -p "$PASSWORD" scp -O -o StrictHostKeyChecking=no ../uploader.py "$IP_ADDRESS:$REMOTE_DIR/"
 sshpass -p "$PASSWORD" scp -O -o StrictHostKeyChecking=no -r "$ARDUROVER_DIR"/* "$IP_ADDRESS:$REMOTE_DIR/"
 
 # Check the exit status of the scp commands, if they failed, display error and exit
