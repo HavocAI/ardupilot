@@ -700,6 +700,12 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(iris_orca, "ORCA_", 58, ParametersG2, AP_IrisOrca),
 #endif
 
+#if HAL_FORTVSC_ENABLED
+    // @Group: FORT_
+    // @Path: ../libraries/AP_FortVSC/AP_FortVSC.cpp
+    AP_SUBGROUPINFO(fort, "FORT_", 59, ParametersG2, AP_FortVsc),
+#endif
+
     AP_GROUPEND
 };
 

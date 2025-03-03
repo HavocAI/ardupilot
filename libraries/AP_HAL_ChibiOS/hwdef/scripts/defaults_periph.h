@@ -68,6 +68,10 @@
 #define HAL_IRISORCA_ENABLED 0
 #endif
 
+#ifndef HAL_FORTVSC_ENABLED
+#define HAL_FORTVSC_ENABLED 0
+#endif
+
 #ifndef AP_KDECAN_ENABLED
 #define AP_KDECAN_ENABLED 0
 #endif

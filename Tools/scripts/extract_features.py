@@ -72,6 +72,8 @@ class ExtractFeatures(object):
 
             ('HAL_IRISORCA_ENABLED', 'AP_IrisOrca::AP_IrisOrca',),
 
+            ('AP_FORTVSC_ENABLED', 'AP_FortVsc::AP_FortVsc',),
+
             ('HAL_NAVEKF3_AVAILABLE', 'NavEKF3::NavEKF3',),
             ('HAL_NAVEKF2_AVAILABLE', 'NavEKF2::NavEKF2',),
             ('HAL_EXTERNAL_AHRS_ENABLED', r'AP_ExternalAHRS::init\b',),

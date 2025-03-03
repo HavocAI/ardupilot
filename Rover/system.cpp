@@ -85,6 +85,11 @@ void Rover::init_ardupilot()
     g2.iris_orca.init();
 #endif
 
+#if HAL_FORTVSC_ENABLED
+    // init fort vsc driver
+    g2.fort.init();
+#endif
+
 #if AP_OPTICALFLOW_ENABLED
     // initialise optical flow sensor
     optflow.init(MASK_LOG_OPTFLOW);

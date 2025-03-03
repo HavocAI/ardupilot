@@ -15,6 +15,7 @@
 #include "AP_Torqeedo/AP_Torqeedo.h"
 #include "AP_IrisOrca/AP_IrisOrca.h"
 #include <AP_WindVane/AP_WindVane.h>
+#include "AP_FortVsc/AP_FortVsc.h"
 
 #define AP_PARAM_VEHICLE_NAME rover
 
@@ -441,6 +442,11 @@ public:
 #if HAL_IRISORCA_ENABLED
     // IrisOrca driver
     AP_IrisOrca iris_orca;
+#endif
+
+#if HAL_FORTVSC_ENABLED
+    // FortVSC driver
+    AP_FortVsc fort;
 #endif
 
 };
