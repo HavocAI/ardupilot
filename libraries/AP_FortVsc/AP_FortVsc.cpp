@@ -42,7 +42,6 @@ const AP_Param::GroupInfo AP_FortVsc::var_info[] = {
     AP_GROUPEND
 };
 
-
 AP_FortVsc::AP_FortVsc()
 {
     _singleton = this;
@@ -90,16 +89,23 @@ void AP_FortVsc::thread_main() {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "FortVsc: Initialized");
     
     int16_t numc;
+    uint32_t last_heartbeat_ms = AP_HAL::millis();
 
     while (true) {
         // 1ms loop delay
         hal.scheduler->delay_microseconds(1000);
 
+        // Send a heartbeat at 20 hz
+        if (AP_HAL::millis() - last_heartbeat_ms > 50) {
+            sendHeartbeatToVSC(0); // Default to no estop
+            last_heartbeat_ms = AP_HAL::millis();
+        }
+
         numc = _uart->available();
         while (numc--) {
             char c = _uart->read();
             // log_data((const uint8_t *)&c, 1);
-            if (_decode(c)) {
+            if (processNewByte(c)) {
                 processIncomingMessages();
             }
         }
@@ -136,7 +142,7 @@ void AP_FortVsc::sendPacket(fort::MessageType type, const uint8_t *data, uint8_t
     _uart->write((uint8_t *)&packet, 6 + length);
 }
 
-bool AP_FortVsc::_decode(char c) {
+bool AP_FortVsc::processNewByte(char c) {
     if (_recv_buffer_index >= fort::MAX_PACKET_SIZE + 6) {
         _recv_buffer_index = 0;
     }
@@ -241,12 +247,12 @@ bool AP_FortVsc::getJoystickData(const fort::VscPacket &packet) const {
         int16_t leftPwmValues[4];
         mapJoystickButtons(packet.data[12], leftPwmValues);
         for (int i = 0; i < 4; i++) {
-            RC_Channels::set_override(5 + i, leftPwmValues[i], tnow);
+            RC_Channels::set_override(6 + i, leftPwmValues[i], tnow);
         }
         int16_t rightPwmValues[4];
         mapJoystickButtons(packet.data[13], rightPwmValues);
         for (int i = 0; i < 4; i++) {
-            RC_Channels::set_override(9 + i, rightPwmValues[i], tnow);
+            RC_Channels::set_override(10 + i, rightPwmValues[i], tnow);
         }
         return true;
     }
@@ -292,18 +298,23 @@ void AP_FortVsc::mapJoystickButtons(uint8_t buttonData, int16_t pwmValues[4]) co
     }
 }
 
-bool AP_FortVsc::getHeartbeat(const fort::VscPacket &packet, uint8_t &vscMode, 
-    uint8_t &autonomyMode) const {
+bool AP_FortVsc::getHeartbeat(const fort::VscPacket &packet, fort::VscState &vscState) const {
     if (packet.messageType == static_cast<uint8_t>(fort::MessageType::HEARTBEAT)) {
-        vscMode = packet.data[0];
-        autonomyMode = packet.data[1];
+        vscState.vscMode = packet.data[0];
+        vscState.autonomyMode = packet.data[1];
 
         // Set the emergency stop if the VSC has set it
-        uint32_t estop;
-        memcpy(&estop, packet.data + 2, 4);
-        if (estop > 0) {
+        // Use the SRV_Channels to set the emergency stop and report status
+        memcpy(&vscState.eStopIndication, packet.data + 2, 4);
+        if (_vscState.eStopIndication > 0) {
+            if (SRV_Channels::get_emergency_stop() == 0) {
+                gcs().send_text(MAV_SEVERITY_CRITICAL, "FortVsc: Emergency stop activated");
+            }
             SRV_Channels::set_emergency_stop(1);
         } else {
+            if (SRV_Channels::get_emergency_stop() == 1) {
+                gcs().send_text(MAV_SEVERITY_INFO, "FortVsc: Emergency stop deactivated");
+            }
             SRV_Channels::set_emergency_stop(0);
         }
 
@@ -312,12 +323,12 @@ bool AP_FortVsc::getHeartbeat(const fort::VscPacket &packet, uint8_t &vscMode,
     return false;
 }
 
-bool AP_FortVsc::getRemoteStatus(const fort::VscPacket &packet, uint8_t &batteryLevel, 
-    uint8_t &batteryCharging, uint8_t &connectionStrength) const {
+bool AP_FortVsc::getRemoteStatus(const fort::VscPacket &packet, fort::VscState &vscState) const {
     if (packet.messageType == static_cast<uint8_t>(fort::MessageType::REMOTE_STATUS)) {
-        batteryLevel = packet.data[0];
-        batteryCharging = packet.data[1];
-        connectionStrength = packet.data[2];
+        vscState.batteryLevel = packet.data[0];
+        vscState.batteryCharging = packet.data[1];
+        vscState.connectionStrengthPerVsc = packet.data[2];
+        vscState.connectionStrengthPerSrc = packet.data[3];
         return true;
     }
     return false;
@@ -330,12 +341,10 @@ void AP_FortVsc::processIncomingMessages() {
             getJoystickData(_current_packet);
             break;
         case fort::MessageType::HEARTBEAT:
-            uint8_t vscMode, autonomyMode;
-            getHeartbeat(_current_packet, vscMode, autonomyMode);
+            getHeartbeat(_current_packet, _vscState);
             break;
         case fort::MessageType::REMOTE_STATUS:
-            uint8_t batteryLevel, batteryCharging, connectionStrength;
-            getRemoteStatus(_current_packet, batteryLevel, batteryCharging, connectionStrength);
+            getRemoteStatus(_current_packet, _vscState);
             break;
         default:
             break;

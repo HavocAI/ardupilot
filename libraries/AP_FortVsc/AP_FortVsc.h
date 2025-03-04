@@ -59,6 +59,16 @@ namespace fort {
         uint16_t checksum;
     };
 
+    // VSC state structure
+    struct VscState {
+        uint8_t vscMode;
+        uint8_t autonomyMode;
+        uint32_t eStopIndication;
+        uint8_t batteryLevel;
+        uint8_t batteryCharging;
+        uint8_t connectionStrengthPerVsc;
+        uint8_t connectionStrengthPerSrc;
+    };
 }
 
 class AP_FortVsc {
@@ -104,6 +114,9 @@ private:
     // send a user feedback get message to the VSC
     void sendUserFeedbackGet(uint8_t key);
 
+    // send a user feedback name string message to the VSC
+    void sendUserFeedbackName(uint8_t key, const char *name);
+
     // get data from a joystick message and set RC overrides
     bool getJoystickData(const fort::VscPacket &packet) const;
 
@@ -114,14 +127,13 @@ private:
     void mapJoystickButtons(uint8_t buttonData, int16_t pwmValues[4]) const;
 
     // get data from a heartbeat message
-    bool getHeartbeat(const fort::VscPacket &packet, uint8_t &vscMode, uint8_t &autonomyMode) const;
+    bool getHeartbeat(const fort::VscPacket &packet, fort::VscState &vscState) const;
 
     // get data from a remote status message
-    bool getRemoteStatus(const fort::VscPacket &packet, uint8_t &batteryLevel, 
-        uint8_t &batteryCharging, uint8_t &connectionStrength) const;
+    bool getRemoteStatus(const fort::VscPacket &packet, fort::VscState &vscState) const;
 
     // decode one character, return true if we have successfully completed a msg, false otherwise
-    bool _decode(char c);
+    bool processNewByte(char c);
 
     // Process complete incoming messages
     void processIncomingMessages();
@@ -134,6 +146,7 @@ private:
     // members
     AP_HAL::UARTDriver *_uart;         // serial port to communicate with VSC
     bool _initialized;                 // true once driver has been initialized
+    fort::VscState _vscState;
 
     // parsing members
     uint8_t _recv_buffer[fort::MAX_PACKET_SIZE + 6];   // buffer for incoming data
