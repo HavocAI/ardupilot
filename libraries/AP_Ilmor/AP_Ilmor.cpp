@@ -22,7 +22,8 @@
     Motor trim can be commanded on a user-definable servo function (see parameters below).
     Motor trim is set using a simple controller in the driver. If trim is not being actively commanded
     up or down by the controller, it will be relinquished to the physical trim buttons. Limited
-    telemetry is available via the ESC_ telemetry information.
+    telemetry is available via the escX_ telemetry information, some of which is hacked in to the
+    multiple ESC telemetry slots.
 
     Configuring CAN Parameters in ArduRover:
     (Example shows CAN_P2 because this connects to the port marked "CAN0" on the Airbot carrier board)
@@ -31,7 +32,6 @@
     CAN_P2_BITRATE = 250000 -- Sets the 2nd CAN port bitrate
 
     Settable Parameters - Description, Default value:
-    ILMOR_ESC_IDX - Defines the index for ESC telemetry reporting ("X" in telemetry outputs below), 0
     ILMOR_MAX_RPM - Maximum RPM in forward, 1600
     ILMOR_MIN_RPM - Minimum RPM in reverse, -500
     ILMOR_MAX_TRIM - Maximum trim (full up), 254
@@ -40,11 +40,14 @@
     (see https://ardupilot.org/rover/docs/parameters.html#servo1-function-servo-output-function)
 
     Telemetry Outputs:
-    escX_curr = Ilmor Battery Current (A)
-    escX_rpm = Ilmor eRPM / 5 (aka. prop RPM)
-    escX_temp = Ilmor Motor Temperature (centi-deg)
-    escX_volt = Ilmor Low Precision Battery Voltage (V)
-
+    esc1_curr = Ilmor Battery Current (A)
+    esc1_rpm  = Ilmor eRPM / 5 (aka. prop RPM)
+    esc1_temp = Ilmor Motor Temperature (centi-deg)
+    esc1_volt = Ilmor Low Precision Battery Voltage (V)
+    esc2_curr = Ilmor Motor Current (A)
+    esc2_temp = Ilmor MOSFET Temperature (centi-deg)
+    esc3_volt = Ilmor Total Wh consumed since boot (Wh)
+    esc3_curr = Ilmor Total Ah consumed since boot (Ah)
 */
 
 #include "AP_Ilmor.h"
@@ -102,14 +105,6 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("TRIM_FN", 4, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_mount_tilt),
-
-    // @Param: ESC_IDX
-    // @DisplayName: Ilmor ESC Index
-    // @Description: Ilmor ESC Index, by default this is set to 0
-    // @Values: 0:15
-    // @Increment: 1
-    // @User: Advanced
-    AP_GROUPINFO("ESC_IDX", 5, AP_Ilmor, _esc_idx, 0),
 
     AP_GROUPEND};
 
@@ -209,6 +204,14 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         struct ilmor_inverter_status_frame_2_t msg;
         ilmor_inverter_status_frame_2_unpack(&msg, frame.data, frame.dlc);
         handle_inverter_status_frame_2(msg);
+        break;
+    }
+    case ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID:
+    {
+        // Wh consumed
+        struct ilmor_inverter_status_frame_3_t msg;
+        ilmor_inverter_status_frame_3_unpack(&msg, frame.data, frame.dlc);
+        handle_inverter_status_frame_3(msg);
         break;
     }
     case ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID:
@@ -379,29 +382,58 @@ void AP_Ilmor_Driver::handle_icu_status_frame_1(const struct ilmor_icu_status_fr
 
 void AP_Ilmor_Driver::handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg)
 {
-    update_rpm(AP::ilmor()->get_esc_idx(), int32_t(msg.e_rpm / 5)); // Divide by 5 to get Prop RPM
+    update_rpm(0, int32_t(msg.e_rpm / 5)); // Divide by 5 to get Prop RPM
+    // Hack the motor current into the next ESC telemetry slot
+    const TelemetryData t = {
+        .current = float(msg.motor_current),
+    };
+    update_telem_data(1, t,
+                      AP_ESC_Telem_Backend::TelemetryType::CURRENT);
 }
 
 void AP_Ilmor_Driver::handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg)
 {
     const TelemetryData t = {
+        .current = float(msg.ah_consumed),
         .consumption_mah = float((msg.ah_consumed) * 1000.0f),
     };
-    update_telem_data(AP::ilmor()->get_esc_idx(), t,
+    // Hack the current into the next+1 ESC telemetry slot
+    update_telem_data(2, t,
+                      AP_ESC_Telem_Backend::TelemetryType::CURRENT);
+
+    // Put the current consumption into our ESC telemetry slot
+    // Note that this is not available via Mavlink, hence the use of the hack above
+    update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::CONSUMPTION);
+}
+
+void AP_Ilmor_Driver::handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg)
+{
+    const TelemetryData t = {
+        .voltage = float(msg.wh_consumed),
+    };
+    // Hack the Wh consumed into the next ESC telemetry slot
+    update_telem_data(2, t,
+                      AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 }
 
 void AP_Ilmor_Driver::handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg)
 {
     const TelemetryData t = {
-        .temperature_cdeg = int16_t(msg.mosfet_temperature * 100),
         .current = float(msg.battery_current),
         .motor_temp_cdeg = int16_t(msg.motor_temperature * 100),
     };
-    update_telem_data(AP::ilmor()->get_esc_idx(), t,
-                      AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE |
-                          AP_ESC_Telem_Backend::TelemetryType::CURRENT |
+    update_telem_data(0, t,
+                      AP_ESC_Telem_Backend::TelemetryType::CURRENT |
                           AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE);
+    // Hack the MOSFET temperature into the next ESC telemetry slot 
+    // Note that only .motor_temperature is available via Mavlink, not .temperature
+    const TelemetryData t2 = {
+        .motor_temp_cdeg = int16_t(msg.mosfet_temperature * 100),
+    };
+    update_telem_data(1, t2,
+                      AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE);
+
 #if AP_ILMOR_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: MOSFET Temp %d, Motor Temp %d, Battery Current %f",
                       (int)msg.mosfet_temperature * 100, (int)msg.motor_temperature * 100, float(msg.battery_current));
@@ -413,7 +445,7 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_5(const struct ilmor_inverter
     const TelemetryData t = {
         .voltage = float(msg.low_precision_battery_voltage),
     };
-    update_telem_data(AP::ilmor()->get_esc_idx(), t,
+    update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 }
 

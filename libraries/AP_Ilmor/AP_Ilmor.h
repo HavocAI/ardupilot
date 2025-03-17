@@ -54,6 +54,7 @@ private:
     void handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t &msg);
     void handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg);
     void handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg);
+    void handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg);
     void handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg);
     void handle_inverter_status_frame_5(const struct ilmor_inverter_status_frame_5_t &msg);
 
@@ -91,7 +92,6 @@ public:
     int8_t get_min_trim() const { return _min_trim.get(); }
     int8_t get_max_trim() const { return _max_trim.get(); }
     int16_t get_trim_fn() const { return _trim_fn.get(); }
-    int16_t get_esc_idx() const { return _esc_idx.get(); }
 
 private:
     static AP_Ilmor *_singleton;
@@ -104,7 +104,6 @@ private:
     AP_Int8 _min_trim;
     AP_Int8 _max_trim;
     AP_Int8 _trim_fn;
-    AP_Int8 _esc_idx;
 
 };
 namespace AP
