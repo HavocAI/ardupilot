@@ -17,6 +17,7 @@
 #include <AP_Proximity/AP_Proximity.h>
 #include <AP_EFI/AP_EFI.h>
 #include <AP_KDECAN/AP_KDECAN.h>
+#include <AP_Ilmor/AP_Ilmor.h>
 #include <AP_MSP/AP_MSP.h>
 #include <AP_MSP/msp.h>
 #include <AP_TemperatureSensor/AP_TemperatureSensor.h>
@@ -333,6 +334,10 @@ public:
 
 #if AP_KDECAN_ENABLED
     AP_KDECAN kdecan;
+#endif
+
+#if HAL_ILMOR_ENABLED
+    AP_Ilmor ilmor;
 #endif
     
 #ifdef HAL_PERIPH_ENABLE_ESC_APD
