@@ -41,7 +41,7 @@
 
     Telemetry Outputs:
     escX_curr = Ilmor Battery Current (A)
-    escX_rpm = Ilmor eRPM x 5 (aka. prop RPM)
+    escX_rpm = Ilmor eRPM / 5 (aka. prop RPM)
     escX_temp = Ilmor Motor Temperature (centi-deg)
     escX_volt = Ilmor Low Precision Battery Voltage (V)
 
@@ -379,7 +379,7 @@ void AP_Ilmor_Driver::handle_icu_status_frame_1(const struct ilmor_icu_status_fr
 
 void AP_Ilmor_Driver::handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg)
 {
-    update_rpm(AP::ilmor()->get_esc_idx(), int32_t(msg.e_rpm * 5)); // Multiply by 5 to get Prop RPM
+    update_rpm(AP::ilmor()->get_esc_idx(), int32_t(msg.e_rpm / 5)); // Divide by 5 to get Prop RPM
 }
 
 void AP_Ilmor_Driver::handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg)
