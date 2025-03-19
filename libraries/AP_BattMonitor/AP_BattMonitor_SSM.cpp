@@ -18,6 +18,14 @@
     Author: Andrew Gregg
 
     Description:
+    This class is a backend for the AP_BattMonitor class that interfaces with the Solid State Marine
+    (SSM) Battery over CAN. The driver sends a request frame to the battery every 2 seconds and
+    listens for responses. The battery sends back a variety of information including cell voltages,
+    total voltage, current, consumed energy, temperature, and faults. 
+
+    Note: Individual cell voltages are not reported because Battery Manager will use these to 
+    override the total voltage value and SSM battery strangely reports voltages for the wrong number 
+    of cells, so the sum would be incorrect.
 
     Configuring Parameters in ArduRover:
     (Example shows CAN_P2 because this connects to the port marked "CAN0" on the Airbot carrier board)
@@ -26,9 +34,12 @@
     CAN_P2_BITRATE = 250000 -- Sets the 2nd CAN port bitrate
     BATT_MONITOR = 31 -- Sets the battery monitor to SSM
 
-    Settable Parameters - Description, Default value:
-
     Telemetry Outputs:
+    - Battery Voltage
+    - Battery Current
+    - Battery Remaining Capacity
+    - Battery Temperature
+    - Battery Faults
 
 */
 
@@ -42,7 +53,7 @@
 
 extern const AP_HAL::HAL &hal;
 
-#define AP_SSMBATTERY_DEBUG 1
+#define AP_SSMBATTERY_DEBUG 0
 #define AP_BATT_MONITOR_SSM_TIMEOUT_US 5000000
 
 // Constructor
