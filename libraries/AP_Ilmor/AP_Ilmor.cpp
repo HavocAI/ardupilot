@@ -385,7 +385,7 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_1(const struct ilmor_inverter
     update_rpm(0, int32_t(msg.e_rpm / 5)); // Divide by 5 to get Prop RPM
     // Hack the motor current into the next ESC telemetry slot
     const TelemetryData t = {
-        .current = float(msg.motor_current),
+        .current = float(msg.motor_current) / 10.0f,
     };
     update_telem_data(1, t,
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT);
@@ -394,8 +394,7 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_1(const struct ilmor_inverter
 void AP_Ilmor_Driver::handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg)
 {
     const TelemetryData t = {
-        .current = float(msg.ah_consumed),
-        .consumption_mah = float((msg.ah_consumed) * 1000.0f),
+        .consumption_mah = float((msg.ah_consumed) / 10.0f),
     };
     // Hack the current into the next+1 ESC telemetry slot
     update_telem_data(2, t,
@@ -410,7 +409,7 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_2(const struct ilmor_inverter
 void AP_Ilmor_Driver::handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg)
 {
     const TelemetryData t = {
-        .voltage = float(msg.wh_consumed),
+        .voltage = float(msg.wh_consumed) / 10000.0f,
     };
     // Hack the Wh consumed into the next ESC telemetry slot
     update_telem_data(2, t,
@@ -420,8 +419,8 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_3(const struct ilmor_inverter
 void AP_Ilmor_Driver::handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg)
 {
     const TelemetryData t = {
-        .current = float(msg.battery_current),
-        .motor_temp_cdeg = int16_t(msg.motor_temperature * 100),
+        .motor_temp_cdeg = int16_t(msg.motor_temperature * 10),
+        .current = float(msg.battery_current) / 10.0f,
     };
     update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT |
@@ -429,7 +428,7 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_4(const struct ilmor_inverter
     // Hack the MOSFET temperature into the next ESC telemetry slot 
     // Note that only .motor_temperature is available via Mavlink, not .temperature
     const TelemetryData t2 = {
-        .motor_temp_cdeg = int16_t(msg.mosfet_temperature * 100),
+        .motor_temp_cdeg = int16_t(msg.mosfet_temperature * 10),
     };
     update_telem_data(1, t2,
                       AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE);
@@ -443,7 +442,7 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_4(const struct ilmor_inverter
 void AP_Ilmor_Driver::handle_inverter_status_frame_5(const struct ilmor_inverter_status_frame_5_t &msg)
 {
     const TelemetryData t = {
-        .voltage = float(msg.low_precision_battery_voltage),
+        .voltage = float(msg.low_precision_battery_voltage) / 10.0f,
     };
     update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);

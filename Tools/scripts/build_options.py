@@ -61,7 +61,6 @@ BUILD_OPTIONS = [
     Feature('Battery', 'BATTERY_SUM', 'AP_BATTERY_SUM_ENABLED', 'Enable Synthetic sum-of-other-batteries backend', 0, None), # noqa: E501
     Feature('Battery', 'BATTERY_WATT_MAX', 'AP_BATTERY_WATT_MAX_ENABLED', 'Enable BATT_WATT_MAX parameter', 0, None), # noqa: E501
 
-
     Feature('Ident', 'ADSB', 'HAL_ADSB_ENABLED', 'Enable ADSB', 0, None),
     Feature('Ident', 'ADSB_SAGETECH', 'HAL_ADSB_SAGETECH_ENABLED', 'Enable Sagetech ADSB', 0, 'ADSB'),
     Feature('Ident', 'ADSB_SAGETECH_MXS', 'HAL_ADSB_SAGETECH_MXS_ENABLED', 'Enable Sagetech MXS ADSB', 0, 'ADSB'),

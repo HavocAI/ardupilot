@@ -38,6 +38,7 @@
 #include <hal.h>
 #include <AP_HAL_ChibiOS/CANIface.h>
 #include <AP_Ilmor/AP_Ilmor.h>
+#include <AP_BattMonitor/AP_BattMonitor_SSM.h>
 #endif
 
 #include <AP_Common/ExpandingString.h>

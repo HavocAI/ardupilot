@@ -30,5 +30,6 @@ public:
         TOFSenseP = 13,
         NanoRadar = 14,
         Ilmor = 15,
+        SSMBattery = 16,
     };
 };

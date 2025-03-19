@@ -30,16 +30,15 @@
 class AP_BattMonitor_SSM : public CANSensor, public AP_BattMonitor_Backend
 {
 public:
-    // Inherit constructor
-    using AP_BattMonitor_Backend::AP_BattMonitor_Backend;
+    AP_BattMonitor_SSM(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &state, AP_BattMonitor_Params &params);
 
-    bool has_consumed_energy() const override { return has_current(); }
-    bool has_current() const override { return last_update_us != 0 && !isnan(internal_state.current_amps); }
-    bool has_cell_voltages() const override { return internal_state.cell_count > 0; }
-    bool has_temperature() const override { return last_update_us != 0 && !isnan(internal_state.temperature); }
+    bool has_consumed_energy() const override { return false; }
+    bool has_current() const override { return _last_update_us != 0; }
+    bool has_cell_voltages() const override { return false; } // This is set to false because 
+            // it will override the total voltage, and SSM battery reports data for the wrong # of cells (weirdly)
+    bool has_temperature() const override { return _last_update_us != 0; }
     bool capacity_remaining_pct(uint8_t &percentage) const override;
 
-    void init() override;
     void read() override;
 
 private:
@@ -68,10 +67,13 @@ private:
     void handle_limiting(const struct ssmbattery_limiting_t &msg);
     void handle_fault(const struct ssmbattery_fault_t &msg);
 
-    uint32_t last_update_us;
-    HAL_Semaphore sem;
+    void split_id(uint32_t can_id, uint32_t& base_id, uint32_t& board_number);
+
+    uint32_t _last_update_us;
+    HAL_Semaphore _sem;
 
     AP_BattMonitor::BattMonitor_State _internal_state;
+    uint8_t _capacity_remaining_pct;
 
 };
 

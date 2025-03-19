@@ -19,11 +19,12 @@
 
     Description:
 
-    Configuring CAN Parameters in ArduRover:
+    Configuring Parameters in ArduRover:
     (Example shows CAN_P2 because this connects to the port marked "CAN0" on the Airbot carrier board)
     CAN_D1_PROTOCOL = 16 -- Sets the driver 1 protocol to SSM Battery
     CAN_P2_DRIVER = 1 -- Sets the 2nd CAN port to use driver 1
     CAN_P2_BITRATE = 250000 -- Sets the 2nd CAN port bitrate
+    BATT_MONITOR = 31 -- Sets the battery monitor to SSM
 
     Settable Parameters - Description, Default value:
 
@@ -37,27 +38,56 @@
 #include <stdio.h>
 #include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_HAL/utility/sparse-endian.h>
+#include <GCS_MAVLink/GCS.h>
 
 extern const AP_HAL::HAL &hal;
 
-#define AP_SSMBATTERY_DEBUG 0
+#define AP_SSMBATTERY_DEBUG 1
 #define AP_BATT_MONITOR_SSM_TIMEOUT_US 5000000
+
+// Constructor
+AP_BattMonitor_SSM::AP_BattMonitor_SSM(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &state, AP_BattMonitor_Params &params)
+    : CANSensor("SSMBattery"), AP_BattMonitor_Backend(mon, state, params)
+{
+    _state.healthy = false;
+
+    register_driver(AP_CAN::Protocol::SSMBattery);
+
+    // start thread for receiving and sending CAN frames.
+    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_BattMonitor_SSM::loop, void), "ssm_battery", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
+}
+
+bool AP_BattMonitor_SSM::capacity_remaining_pct(uint8_t &percentage) const
+{
+    if (_capacity_remaining_pct != UINT8_MAX) {
+        percentage = _capacity_remaining_pct;
+        return true;
+    }
+    // Fall back to default implementation
+    return AP_BattMonitor_Backend::capacity_remaining_pct(percentage);
+}
 
 // Called by frontend to update the state. Called at 10Hz
 void AP_BattMonitor_SSM::read()
 {
-    WITH_SEMAPHORE(sem);
+    WITH_SEMAPHORE(_sem);
 
-    // Check for timeout, to prevent a faulty script from appearing healthy
-    if (last_update_us == 0 || AP_HAL::micros() - last_update_us > AP_BATT_MONITOR_SSM_TIMEOUT_US) {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Read");
+    // Check for timeout
+    if (_last_update_us == 0 || AP_HAL::micros() - _last_update_us > AP_BATT_MONITOR_SSM_TIMEOUT_US) {
         _state.healthy = false;
         return;
     }
+    else {
+        _state.healthy = true;
+    }
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Not timed out");
 
-    if (_state.last_time_micros == last_update_us) {
+    if (_state.last_time_micros == _last_update_us) {
         // No new data
         return;
     }
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: New data");
 
     for (uint8_t i = 0; i < AP_BATT_MONITOR_CELLS_MAX; i++) {
         _state.cell_voltages.cells[i] = _internal_state.cell_voltages.cells[i];
@@ -77,37 +107,8 @@ void AP_BattMonitor_SSM::read()
         _state.temperature = _internal_state.temperature;
     }
 
-    _state.healthy = _internal_state.healthy;
-
     // Update the timestamp (has to be done after the consumed_mah calculation)
-    _state.last_time_micros = last_update_us;
-}
-
-
-void AP_BattMonitor_SSM::init()
-{
-
-    if (_driver != nullptr)
-    {
-        // only allow one instance
-        return;
-    }
-
-    for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++)
-    {
-        if (CANSensor::get_driver_type(i) == AP_CAN::Protocol::SSMBattery)
-        {
-            _driver = NEW_NOTHROW AP_BattMonitor_SSM();
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Initialized using CAN%d", i);
-            return;
-        }
-    }
-
-    register_driver(AP_CAN::Protocol::SSMBattery);
-
-    // start thread for receiving and sending CAN frames.
-    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_BattMonitor_SSM::loop, void), "ssm_battery", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
-
+    _state.last_time_micros = _last_update_us;
 }
 
 // parse inbound frames
@@ -118,7 +119,15 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     const uint32_t ext_id = frame.id & AP_HAL::CANFrame::MaskExtID;
 
-    switch (ext_id)
+    uint32_t base_id, board_number;
+    split_id(ext_id, base_id, board_number);
+
+#if AP_SSMBATTERY_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Received frame from board: %ld: %ld", board_number, base_id);
+#endif
+
+    // Switch on the base_id to determine the message type
+    switch (base_id)
     {
     case SSMBATTERY_QUERY_FRAME_FRAME_ID:
     {
@@ -226,9 +235,15 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
 
 void AP_BattMonitor_SSM::loop()
 {
-    int16_t motor_rpm_cmd = 0;
-    uint8_t trim_cmd = 0;
     uint32_t last_query_time = 0;
+
+    for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++)
+    {
+        if (CANSensor::get_driver_type(i) == AP_CAN::Protocol::SSMBattery)
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Initialized using CAN%d", i);
+        }
+    }
 
     while (true)
     {
@@ -252,6 +267,10 @@ void AP_BattMonitor_SSM::send_query_frame()
     uint8_t data[SSMBATTERY_QUERY_FRAME_LENGTH];
     ssmbattery_query_frame_pack(data, &query_msg, sizeof(data));
     send_packet(SSMBATTERY_QUERY_FRAME_FRAME_ID, 1000, data, sizeof(data));
+
+#if AP_SSMBATTERY_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Sent query frame");
+#endif
 }
 
 bool AP_BattMonitor_SSM::send_packet(const uint32_t id, const uint32_t timeout_us, 
@@ -274,79 +293,124 @@ void AP_BattMonitor_SSM::handle_query_frame(const struct ssmbattery_query_frame_
 void AP_BattMonitor_SSM::handle_cell_voltage_information(const struct ssmbattery_cell_voltage_information_t &msg)
 {
     // Handle the cell voltage information message
-    WITH_SEMAPHORE(sem);
+    WITH_SEMAPHORE(_sem);
+
+    if (msg.module == 1)
+    {
+        _internal_state.cell_voltages.cells[0] = msg.volt1;
+        _internal_state.cell_voltages.cells[1] = msg.volt2;
+        _internal_state.cell_voltages.cells[2] = msg.volt3;
+    }
+    else if (msg.module == 2)
+    {
+        _internal_state.cell_voltages.cells[3] = msg.volt1;
+        _internal_state.cell_voltages.cells[4] = msg.volt2;
+        _internal_state.cell_voltages.cells[5] = msg.volt3;
+    }
+    else if (msg.module == 3)
+    {
+        _internal_state.cell_voltages.cells[6] = msg.volt1;
+        _internal_state.cell_voltages.cells[7] = msg.volt2;
+        _internal_state.cell_voltages.cells[8] = msg.volt3;
+    }
+    else if (msg.module == 4)
+    {
+        _internal_state.cell_voltages.cells[9] = msg.volt1;
+        _internal_state.cell_voltages.cells[10] = msg.volt2;
+        _internal_state.cell_voltages.cells[11] = msg.volt3;
+    }
+    else if (msg.module == 5)
+    {
+        _internal_state.cell_voltages.cells[12] = msg.volt1;
+        _internal_state.cell_voltages.cells[13] = msg.volt2;
+    }
+
+    _last_update_us = AP_HAL::micros();
+
 }
 
 void AP_BattMonitor_SSM::handle_cell_temperature_information(const struct ssmbattery_cell_temperature_information_t &msg)
 {
     // Handle the cell temperature information message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_total_information_0(const struct ssmbattery_total_information_0_t &msg)
 {
     // Handle the total information 0 message
-    WITH_SEMAPHORE(sem);
+#if AP_SSMBATTERY_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Voltage: %f, Current: %f, SOC: %d", float(msg.sum_v) / 10.0f, float(msg.curr) / 10.0f, msg.soc / 10);
+#endif
+
+    WITH_SEMAPHORE(_sem);
+    _internal_state.voltage = float(msg.sum_v) / 10.0f;
+    _internal_state.current_amps = float(msg.curr) / 10.0f;
+    _internal_state.last_time_micros = AP_HAL::micros();
+    _capacity_remaining_pct = uint8_t(msg.soc / 10);
+    _last_update_us = AP_HAL::micros();
 }
 
 void AP_BattMonitor_SSM::handle_total_information_1(const struct ssmbattery_total_information_1_t &msg)
 {
     // Handle the total information 1 message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_cell_voltage_statistical_information(const struct ssmbattery_cell_voltage_statistical_information_t &msg)
 {
     // Handle the cell voltage statistical information message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_unit_temperature_statistical_information(const struct ssmbattery_unit_temperature_statistical_information_t &msg)
 {
     // Handle the unit temperature statistical information message
-    WITH_SEMAPHORE(sem);
+    WITH_SEMAPHORE(_sem);
+    _internal_state.temperature = msg.max_t;
+    _internal_state.temperature_time = AP_HAL::micros();
+
+    _last_update_us = AP_HAL::micros();
 }
 
 void AP_BattMonitor_SSM::handle_status_information_0(const struct ssmbattery_status_information_0_t &msg)
 {
     // Handle the status information 0 message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_status_information_1(const struct ssmbattery_status_information_1_t &msg)
 {
     // Handle the status information 1 message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_status_information_2(const struct ssmbattery_status_information_2_t &msg)
 {
     // Handle the status information 2 message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_hardware_and_battery_failure_information(const struct ssmbattery_hardware_and_battery_failure_information_t &msg)
 {
     // Handle the hardware and battery failure information message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_charging_information(const struct ssmbattery_charging_information_t &msg)
 {
     // Handle the charging information message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_limiting(const struct ssmbattery_limiting_t &msg)
 {
     // Handle the limiting message
-    WITH_SEMAPHORE(sem);
 }
 
 void AP_BattMonitor_SSM::handle_fault(const struct ssmbattery_fault_t &msg)
 {
     // Handle the fault message
-    WITH_SEMAPHORE(sem);
+    if (msg.fault_bits)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "SSM Battery: Page %d Fault %d", msg.page_no,msg.fault_bits);
+    }
+}
+
+void AP_BattMonitor_SSM::split_id(uint32_t can_id, uint32_t& base_id, uint32_t& board_number) {
+    base_id = can_id & 0xFFFFFF00;
+    board_number = can_id & 0x000000FF;
 }
 
 #endif // AP_BATTERY_SSM_ENABLED
