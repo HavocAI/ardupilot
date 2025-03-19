@@ -419,8 +419,8 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_3(const struct ilmor_inverter
 void AP_Ilmor_Driver::handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg)
 {
     const TelemetryData t = {
-        .motor_temp_cdeg = int16_t(msg.motor_temperature * 10),
         .current = float(msg.battery_current) / 10.0f,
+        .motor_temp_cdeg = int16_t(msg.motor_temperature * 10),
     };
     update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT |
