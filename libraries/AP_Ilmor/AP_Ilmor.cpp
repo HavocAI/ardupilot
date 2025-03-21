@@ -36,7 +36,7 @@
     ILMOR_MIN_RPM - Minimum RPM in reverse, -500
     ILMOR_MAX_TRIM - Maximum trim (full up), 254
     ILMOR_MIN_TRIM - Minimum trim (full down), 0
-    ILMOR_TRIM_FN - Servo function that sets the target motor trim, Mount1 Tilt/Pitch (7)
+    ILMOR_TRIM_FN - Servo function that sets the target motor trim, Gripper (28)
     (see https://ardupilot.org/rover/docs/parameters.html#servo1-function-servo-output-function)
 
     Telemetry Outputs:
@@ -62,6 +62,7 @@
 extern const AP_HAL::HAL &hal;
 
 #define AP_ILMOR_DEBUG 0
+#define TRIM_DEADBAND 10
 
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
@@ -82,29 +83,21 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX_RPM", 1, AP_Ilmor, _max_rpm, 1600),
 
-    // @Param: MIN_TRIM
-    // @DisplayName: Ilmor Motor Minimum Trim
-    // @Description: Ilmor Motor Minimum Trim, by default this is set to 0
-    // @Values: 0:254
-    // @Increment: 1
-    // @User: Advanced
-    AP_GROUPINFO("MIN_TRIM", 2, AP_Ilmor, _min_trim, 0),
-
-    // @Param: MAX_TRIM
-    // @DisplayName: Ilmor Motor Maximum Trim
-    // @Description: Ilmor Motor Maximum Trim, by default this is set to 254
-    // @Values: 0:254
-    // @Increment: 1
-    // @User: Advanced
-    AP_GROUPINFO("MAX_TRIM", 3, AP_Ilmor, _max_trim, 254),
-
     // @Param: TRIM_FN
     // @DisplayName: Ilmor Motor Trim Servo Channel
     // @Description: Ilmor Motor Trim Servo Channel, by default this is set to "mount1 tilt/pitch"
     // @Values: 0:255
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TRIM_FN", 4, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_mount_tilt),
+    AP_GROUPINFO("TRIM_FN", 4, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_gripper),
+
+    // @Param: MAX_TRIM
+    // @DisplayName: Ilmor Motor Maximum Trim
+    // @Description: Ilmor Motor Maximum Trim that the motor will be allowed to run at
+    // @Values: 0:127
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("MAX_TRIM", 5, AP_Ilmor, _max_run_trim, 127),
 
     AP_GROUPEND};
 
@@ -190,6 +183,14 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_icu_status_frame_1(msg);
         break;
     }
+    case ILMOR_ICU_STATUS_FRAME_7_FRAME_ID:
+    {
+        // Trim demand request from buttons
+        struct ilmor_icu_status_frame_7_t msg;
+        ilmor_icu_status_frame_7_unpack(&msg, frame.data, frame.dlc);
+        handle_icu_status_frame_7(msg);
+        break;
+    }
     case ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID:
     {
         // eRPM
@@ -240,25 +241,19 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
 void AP_Ilmor_Driver::update()
 {
     WITH_SEMAPHORE(_output.sem);
-    if (SRV_Channels::channel_function(0) <= SRV_Channel::Aux_servo_function_t::k_none)
-    {
-        _output.motor_rpm = 0;
-        _output.motor_trim = 255;
-        return;
-    }
 
-    // get the desired motor speed from the throttle channel and
-    // the desired trim from the trim channel
-    // normalized by the Ilmor ranges
+    _output.motor_rpm = 0;
+    _output.motor_trim = 255;
 
     _output.motor_rpm = constrain_int16(SRV_Channels::get_output_norm(
         SRV_Channel::k_throttle) *
         AP::ilmor()->get_max_rpm(), AP::ilmor()->get_min_rpm(),  AP::ilmor()->get_max_rpm());
 
-    _output.motor_trim = constrain_int16(SRV_Channels::get_output_norm(
-        (SRV_Channel::Aux_servo_function_t)AP::ilmor()->get_trim_fn()) *
-        AP::ilmor()->get_max_trim(), AP::ilmor()->get_min_trim(), AP::ilmor()->get_max_trim());
-    
+    if (AP::ilmor()->get_trim_fn() > 0) // Only set trim if a valid servo function is set
+    {
+        _output.motor_trim = (uint8_t) ((SRV_Channels::get_output_norm(
+            (SRV_Channel::Aux_servo_function_t)AP::ilmor()->get_trim_fn()) + 1.0) * 0.5 * 254.0);
+    }
 
     _output.is_new = true;
 
@@ -268,8 +263,8 @@ void AP_Ilmor_Driver::update()
     if (now_ms - last_send_ms > 1000)
     {
         last_send_ms = now_ms;
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: RPM command %u, Trim command %u",
-                      (unsigned)_output.motor_rpm, (unsigned)_output.motor_trim);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: RPM command %d, Trim command %u",
+                      _output.motor_rpm, (unsigned)_output.motor_trim);
     }
 #endif
 }
@@ -277,7 +272,7 @@ void AP_Ilmor_Driver::update()
 void AP_Ilmor_Driver::loop()
 {
     int16_t motor_rpm_cmd = 0;
-    uint8_t trim_cmd = 0;
+    uint8_t trim_cmd = 255;
 
     while (true)
     {
@@ -285,24 +280,32 @@ void AP_Ilmor_Driver::loop()
 
         const uint32_t now_ms = AP_HAL::millis();
 
-        // This should run at 50Hz
+        WITH_SEMAPHORE(_output.sem);
+
+        if (_output.is_new)
         {
-            WITH_SEMAPHORE(_output.sem);
-            if (_output.is_new)
+            _output.last_new_ms = now_ms;
+            _output.is_new = false;
+            motor_rpm_cmd = _output.motor_rpm;
+            trim_cmd = _output.motor_trim;
+        }
+        else if (_output.last_new_ms && now_ms - _output.last_new_ms > 1000)
+        {
+            // if we haven't gotten any PWM updates for a bit, stop movement
+            // out so we don't just keep sending the same values forever
+            motor_rpm_cmd = 0;
+            trim_cmd = 255;
+            _output.last_new_ms = 0;
+        }
+        
+        if (_current_trim_position > AP::ilmor()->get_max_run_trim())
+        {
+            // If the trim is above the maximum allowed trim, stop the motor
+            if (motor_rpm_cmd > 0)
             {
-                _output.last_new_ms = now_ms;
-                _output.is_new = false;
-                motor_rpm_cmd = _output.motor_rpm;
-                trim_cmd = _output.motor_trim;
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: Trim above max, stopping motor");
             }
-            else if (_output.last_new_ms && now_ms - _output.last_new_ms > 1000)
-            {
-                // if we haven't gotten any PWM updates for a bit, stop movement
-                // out so we don't just keep sending the same values forever
-                motor_rpm_cmd = 0;
-                trim_cmd = 255;
-                _output.last_new_ms = 0;
-            }
+            motor_rpm_cmd = 0;
         }
 
         ilmor_unmanned_throttle_control_t throttle_msg;
@@ -315,22 +318,33 @@ void AP_Ilmor_Driver::loop()
 
         send_unmanned_throttle_control(throttle_msg);
 
-        // Use a simple bang-bang controller to set the trim to the desired position
+#if AP_ILMOR_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim command %u, Current trim %u",
+                      (unsigned)trim_cmd, (unsigned)_current_trim_position);
+#endif
+
         ilmor_r3_status_frame_2_t r3_status_frame_2_msg;
-        if ((trim_cmd < _current_trim_position) && (trim_cmd < 255))
-        {
-            // Trim up
-            r3_status_frame_2_msg.trim_demand = ilmor_r3_status_frame_2_trim_demand_encode(1);
-        }
-        else if ((trim_cmd > _current_trim_position) && (trim_cmd < 255))
-        {
-            // Trim down
-            r3_status_frame_2_msg.trim_demand = ilmor_r3_status_frame_2_trim_demand_encode(2);
-        }
-        else
-        {
-            // Set the trim to physical button control (255)
-            r3_status_frame_2_msg.trim_demand = ilmor_r3_status_frame_2_trim_demand_encode(255);
+        // Set the trim to physical button control (255)
+        // this is the default state in case the AP loses control, the buttons will be active
+        r3_status_frame_2_msg.trim_demand = ilmor_r3_status_frame_2_trim_demand_encode(255);
+
+        // Operator must use buttons to lower the trim out of the upper limit,
+        // and then release the buttons to allow the AP to take control of the trim
+        if (_trim_command_from_buttons == 0 && trim_cmd < 255 && !_trim_locked_out) {
+            // control the trim based on the commanded trim
+            uint8_t deadband = 0;
+            // don't use deadband for the full down position
+            if (trim_cmd != 0) {
+                deadband = TRIM_DEADBAND;
+            }
+            if (trim_cmd > _current_trim_position + deadband) {
+                // Trim up
+                r3_status_frame_2_msg.trim_demand = ilmor_r3_status_frame_2_trim_demand_encode(1);
+            }
+            else if (trim_cmd < _current_trim_position - deadband) {
+                // Trim down
+                r3_status_frame_2_msg.trim_demand = ilmor_r3_status_frame_2_trim_demand_encode(2);
+            }
         }
         send_r3_status_frame_2(r3_status_frame_2_msg);
 
@@ -372,12 +386,31 @@ void AP_Ilmor_Driver::handle_unmanned_throttle_control(const struct ilmor_unmann
 
 void AP_Ilmor_Driver::handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg)
 {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: R3 Status Frame 2 msg received from another CAN device");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: R3 Status Frame 2 msg received from another CAN device");
 }
 
 void AP_Ilmor_Driver::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
     _current_trim_position = msg.trim_position_adjusted;
+}
+
+void AP_Ilmor_Driver::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
+{
+    _trim_command_from_buttons = msg.trim_demand_request_from_buttons;
+    if (_trim_command_from_buttons != 0) {
+        // Operator is using buttons to adjust trim
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim buttons pressed");
+        if (_trim_command_from_buttons == 1 && _current_trim_position == 255) {
+            if (!_trim_locked_out) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim locked up by buttons");
+            }
+            _trim_locked_out = true;
+        }
+        else if (_trim_command_from_buttons == 2 && _trim_locked_out) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim lock released");
+            _trim_locked_out = false;
+        }
+    }
 }
 
 void AP_Ilmor_Driver::handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg)
@@ -419,19 +452,19 @@ void AP_Ilmor_Driver::handle_inverter_status_frame_3(const struct ilmor_inverter
 void AP_Ilmor_Driver::handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg)
 {
     const TelemetryData t = {
+        .temperature_cdeg = int16_t(msg.motor_temperature * 10),
         .current = float(msg.battery_current) / 10.0f,
-        .motor_temp_cdeg = int16_t(msg.motor_temperature * 10),
     };
     update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT |
-                          AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE);
+                          AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE);
     // Hack the MOSFET temperature into the next ESC telemetry slot 
-    // Note that only .motor_temperature is available via Mavlink, not .temperature
+    // Note that only .temperature_cdeg is available via Mavlink
     const TelemetryData t2 = {
-        .motor_temp_cdeg = int16_t(msg.mosfet_temperature * 10),
+        .temperature_cdeg = int16_t(msg.mosfet_temperature * 10),
     };
     update_telem_data(1, t2,
-                      AP_ESC_Telem_Backend::TelemetryType::MOTOR_TEMPERATURE);
+                      AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE);
 
 #if AP_ILMOR_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: MOSFET Temp %d, Motor Temp %d, Battery Current %f",

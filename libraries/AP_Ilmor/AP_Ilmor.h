@@ -51,7 +51,7 @@ private:
     void handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
     void handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
     void handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg);
-    void handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t &msg);
+    void handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg);
     void handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg);
     void handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg);
     void handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg);
@@ -69,6 +69,8 @@ private:
     } _output;
 
     uint8_t _current_trim_position;
+    uint8_t _trim_command_from_buttons;
+    bool _trim_locked_out = true;
 };
 
 class AP_Ilmor
@@ -89,9 +91,8 @@ public:
     // Method to get the values of params
     int16_t get_min_rpm() const { return _min_rpm.get(); }
     int16_t get_max_rpm() const { return _max_rpm.get(); }
-    int8_t get_min_trim() const { return _min_trim.get(); }
-    int8_t get_max_trim() const { return _max_trim.get(); }
     int16_t get_trim_fn() const { return _trim_fn.get(); }
+    int8_t get_max_run_trim() const { return _max_run_trim.get(); }
 
 private:
     static AP_Ilmor *_singleton;
@@ -101,9 +102,8 @@ private:
     // Parameters
     AP_Int16 _min_rpm;
     AP_Int16 _max_rpm;
-    AP_Int8 _min_trim;
-    AP_Int8 _max_trim;
     AP_Int8 _trim_fn;
+    AP_Int8 _max_run_trim;
 
 };
 namespace AP

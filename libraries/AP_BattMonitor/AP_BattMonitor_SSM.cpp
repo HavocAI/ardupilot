@@ -83,7 +83,6 @@ void AP_BattMonitor_SSM::read()
 {
     WITH_SEMAPHORE(_sem);
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Read");
     // Check for timeout
     if (_last_update_us == 0 || AP_HAL::micros() - _last_update_us > AP_BATT_MONITOR_SSM_TIMEOUT_US) {
         _state.healthy = false;
@@ -92,13 +91,10 @@ void AP_BattMonitor_SSM::read()
     else {
         _state.healthy = true;
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Not timed out");
-
     if (_state.last_time_micros == _last_update_us) {
         // No new data
         return;
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: New data");
 
     for (uint8_t i = 0; i < AP_BATT_MONITOR_CELLS_MAX; i++) {
         _state.cell_voltages.cells[i] = _internal_state.cell_voltages.cells[i];
@@ -354,7 +350,7 @@ void AP_BattMonitor_SSM::handle_total_information_0(const struct ssmbattery_tota
 
     WITH_SEMAPHORE(_sem);
     _internal_state.voltage = float(msg.sum_v) / 10.0f;
-    _internal_state.current_amps = float(msg.curr) / 10.0f;
+    _internal_state.current_amps = -1 * (float(msg.curr) / 10.0f - 3000.0f); //Flip sign to match BatteryMonitor convention
     _internal_state.last_time_micros = AP_HAL::micros();
     _capacity_remaining_pct = uint8_t(msg.soc / 10);
     _last_update_us = AP_HAL::micros();
@@ -374,7 +370,7 @@ void AP_BattMonitor_SSM::handle_unit_temperature_statistical_information(const s
 {
     // Handle the unit temperature statistical information message
     WITH_SEMAPHORE(_sem);
-    _internal_state.temperature = msg.max_t;
+    _internal_state.temperature = msg.max_t - 40;
     _internal_state.temperature_time = AP_HAL::micros();
 
     _last_update_us = AP_HAL::micros();
