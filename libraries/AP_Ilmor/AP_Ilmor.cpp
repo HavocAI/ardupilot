@@ -25,11 +25,8 @@
     telemetry is available via the escX_ telemetry information, some of which is hacked in to the
     multiple ESC telemetry slots.
 
-    Configuring CAN Parameters in ArduRover:
-    (Example shows CAN_P2 because this connects to the port marked "CAN0" on the Airbot carrier board)
-    CAN_D1_PROTOCOL = 15 -- Sets the driver 1 protocol to Ilmor
-    CAN_P2_DRIVER = 1 -- Sets the 2nd CAN port to use driver 1
-    CAN_P2_BITRATE = 250000 -- Sets the 2nd CAN port bitrate
+    Configuring CAN Parameters in ArduRover: configure the CAN port to use the J1939 CAN backend
+    (See AP_J1939_CAN/AP_J1939_CAN.h for more information)
 
     Settable Parameters - Description, Default value:
     ILMOR_MAX_RPM - Maximum RPM in forward, 1600
@@ -99,6 +96,14 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX_TRIM", 5, AP_Ilmor, _max_run_trim, 127),
 
+    // @Param: CAN_PORT
+    // @DisplayName: Ilmor CAN Port
+    // @Description: Ilmor CAN Port, by default this is set to 0
+    // @Values: 0:1
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("CAN_PORT", 6, AP_Ilmor, _can_port, 0),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -115,21 +120,36 @@ AP_Ilmor::AP_Ilmor()
 
 void AP_Ilmor::init()
 {
-    if (_driver != nullptr)
+    if (_can_port < 0 || _can_port >= HAL_NUM_CAN_IFACES)
     {
-        // only allow one instance
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Invalid CAN port");
         return;
     }
 
-    for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++)
+    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port);
+
+    _driver = NEW_NOTHROW AP_Ilmor_Driver();
+    if (!_driver)
     {
-        if (CANSensor::get_driver_type(i) == AP_CAN::Protocol::Ilmor)
-        {
-            _driver = NEW_NOTHROW AP_Ilmor_Driver();
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Initialized using CAN%d", i);
-            return;
-        }
+        return;
     }
+
+    // Register the driver with the J1939 CAN backend for the Ilmor specific CAN IDs
+    if (!j1939->register_driver(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID, _driver) ||
+        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, _driver))
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to register with J1939");
+        return;
+    }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", static_cast<int>(_can_port));
 }
 
 void AP_Ilmor::update()
@@ -143,8 +163,6 @@ void AP_Ilmor::update()
 
 AP_Ilmor_Driver::AP_Ilmor_Driver() : CANSensor("Ilmor")
 {
-    register_driver(AP_CAN::Protocol::Ilmor);
-
     // start thread for receiving and sending CAN frames.
     hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor_Driver::loop, void), "ilmor", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
 }
@@ -365,18 +383,20 @@ bool AP_Ilmor_Driver::send_packet(const uint32_t id, const uint32_t timeout_us,
 
 bool AP_Ilmor_Driver::send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
 {
-    // Unmanned control key: Should be set to 0x4D to allow unmanned control
     uint8_t data[ILMOR_UNMANNED_THROTTLE_CONTROL_LENGTH];
     ilmor_unmanned_throttle_control_pack(data, &msg, sizeof(data));
-    return send_packet(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, 1000, data, sizeof(data));
+    return AP_J1939_CAN::get_instance(AP::ilmor()->get_can_port())->
+        enqueue_message(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, data, sizeof(data));
 }
+
 
 bool AP_Ilmor_Driver::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg)
 {
     // Trim demand values: 0 = stop, 1 = up, 2 = down, 255 = trim control is given to the physical buttons
     uint8_t data[ILMOR_R3_STATUS_FRAME_2_LENGTH];
     ilmor_r3_status_frame_2_pack(data, &msg, sizeof(data));
-    return send_packet(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, 1000, data, sizeof(data));
+    return AP_J1939_CAN::get_instance(AP::ilmor()->get_can_port())->
+        enqueue_message(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, data, sizeof(data));
 }
 
 void AP_Ilmor_Driver::handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)

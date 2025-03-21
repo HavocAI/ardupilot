@@ -712,6 +712,12 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(ilmor, "ILMOR_", 60, ParametersG2, AP_Ilmor),
 #endif
 
+#if AP_BATTERY_SSM_ENABLED
+    // @Group: SSM
+    // @Path: ../libraries/AP_BattMonitor/AP_BattMonitor_SSM.cpp
+    AP_SUBGROUPINFO(ssm, "SSM_", 61, ParametersG2, AP_BattMonitor_SSM),
+#endif
+
     AP_GROUPEND
 };
 

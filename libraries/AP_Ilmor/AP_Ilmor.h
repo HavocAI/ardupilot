@@ -28,6 +28,7 @@
 #include <AP_CANManager/AP_CANSensor.h>
 #include <AP_Param/AP_Param.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
+#include <AP_J1939_CAN/AP_J1939_CAN.h>
 
 class AP_Ilmor_Driver : public CANSensor, public AP_ESC_Telem_Backend
 {
@@ -38,6 +39,7 @@ public:
     void update();
 
 private:
+    
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
@@ -93,6 +95,7 @@ public:
     int16_t get_max_rpm() const { return _max_rpm.get(); }
     int16_t get_trim_fn() const { return _trim_fn.get(); }
     int8_t get_max_run_trim() const { return _max_run_trim.get(); }
+    int8_t get_can_port() const { return _can_port.get(); }
 
 private:
     static AP_Ilmor *_singleton;
@@ -104,6 +107,7 @@ private:
     AP_Int16 _max_rpm;
     AP_Int8 _trim_fn;
     AP_Int8 _max_run_trim;
+    AP_Int8 _can_port;
 
 };
 namespace AP

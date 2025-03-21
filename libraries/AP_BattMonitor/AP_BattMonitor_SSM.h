@@ -24,13 +24,17 @@
 
 #if AP_BATTERY_SSM_ENABLED
 #include "AP_BattMonitor_Backend.h"
+#include <AP_Param/AP_Param.h>
 #include <AP_BattMonitor/ssmbattery.h>
 #include <AP_CANManager/AP_CANSensor.h>
+#include <AP_J1939_CAN/AP_J1939_CAN.h>
 
 class AP_BattMonitor_SSM : public CANSensor, public AP_BattMonitor_Backend
 {
 public:
     AP_BattMonitor_SSM(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &state, AP_BattMonitor_Params &params);
+
+    static const struct AP_Param::GroupInfo var_info[];
 
     bool has_consumed_energy() const override { return false; }
     bool has_current() const override { return _last_update_us != 0; }
@@ -74,6 +78,9 @@ private:
 
     AP_BattMonitor::BattMonitor_State _internal_state;
     uint8_t _capacity_remaining_pct;
+
+    // Parameters
+    AP_Int8 _can_port;
 
 };
 

@@ -17,6 +17,7 @@
 #include <AP_WindVane/AP_WindVane.h>
 #include "AP_FortVsc/AP_FortVsc.h"
 #include "AP_Ilmor/AP_Ilmor.h"
+#include "AP_BattMonitor/AP_BattMonitor_SSM.h"
 
 #define AP_PARAM_VEHICLE_NAME rover
 
@@ -440,6 +441,11 @@ public:
 
     class ModeCircle mode_circle;
 
+#if HAL_J1939_CAN_ENABLED
+    // J1939 CAN manager
+    AP_J1939_CAN j1939_can;
+#endif
+
 #if HAL_IRISORCA_ENABLED
     // IrisOrca driver
     AP_IrisOrca iris_orca;
@@ -453,6 +459,11 @@ public:
 #if HAL_ILMOR_ENABLED
     // Ilmor driver
     AP_Ilmor ilmor;
+#endif
+
+#if AP_BATTERY_SSM_ENABLED
+    // SSM battery monitor
+    AP_BattMonitor_SSM ssm;
 #endif
 
 };

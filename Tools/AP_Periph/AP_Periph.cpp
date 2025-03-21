@@ -216,8 +216,8 @@ void AP_Periph_FW::init()
     kdecan.init();
 #endif
 
-#if HAL_ILMOR_ENABLED
-    ilmor.init();
+#if HAL_J1939_CAN_ENABLED
+    j1939_can.init();
 #endif
 
 #ifdef HAL_PERIPH_ENABLE_AIRSPEED

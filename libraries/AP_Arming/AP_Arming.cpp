@@ -1254,8 +1254,7 @@ bool AP_Arming::can_checks(bool report)
                 case AP_CAN::Protocol::Scripting:
                 case AP_CAN::Protocol::Scripting2:
                 case AP_CAN::Protocol::KDECAN:
-                case AP_CAN::Protocol::Ilmor:
-                case AP_CAN::Protocol::SSMBattery:
+                case AP_CAN::Protocol::J1939:
 
                     break;
             }

@@ -27,12 +27,8 @@
     override the total voltage value and SSM battery strangely reports voltages for the wrong number 
     of cells, so the sum would be incorrect.
 
-    Configuring Parameters in ArduRover:
-    (Example shows CAN_P2 because this connects to the port marked "CAN0" on the Airbot carrier board)
-    CAN_D1_PROTOCOL = 16 -- Sets the driver 1 protocol to SSM Battery
-    CAN_P2_DRIVER = 1 -- Sets the 2nd CAN port to use driver 1
-    CAN_P2_BITRATE = 250000 -- Sets the 2nd CAN port bitrate
-    BATT_MONITOR = 31 -- Sets the battery monitor to SSM
+    Configuring Parameters in ArduRover: configure the CAN port to use the J1939 CAN backend
+    (See AP_J1939_CAN/AP_J1939_CAN.h for more information)
 
     Telemetry Outputs:
     - Battery Voltage
@@ -56,13 +52,23 @@ extern const AP_HAL::HAL &hal;
 #define AP_SSMBATTERY_DEBUG 0
 #define AP_BATT_MONITOR_SSM_TIMEOUT_US 5000000
 
+const AP_Param::GroupInfo AP_BattMonitor_SSM::var_info[] = {
+    
+    // @Param: CAN_PORT
+    // @DisplayName: CAN Port
+    // @Description: CAN Port, by default this is set to 0
+    // @Values: 0:1
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("CAN_PORT", 6, AP_BattMonitor_SSM, _can_port, 0),
+
+    AP_GROUPEND};
+
 // Constructor
 AP_BattMonitor_SSM::AP_BattMonitor_SSM(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &state, AP_BattMonitor_Params &params)
     : CANSensor("SSMBattery"), AP_BattMonitor_Backend(mon, state, params)
 {
     _state.healthy = false;
-
-    register_driver(AP_CAN::Protocol::SSMBattery);
 
     // start thread for receiving and sending CAN frames.
     hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_BattMonitor_SSM::loop, void), "ssm_battery", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
@@ -244,13 +250,28 @@ void AP_BattMonitor_SSM::loop()
 {
     uint32_t last_query_time = 0;
 
-    for (uint8_t i = 0; i < HAL_NUM_CAN_IFACES; i++)
+    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port);
+
+    if (!j1939->register_driver(SSMBATTERY_QUERY_FRAME_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_CELL_VOLTAGE_STATISTICAL_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_UNIT_TEMPERATURE_STATISTICAL_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_STATUS_INFORMATION_0_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_STATUS_INFORMATION_1_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_STATUS_INFORMATION_2_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_HARDWARE_AND_BATTERY_FAILURE_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_CHARGING_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_LIMITING_FRAME_ID, this) ||
+        !j1939->register_driver(SSMBATTERY_FAULT_FRAME_ID, this))
     {
-        if (CANSensor::get_driver_type(i) == AP_CAN::Protocol::SSMBattery)
-        {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Initialized using CAN%d", i);
-        }
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Failed to register with J1939");
+        return;
     }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Registered with J1939 on CAN%d", static_cast<int>(_can_port));
 
     while (true)
     {

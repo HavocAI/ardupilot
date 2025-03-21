@@ -87,6 +87,7 @@ def build(bld):
                      'AP_Relay',
                      'AP_MultiHeap',
                      'AP_FortVsc',
+                     'AP_J1939_CAN',
                      ]
 
     bld.ap_stlib(
