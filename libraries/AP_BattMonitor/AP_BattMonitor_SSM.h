@@ -37,8 +37,7 @@ public:
 
     bool has_consumed_energy() const override { return false; }
     bool has_current() const override { return _last_update_us != 0; }
-    bool has_cell_voltages() const override { return false; } // This is set to false because 
-            // it will override the total voltage, and SSM battery reports data for the wrong # of cells (weirdly)
+    bool has_cell_voltages() const override { return _last_update_us != 0; }
     bool has_temperature() const override { return _last_update_us != 0; }
     bool capacity_remaining_pct(uint8_t &percentage) const override;
 
@@ -82,6 +81,7 @@ private:
     // Parameters
     AP_Int8 _can_port;
     AP_Int8 _board_number;
+    AP_Int8 _num_cells;
 };
 
 #endif // AP_BATTERY_SSM_ENABLED

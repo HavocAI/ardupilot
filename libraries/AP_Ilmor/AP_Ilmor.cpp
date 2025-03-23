@@ -37,7 +37,7 @@
     ILMOR_MIN_TRIM - Minimum trim (full down), 0
     ILMOR_TRIM_FN - Servo function that sets the target motor trim, Gripper (28)
     (see https://ardupilot.org/rover/docs/parameters.html#servo1-function-servo-output-function)
-    CAN_PORT - Physical CAN port to use, -1 (disabled)
+    CAN_PORT - Physical CAN port to use (0-indexed), -1 (disabled)
 
     Telemetry Outputs:
     esc1_curr = Ilmor Battery Current (A)

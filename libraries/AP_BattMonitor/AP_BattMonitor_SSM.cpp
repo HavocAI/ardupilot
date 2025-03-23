@@ -32,10 +32,13 @@
     Then configure the SSM Battery parameters:
     - SSM_CANPRT: CAN Port that the SSM battery is connected to (0-indexed), -1 to disable
     - SSM_BRDNUM: Battery board number to use for this monitor, by default this is set to 0
-        Different batteries may have different board numbers (possibly?)
+        Different batteries may have different board numbers
+    - SSM_CELLS: Number of cells in the battery, by default this is set to 14
+        This is used to calculate the total voltage of the battery. SSM batteries all use the same BMS,
+        so this value needs to be manually set.
 
     Telemetry Outputs:
-    - Battery Voltage
+    - Battery Cell Voltages
     - Battery Current
     - Battery Remaining Capacity
     - Battery Temperature
@@ -79,6 +82,14 @@ const AP_Param::GroupInfo AP_BattMonitor_SSM::var_info[] = {
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("SSM_BRDNUM", 71, AP_BattMonitor_SSM, _board_number, 0),
+
+    // @Param: CELLS
+    // @DisplayName: Number of Cells
+    // @Description: Number of cells in the battery, by default this is set to 14
+    // @Values: 1:255
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("SSM_CELLS", 72, AP_BattMonitor_SSM, _num_cells, 14),
 
     AP_GROUPEND};
 
@@ -163,7 +174,7 @@ void AP_BattMonitor_SSM::read()
         return;
     }
 
-    for (uint8_t i = 0; i < AP_BATT_MONITOR_CELLS_MAX; i++) {
+    for (uint8_t i = 0; i < MIN(AP_BATT_MONITOR_CELLS_MAX,_num_cells.get()); i++) {
         _state.cell_voltages.cells[i] = _internal_state.cell_voltages.cells[i];
     }
     _state.voltage = _internal_state.voltage;

@@ -19,10 +19,10 @@
 
     Description:
     This class is a CAN sensor driver backend for the J1939 protocol. It functions as a single
-    driver on a CAN port, and routes incoming frames to registered frontend drivers based on PGN.
-    Each frontend driver can register for multiple PGNs, and each PGN can have multiple frontend
-    drivers. This class is a "multiton" where only one instance can be created for each physical
-    CAN port.
+    driver on a physical CAN port, and routes incoming frames to multiple registered frontend 
+    drivers based on PGN. Each frontend driver can register for multiple PGNs, and each PGN can 
+    have multiple frontend drivers. This class is a "multiton" where only one instance can be 
+    created for each physical CAN port.
 
     Configure the physical CAN port to use the J1939 CAN backend via CAN Manager parameters:
     - CAN_D1_PROTOCOL = 15 (J1939)
