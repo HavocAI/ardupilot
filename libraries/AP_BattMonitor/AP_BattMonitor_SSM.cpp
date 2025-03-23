@@ -28,7 +28,11 @@
     of cells, so the sum would be incorrect.
 
     Configuring Parameters in ArduRover: configure the CAN port to use the J1939 CAN backend
-    (See AP_J1939_CAN/AP_J1939_CAN.h for more information)
+    (See AP_J1939_CAN/AP_J1939_CAN.cpp for more information)
+    Then configure the SSM Battery parameters:
+    - SSM_CANPRT: CAN Port that the SSM battery is connected to (0-indexed), -1 to disable
+    - SSM_BRDNUM: Battery board number to use for this monitor, by default this is set to 0
+        Different batteries may have different board numbers (possibly?)
 
     Telemetry Outputs:
     - Battery Voltage
@@ -38,37 +42,94 @@
     - Battery Faults
 
 */
+#include "AP_BattMonitor_config.h"
+
+#if AP_BATTERY_SSM_ENABLED
+
+#include <GCS_MAVLink/GCS.h>
+#include <AP_HAL/utility/sparse-endian.h>
 
 #include "AP_BattMonitor_SSM.h"
 
-#if AP_BATTERY_SSM_ENABLED
-#include <stdio.h>
-#include <AP_BoardConfig/AP_BoardConfig.h>
-#include <AP_HAL/utility/sparse-endian.h>
-#include <GCS_MAVLink/GCS.h>
-
 extern const AP_HAL::HAL &hal;
 
-#define AP_SSMBATTERY_DEBUG 0
+#define AP_BATT_MONITOR_SSM_DEBUG 0
+#define AP_BATT_MONITOR_SSM_QUERY_INTERVAL_MS 2000
 #define AP_BATT_MONITOR_SSM_TIMEOUT_US 5000000
+// Priority and source address for querying the battery
+#define AP_BATT_MONITOR_SSM_PRIORITY 1
+#define AP_BATT_MONITOR_SSM_SOURCE_ADDRESS 0x80
 
 const AP_Param::GroupInfo AP_BattMonitor_SSM::var_info[] = {
-    
-    // @Param: CAN_PORT
+
+    // Using index 70-75 for the SSM Battery parameters to deconflict with the AP_BattMonitor parameters
+
+    // @Param: CANPRT
     // @DisplayName: CAN Port
     // @Description: CAN Port, by default this is set to 0
     // @Values: 0:1
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("CAN_PORT", 6, AP_BattMonitor_SSM, _can_port, 0),
+    AP_GROUPINFO("SSM_CANPRT", 70, AP_BattMonitor_SSM, _can_port, -1),
+
+    // @Param: BRDNUM
+    // @DisplayName: Board Number
+    // @Description: Battery board number to use for this monitor, by default this is set to 0
+    // @Values: 0:255
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("SSM_BRDNUM", 71, AP_BattMonitor_SSM, _board_number, 0),
 
     AP_GROUPEND};
 
 // Constructor
-AP_BattMonitor_SSM::AP_BattMonitor_SSM(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &state, AP_BattMonitor_Params &params)
-    : CANSensor("SSMBattery"), AP_BattMonitor_Backend(mon, state, params)
+AP_BattMonitor_SSM::AP_BattMonitor_SSM(AP_BattMonitor &mon, 
+                                       AP_BattMonitor::BattMonitor_State &mon_state, 
+                                       AP_BattMonitor_Params &params)
+    : AP_BattMonitor_Backend(mon, mon_state, params), CANSensor("SSMBattery")
+{
+    AP_Param::setup_object_defaults(this, var_info);
+    _state.var_info = var_info;
+}
+
+void AP_BattMonitor_SSM::init(void)
 {
     _state.healthy = false;
+
+    if (_can_port.get() < 0)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Disabled (CAN port = -1)");
+        return;
+    }
+
+    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port.get());
+
+    if (j1939 == nullptr)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Failed to get J1939 instance");
+        return;
+    }
+
+    if (!j1939->register_frame_id(SSMBATTERY_QUERY_FRAME_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_CELL_VOLTAGE_STATISTICAL_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_UNIT_TEMPERATURE_STATISTICAL_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_STATUS_INFORMATION_0_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_STATUS_INFORMATION_1_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_STATUS_INFORMATION_2_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_HARDWARE_AND_BATTERY_FAILURE_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_CHARGING_INFORMATION_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_LIMITING_FRAME_ID, this) ||
+        !j1939->register_frame_id(SSMBATTERY_FAULT_FRAME_ID, this))
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Failed to register with J1939");
+        return;
+    }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Registered with J1939 on CAN%d", _can_port.get());
 
     // start thread for receiving and sending CAN frames.
     hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_BattMonitor_SSM::loop, void), "ssm_battery", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
@@ -127,113 +188,108 @@ void AP_BattMonitor_SSM::read()
 // parse inbound frames
 void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
 {
-    if (!frame.isExtended()) {
+    // Only handle extended frames for the "board number"
+    // aka. source address that this monitor is configured for
+    J1939::J1939Frame j1939_frame = J1939::unpack_j1939_frame(frame);
+    if (j1939_frame.source_address != _board_number) {
         return;
     }
-    const uint32_t ext_id = frame.id & AP_HAL::CANFrame::MaskExtID;
 
-    uint32_t base_id, board_number;
-    split_id(ext_id, base_id, board_number);
-
-#if AP_SSMBATTERY_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Received frame from board: %ld: %ld", board_number, base_id);
-#endif
-
-    // Switch on the base_id to determine the message type
-    switch (base_id)
+    // Use only the J1939 PGN of the frame id to determine the message type
+    switch (j1939_frame.pgn)
     {
-    case SSMBATTERY_QUERY_FRAME_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_QUERY_FRAME_FRAME_ID):
     {
         struct ssmbattery_query_frame_t msg;
         ssmbattery_query_frame_unpack(&msg, frame.data, frame.dlc);
         handle_query_frame(msg);
         break;
     }
-    case SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_cell_voltage_information_t msg;
         ssmbattery_cell_voltage_information_unpack(&msg, frame.data, frame.dlc);
         handle_cell_voltage_information(msg);
         break;
     }
-    case SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_cell_temperature_information_t msg;
         ssmbattery_cell_temperature_information_unpack(&msg, frame.data, frame.dlc);
         handle_cell_temperature_information(msg);
         break;
     }
-    case SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID):
     {
         struct ssmbattery_total_information_0_t msg;
         ssmbattery_total_information_0_unpack(&msg, frame.data, frame.dlc);
         handle_total_information_0(msg);
         break;
     }
-    case SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID):
     {
         struct ssmbattery_total_information_1_t msg;
         ssmbattery_total_information_1_unpack(&msg, frame.data, frame.dlc);
         handle_total_information_1(msg);
         break;
     }
-    case SSMBATTERY_CELL_VOLTAGE_STATISTICAL_INFORMATION_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_CELL_VOLTAGE_STATISTICAL_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_cell_voltage_statistical_information_t msg;
         ssmbattery_cell_voltage_statistical_information_unpack(&msg, frame.data, frame.dlc);
         handle_cell_voltage_statistical_information(msg);
         break;
     }
-    case SSMBATTERY_UNIT_TEMPERATURE_STATISTICAL_INFORMATION_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_UNIT_TEMPERATURE_STATISTICAL_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_unit_temperature_statistical_information_t msg;
         ssmbattery_unit_temperature_statistical_information_unpack(&msg, frame.data, frame.dlc);
         handle_unit_temperature_statistical_information(msg);
         break;
     }
-    case SSMBATTERY_STATUS_INFORMATION_0_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_STATUS_INFORMATION_0_FRAME_ID):
     {
         struct ssmbattery_status_information_0_t msg;
         ssmbattery_status_information_0_unpack(&msg, frame.data, frame.dlc);
         handle_status_information_0(msg);
         break;
     }
-    case SSMBATTERY_STATUS_INFORMATION_1_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_STATUS_INFORMATION_1_FRAME_ID):
     {
         struct ssmbattery_status_information_1_t msg;
         ssmbattery_status_information_1_unpack(&msg, frame.data, frame.dlc);
         handle_status_information_1(msg);
         break;
     }
-    case SSMBATTERY_STATUS_INFORMATION_2_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_STATUS_INFORMATION_2_FRAME_ID):
     {
         struct ssmbattery_status_information_2_t msg;
         ssmbattery_status_information_2_unpack(&msg, frame.data, frame.dlc);
         handle_status_information_2(msg);
         break;
     }
-    case SSMBATTERY_HARDWARE_AND_BATTERY_FAILURE_INFORMATION_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_HARDWARE_AND_BATTERY_FAILURE_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_hardware_and_battery_failure_information_t msg;
         ssmbattery_hardware_and_battery_failure_information_unpack(&msg, frame.data, frame.dlc);
         handle_hardware_and_battery_failure_information(msg);
         break;
     }
-    case SSMBATTERY_CHARGING_INFORMATION_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_CHARGING_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_charging_information_t msg;
         ssmbattery_charging_information_unpack(&msg, frame.data, frame.dlc);
         handle_charging_information(msg);
         break;
     }
-    case SSMBATTERY_LIMITING_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_LIMITING_FRAME_ID):
     {
         struct ssmbattery_limiting_t msg;
         ssmbattery_limiting_unpack(&msg, frame.data, frame.dlc);
         handle_limiting(msg);
         break;
     }
-    case SSMBATTERY_FAULT_FRAME_ID:
+    case J1939::extract_j1939_pgn(SSMBATTERY_FAULT_FRAME_ID):
     {
         struct ssmbattery_fault_t msg;
         ssmbattery_fault_unpack(&msg, frame.data, frame.dlc);
@@ -249,30 +305,6 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
 void AP_BattMonitor_SSM::loop()
 {
     uint32_t last_query_time = 0;
-
-    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port);
-
-    if (!j1939->register_driver(SSMBATTERY_QUERY_FRAME_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_CELL_VOLTAGE_STATISTICAL_INFORMATION_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_UNIT_TEMPERATURE_STATISTICAL_INFORMATION_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_STATUS_INFORMATION_0_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_STATUS_INFORMATION_1_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_STATUS_INFORMATION_2_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_HARDWARE_AND_BATTERY_FAILURE_INFORMATION_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_CHARGING_INFORMATION_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_LIMITING_FRAME_ID, this) ||
-        !j1939->register_driver(SSMBATTERY_FAULT_FRAME_ID, this))
-    {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Failed to register with J1939");
-        return;
-    }
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Registered with J1939 on CAN%d", static_cast<int>(_can_port));
-
     while (true)
     {
         hal.scheduler->delay_microseconds(20000); // 50Hz
@@ -280,7 +312,7 @@ void AP_BattMonitor_SSM::loop()
         const uint32_t now_ms = AP_HAL::millis();
 
         // Send query frame every 2 seconds
-        if (now_ms - last_query_time >= 2000) {
+        if (now_ms - last_query_time >= AP_BATT_MONITOR_SSM_QUERY_INTERVAL_MS) {
             send_query_frame();
             last_query_time = now_ms;
         }
@@ -290,27 +322,27 @@ void AP_BattMonitor_SSM::loop()
 
 void AP_BattMonitor_SSM::send_query_frame()
 {
+    // Prepare the data for the query frame (all zeros)
     struct ssmbattery_query_frame_t query_msg;
     ssmbattery_query_frame_init(&query_msg);
     uint8_t data[SSMBATTERY_QUERY_FRAME_LENGTH];
     ssmbattery_query_frame_pack(data, &query_msg, sizeof(data));
-    send_packet(SSMBATTERY_QUERY_FRAME_FRAME_ID, 1000, data, sizeof(data));
 
-#if AP_SSMBATTERY_DEBUG
+    // Even though the frame ID contains the priority and source address,
+    // we set them explicitly here for clarity
+
+    J1939::J1939Frame frame;
+    frame.priority = AP_BATT_MONITOR_SSM_PRIORITY;
+    frame.pgn = J1939::extract_j1939_pgn(SSMBATTERY_QUERY_FRAME_FRAME_ID);
+    frame.source_address = AP_BATT_MONITOR_SSM_SOURCE_ADDRESS;
+    memcpy(frame.data, data, sizeof(data));
+
+    AP_J1939_CAN::get_instance(_can_port.get())->
+        send_message(frame);
+
+#if AP_BATT_MONITOR_SSM_DEBUG
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Sent query frame");
 #endif
-}
-
-bool AP_BattMonitor_SSM::send_packet(const uint32_t id, const uint32_t timeout_us, 
-    const uint8_t *data, const uint8_t data_len)
-{
-    AP_HAL::CANFrame frame;
-    frame.id = id | AP_HAL::CANFrame::FlagEFF;
-    frame.dlc = data_len;
-    frame.canfd = false;
-    memcpy(frame.data, data, data_len);
-
-    return write_frame(frame, timeout_us);
 }
 
 void AP_BattMonitor_SSM::handle_query_frame(const struct ssmbattery_query_frame_t &msg)
@@ -365,7 +397,7 @@ void AP_BattMonitor_SSM::handle_cell_temperature_information(const struct ssmbat
 void AP_BattMonitor_SSM::handle_total_information_0(const struct ssmbattery_total_information_0_t &msg)
 {
     // Handle the total information 0 message
-#if AP_SSMBATTERY_DEBUG
+#if AP_BATT_MONITOR_SSM_DEBUG
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Voltage: %f, Current: %f, SOC: %d", float(msg.sum_v) / 10.0f, float(msg.curr) / 10.0f, msg.soc / 10);
 #endif
 

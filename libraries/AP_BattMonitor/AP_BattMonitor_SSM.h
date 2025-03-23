@@ -24,17 +24,16 @@
 
 #if AP_BATTERY_SSM_ENABLED
 #include "AP_BattMonitor_Backend.h"
-#include <AP_Param/AP_Param.h>
 #include <AP_BattMonitor/ssmbattery.h>
 #include <AP_CANManager/AP_CANSensor.h>
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 
-class AP_BattMonitor_SSM : public CANSensor, public AP_BattMonitor_Backend
+class AP_BattMonitor_SSM : public AP_BattMonitor_Backend, public CANSensor
 {
 public:
-    AP_BattMonitor_SSM(AP_BattMonitor &mon, AP_BattMonitor::BattMonitor_State &state, AP_BattMonitor_Params &params);
-
-    static const struct AP_Param::GroupInfo var_info[];
+    AP_BattMonitor_SSM(AP_BattMonitor &mon, 
+                       AP_BattMonitor::BattMonitor_State &mon_state,
+                       AP_BattMonitor_Params &params);
 
     bool has_consumed_energy() const override { return false; }
     bool has_current() const override { return _last_update_us != 0; }
@@ -43,13 +42,14 @@ public:
     bool has_temperature() const override { return _last_update_us != 0; }
     bool capacity_remaining_pct(uint8_t &percentage) const override;
 
+    void init(void) override;
     void read() override;
+    
+    static const struct AP_Param::GroupInfo var_info[];
 
 private:
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
-
-    bool send_packet(const uint32_t id, const uint32_t timeout_us, const uint8_t *data, const uint8_t data_len);
 
     bool send_status_request();
     void loop();
@@ -81,7 +81,7 @@ private:
 
     // Parameters
     AP_Int8 _can_port;
-
+    AP_Int8 _board_number;
 };
 
 #endif // AP_BATTERY_SSM_ENABLED

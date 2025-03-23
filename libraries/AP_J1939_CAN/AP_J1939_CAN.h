@@ -8,37 +8,53 @@
 #include <AP_CANManager/AP_CANSensor.h>
 #include <map>
 #include <vector>
-#include <queue>
+
+namespace J1939 {
+    struct J1939Frame {
+        uint8_t priority;
+        uint32_t pgn;
+        uint8_t source_address;
+        uint8_t data[8];
+    };
+
+    // Pack a J1939 frame into a CAN frame
+    AP_HAL::CANFrame pack_j1939_frame(const J1939Frame &frame);
+
+    // Unpack a J1939 frame from a CAN frame
+    J1939Frame unpack_j1939_frame(const AP_HAL::CANFrame &frame);
+
+    // Get the PGN from an extended CAN ID
+    inline constexpr uint32_t extract_j1939_pgn(uint32_t ext_can_id)
+    {
+        return (ext_can_id >> 8) & 0xFFFF;
+    }
+}
 
 class AP_J1939_CAN : public CANSensor
 {
 public:
     static AP_J1939_CAN* get_instance(uint8_t can_port);
-    
-    bool register_driver(uint32_t msg_id, CANSensor* driver);
-    bool send_message(uint32_t msg_id, const uint8_t* data, uint8_t len);
+
+    // Register a frame ID to a driver (actually registers the PGN)
+    bool register_frame_id(uint32_t can_id, CANSensor* driver);
+
+    // Register a PGN to a driver
+    bool register_pgn(uint32_t pgn, CANSensor* driver);
+
+    // Send a J1939 frame
+    bool send_message(J1939::J1939Frame &frame);
+
+protected:
+    // Handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
-    
-    bool enqueue_message(uint32_t msg_id, const uint8_t* data, uint8_t len);
-    void process_queue();
 
 private:
     explicit AP_J1939_CAN(uint8_t can_port);
     
-    struct CANMessage {
-        uint32_t msg_id;
-        uint8_t data[8];
-        uint8_t len;
-    };
-
     static std::map<uint8_t, AP_J1939_CAN*> _instances;
     std::map<uint32_t, std::vector<CANSensor*>> _msg_handlers;
-    std::queue<CANMessage> _message_queue;
-    uint8_t _max_queue_size = 10;
-    AP_HAL::Semaphore* _queue_semaphore;
 
     uint8_t _can_port;
-    std::map<uint32_t, uint32_t> _last_sent_time; // Rate limiter storage
 };
 
 #endif // HAL_J1939_CAN_ENABLED

@@ -39,11 +39,9 @@ public:
     void update();
 
 private:
-    
+
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
-
-    bool send_packet(const uint32_t id, const uint32_t timeout_us, const uint8_t *data, const uint8_t data_len);
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
     bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);

@@ -5,6 +5,7 @@
 #include <AP_EFI/AP_EFI_config.h>
 #include <AP_Generator/AP_Generator_config.h>
 #include <AP_Torqeedo/AP_Torqeedo_config.h>
+#include <AP_J1939_CAN/AP_J1939_CAN_config.h>
 
 #ifndef AP_BATTERY_ENABLED
 #define AP_BATTERY_ENABLED 1
@@ -125,6 +126,5 @@
 #endif
 
 #ifndef AP_BATTERY_SSM_ENABLED
-//#define AP_BATTERY_SSM_ENABLED (HAL_MAX_CAN_PROTOCOL_DRIVERS && BOARD_FLASH_SIZE > 1024)
-#define AP_BATTERY_SSM_ENABLED 1
+#define AP_BATTERY_SSM_ENABLED HAL_J1939_CAN_ENABLED
 #endif

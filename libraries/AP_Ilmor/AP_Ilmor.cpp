@@ -25,8 +25,10 @@
     telemetry is available via the escX_ telemetry information, some of which is hacked in to the
     multiple ESC telemetry slots.
 
-    Configuring CAN Parameters in ArduRover: configure the CAN port to use the J1939 CAN backend
-    (See AP_J1939_CAN/AP_J1939_CAN.h for more information)
+    Note: Currently this class is a singleton for simplicity.
+
+    Configuring CAN Parameters in ArduRover: First configure the CAN port to use the J1939 CAN backend
+    (See AP_J1939_CAN/AP_J1939_CAN.cpp for more information)
 
     Settable Parameters - Description, Default value:
     ILMOR_MAX_RPM - Maximum RPM in forward, 1600
@@ -35,6 +37,7 @@
     ILMOR_MIN_TRIM - Minimum trim (full down), 0
     ILMOR_TRIM_FN - Servo function that sets the target motor trim, Gripper (28)
     (see https://ardupilot.org/rover/docs/parameters.html#servo1-function-servo-output-function)
+    CAN_PORT - Physical CAN port to use, -1 (disabled)
 
     Telemetry Outputs:
     esc1_curr = Ilmor Battery Current (A)
@@ -50,8 +53,6 @@
 #include "AP_Ilmor.h"
 
 #if HAL_ILMOR_ENABLED
-#include <stdio.h>
-#include <AP_BoardConfig/AP_BoardConfig.h>
 #include <AP_HAL/utility/sparse-endian.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
@@ -59,7 +60,12 @@
 extern const AP_HAL::HAL &hal;
 
 #define AP_ILMOR_DEBUG 0
-#define TRIM_DEADBAND 10
+#define AP_ILMOR_COMMAND_RATE_HZ 20
+#define AP_ILMOR_TRIM_DEADBAND 10
+#define AP_ILMOR_SOURCE_ADDRESS 0xF2
+// J1939 Message priorities
+#define AP_ILMOR_UNMANNED_THROTTLE_CONTROL_PRIORITY 1
+#define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
 
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
@@ -98,11 +104,11 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
     // @Param: CAN_PORT
     // @DisplayName: Ilmor CAN Port
-    // @Description: Ilmor CAN Port, by default this is set to 0
+    // @Description: Ilmor CAN Port, by default this is set to -1 (disabled)
     // @Values: 0:1
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("CAN_PORT", 6, AP_Ilmor, _can_port, 0),
+    AP_GROUPINFO("CAN_PORT", 6, AP_Ilmor, _can_port, -1),
 
     AP_GROUPEND};
 
@@ -120,13 +126,19 @@ AP_Ilmor::AP_Ilmor()
 
 void AP_Ilmor::init()
 {
-    if (_can_port < 0 || _can_port >= HAL_NUM_CAN_IFACES)
+    if (_can_port.get() < 0)
     {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Invalid CAN port");
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Disabled (CAN port = -1)");
         return;
     }
 
-    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port);
+    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port.get());
+
+    if (j1939 == nullptr)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to get J1939 instance");
+        return;
+    }
 
     _driver = NEW_NOTHROW AP_Ilmor_Driver();
     if (!_driver)
@@ -135,21 +147,21 @@ void AP_Ilmor::init()
     }
 
     // Register the driver with the J1939 CAN backend for the Ilmor specific CAN IDs
-    if (!j1939->register_driver(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID, _driver) ||
-        !j1939->register_driver(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, _driver))
+    if (!j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID, _driver) ||
+        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, _driver))
     {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to register with J1939");
         return;
     }
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", static_cast<int>(_can_port));
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 }
 
 void AP_Ilmor::update()
@@ -170,9 +182,6 @@ AP_Ilmor_Driver::AP_Ilmor_Driver() : CANSensor("Ilmor")
 // parse inbound frames
 void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
 {
-    if (!frame.isExtended()) {
-        return;
-    }
     const uint32_t ext_id = frame.id & AP_HAL::CANFrame::MaskExtID;
 
     switch (ext_id)
@@ -294,7 +303,7 @@ void AP_Ilmor_Driver::loop()
 
     while (true)
     {
-        hal.scheduler->delay_microseconds(20000); // 50Hz
+        hal.scheduler->delay_microseconds(static_cast<uint16_t>(1000000 / AP_ILMOR_COMMAND_RATE_HZ));
 
         const uint32_t now_ms = AP_HAL::millis();
 
@@ -353,7 +362,7 @@ void AP_Ilmor_Driver::loop()
             uint8_t deadband = 0;
             // don't use deadband for the full down position
             if (trim_cmd != 0) {
-                deadband = TRIM_DEADBAND;
+                deadband = AP_ILMOR_TRIM_DEADBAND;
             }
             if (trim_cmd > _current_trim_position + deadband) {
                 // Trim up
@@ -369,34 +378,42 @@ void AP_Ilmor_Driver::loop()
     } // while true
 }
 
-bool AP_Ilmor_Driver::send_packet(const uint32_t id, const uint32_t timeout_us, 
-    const uint8_t *data, const uint8_t data_len)
-{
-    AP_HAL::CANFrame frame;
-    frame.id = id | AP_HAL::CANFrame::FlagEFF;
-    frame.dlc = data_len;
-    frame.canfd = false;
-    memcpy(frame.data, data, data_len);
-
-    return write_frame(frame, timeout_us);
-}
-
 bool AP_Ilmor_Driver::send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
 {
+    // Prepare the data
     uint8_t data[ILMOR_UNMANNED_THROTTLE_CONTROL_LENGTH];
     ilmor_unmanned_throttle_control_pack(data, &msg, sizeof(data));
+
+    // Even though the frame ID contains the priority and source address,
+    // we set them explicitly here for clarity
+    J1939::J1939Frame frame;
+    frame.priority = AP_ILMOR_UNMANNED_THROTTLE_CONTROL_PRIORITY;
+    frame.pgn = J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID);
+    frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+    memcpy(frame.data, data, sizeof(data));
+
     return AP_J1939_CAN::get_instance(AP::ilmor()->get_can_port())->
-        enqueue_message(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, data, sizeof(data));
+        send_message(frame);
 }
 
 
 bool AP_Ilmor_Driver::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg)
 {
+    // Prepare the data
     // Trim demand values: 0 = stop, 1 = up, 2 = down, 255 = trim control is given to the physical buttons
     uint8_t data[ILMOR_R3_STATUS_FRAME_2_LENGTH];
     ilmor_r3_status_frame_2_pack(data, &msg, sizeof(data));
+
+    // Even though the frame ID contains the priority and source address,
+    // we set them explicitly here for clarity
+    J1939::J1939Frame frame;
+    frame.priority = AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY;
+    frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_2_FRAME_ID);
+    frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+    memcpy(frame.data, data, sizeof(data));
+
     return AP_J1939_CAN::get_instance(AP::ilmor()->get_can_port())->
-        enqueue_message(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, data, sizeof(data));
+        send_message(frame);
 }
 
 void AP_Ilmor_Driver::handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)

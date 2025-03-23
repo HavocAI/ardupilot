@@ -94,10 +94,6 @@ void Rover::init_ardupilot()
     g2.ilmor.init();
 #endif
 
-#if AP_BATTERY_SSM_ENABLED
-    g2.ssm.init();
-#endif
-
 #if AP_OPTICALFLOW_ENABLED
     // initialise optical flow sensor
     optflow.init(MASK_LOG_OPTFLOW);
