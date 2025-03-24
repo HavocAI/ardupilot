@@ -182,11 +182,11 @@ AP_Ilmor_Driver::AP_Ilmor_Driver() : CANSensor("Ilmor")
 // parse inbound frames
 void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
 {
-    const uint32_t ext_id = frame.id & AP_HAL::CANFrame::MaskExtID;
+    J1939::J1939Frame j1939_frame = J1939::unpack_j1939_frame(frame);
 
-    switch (ext_id)
+    switch (j1939_frame.pgn)
     {
-    case ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID):
     {
         // Monitor in case there are other unmanned controllers on the network
         struct ilmor_unmanned_throttle_control_t msg;
@@ -194,7 +194,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_unmanned_throttle_control(msg);
         break;
     }
-    case ILMOR_R3_STATUS_FRAME_2_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_2_FRAME_ID):
     {
         // Monitor in case there are other unmanned controllers on the network
         struct ilmor_r3_status_frame_2_t msg;
@@ -202,7 +202,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_r3_status_frame_2(msg);
         break;
     }
-    case ILMOR_ICU_STATUS_FRAME_1_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID):
     {
         // Trim position adjusted
         struct ilmor_icu_status_frame_1_t msg;
@@ -210,7 +210,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_icu_status_frame_1(msg);
         break;
     }
-    case ILMOR_ICU_STATUS_FRAME_7_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID):
     {
         // Trim demand request from buttons
         struct ilmor_icu_status_frame_7_t msg;
@@ -218,7 +218,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_icu_status_frame_7(msg);
         break;
     }
-    case ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID):
     {
         // eRPM
         struct ilmor_inverter_status_frame_1_t msg;
@@ -226,7 +226,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_inverter_status_frame_1(msg);
         break;
     }
-    case ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID):
     {
         // Ah consumed
         struct ilmor_inverter_status_frame_2_t msg;
@@ -234,7 +234,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_inverter_status_frame_2(msg);
         break;
     }
-    case ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID):
     {
         // Wh consumed
         struct ilmor_inverter_status_frame_3_t msg;
@@ -242,7 +242,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_inverter_status_frame_3(msg);
         break;
     }
-    case ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID):
     {
         // MOSFET temperature, motor temperature, battery current
         struct ilmor_inverter_status_frame_4_t msg;
@@ -250,7 +250,7 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         handle_inverter_status_frame_4(msg);
         break;
     }
-    case ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID:
+    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID):
     {
         // Battery voltage (low precision)
         struct ilmor_inverter_status_frame_5_t msg;
