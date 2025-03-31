@@ -25,7 +25,8 @@
     telemetry is available via the escX_ telemetry information, some of which is hacked in to the
     multiple ESC telemetry slots.
 
-    Note: Currently this class is a singleton for simplicity.
+    Notes: 
+    1) Currently this class is a singleton for simplicity.
 
     Configuring CAN Parameters in ArduRover: First configure the CAN port to use the J1939 CAN backend
     (See AP_J1939_CAN/AP_J1939_CAN.cpp for more information)
@@ -173,6 +174,17 @@ void AP_Ilmor::update()
     _driver->update();
 }
 
+// run pre-arm check.  returns false on failure and fills in failure_msg
+// any failure_msg returned will not include a prefix
+bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
+{
+    if (!healthy()) {
+        strncpy(failure_msg, "not healthy", failure_msg_len);
+        return false;
+    }
+    return true;
+}
+
 AP_Ilmor_Driver::AP_Ilmor_Driver() : CANSensor("Ilmor")
 {
     // start thread for receiving and sending CAN frames.
@@ -262,6 +274,8 @@ void AP_Ilmor_Driver::handle_frame(AP_HAL::CANFrame &frame)
         // Ignore other frames
         break;
     }
+    // Update the last new message time
+    _last_new_ms = AP_HAL::millis();
 }
 
 // update the output from the throttle servo channel
@@ -294,6 +308,17 @@ void AP_Ilmor_Driver::update()
                       _output.motor_rpm, (unsigned)_output.motor_trim);
     }
 #endif
+}
+
+bool AP_Ilmor_Driver::healthy()
+{
+    // Check if we have received any messages in the last second
+    const uint32_t now_ms = AP_HAL::millis();
+    if (_last_new_ms == 0 || now_ms - _last_new_ms > 1000)
+    {
+        return false;
+    }
+    return true;
 }
 
 void AP_Ilmor_Driver::loop()

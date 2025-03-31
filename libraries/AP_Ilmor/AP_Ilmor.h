@@ -38,6 +38,9 @@ public:
     // called from SRV_Channels
     void update();
 
+    // returns true if the driver is communicating with the motor 
+    bool healthy();
+
 private:
 
     // handler for incoming frames
@@ -71,6 +74,8 @@ private:
     uint8_t _current_trim_position;
     uint8_t _trim_command_from_buttons;
     bool _trim_locked_out = true;
+
+    uint32_t _last_new_ms;
 };
 
 class AP_Ilmor
@@ -87,6 +92,12 @@ public:
     void update();
 
     static AP_Ilmor *get_singleton() { return _singleton; }
+
+    bool healthy() const { return _driver->healthy();}
+
+    // run pre-arm check.  returns false on failure and fills in failure_msg
+    // any failure_msg returned will not include a prefix
+    bool pre_arm_checks(char *failure_msg, uint8_t failure_msg_len);
 
     // Method to get the values of params
     int16_t get_min_rpm() const { return _min_rpm.get(); }
