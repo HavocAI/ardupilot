@@ -113,7 +113,7 @@ void AP_BattMonitor_SSM::init(void)
         return;
     }
 
-    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port.get());
+    j1939 = AP_J1939_CAN::get_instance(_can_port.get());
 
     if (j1939 == nullptr)
     {
@@ -348,8 +348,7 @@ void AP_BattMonitor_SSM::send_query_frame()
     frame.source_address = AP_BATT_MONITOR_SSM_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    AP_J1939_CAN::get_instance(_can_port.get())->
-        send_message(frame);
+    j1939->send_message(frame);
 
 #if AP_BATT_MONITOR_SSM_DEBUG
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Sent query frame");

@@ -133,30 +133,30 @@ void AP_Ilmor::init()
         return;
     }
 
-    AP_J1939_CAN* j1939 = AP_J1939_CAN::get_instance(_can_port.get());
-
-    if (j1939 == nullptr)
-    {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to get J1939 instance");
-        return;
-    }
-
     _driver = NEW_NOTHROW AP_Ilmor_Driver();
     if (!_driver)
     {
         return;
     }
 
+    _driver->j1939 = AP_J1939_CAN::get_instance(_can_port.get());
+
+    if (_driver->j1939 == nullptr)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to get J1939 instance");
+        return;
+    }
+
     // Register the driver with the J1939 CAN backend for the Ilmor specific CAN IDs
-    if (!j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID, _driver) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, _driver))
+    if (!_driver->j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID, _driver) ||
+        !_driver->j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, _driver))
     {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to register with J1939");
         return;
@@ -417,8 +417,7 @@ bool AP_Ilmor_Driver::send_unmanned_throttle_control(const struct ilmor_unmanned
     frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    return AP_J1939_CAN::get_instance(AP::ilmor()->get_can_port())->
-        send_message(frame);
+    return j1939->send_message(frame);
 }
 
 
@@ -437,8 +436,7 @@ bool AP_Ilmor_Driver::send_r3_status_frame_2(const struct ilmor_r3_status_frame_
     frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    return AP_J1939_CAN::get_instance(AP::ilmor()->get_can_port())->
-        send_message(frame);
+    return j1939->send_message(frame);
 }
 
 void AP_Ilmor_Driver::handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)

@@ -82,6 +82,9 @@ private:
     AP_Int8 _can_port;
     AP_Int8 _board_number;
     AP_Int8 _num_cells;
+
+    // J1939 CAN backend
+    AP_J1939_CAN* j1939;
 };
 
 #endif // AP_BATTERY_SSM_ENABLED

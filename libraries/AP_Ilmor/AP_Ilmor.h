@@ -41,6 +41,9 @@ public:
     // returns true if the driver is communicating with the motor 
     bool healthy();
 
+    // J1939 CAN backend
+    AP_J1939_CAN* j1939;
+
 private:
 
     // handler for incoming frames
