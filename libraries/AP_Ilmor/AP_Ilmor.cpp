@@ -129,7 +129,6 @@ void AP_Ilmor::init()
 {
     if (_can_port.get() < 0)
     {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Disabled (CAN port = -1)");
         return;
     }
 
@@ -178,6 +177,12 @@ void AP_Ilmor::update()
 // any failure_msg returned will not include a prefix
 bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 {
+    if (_can_port.get() < 0)
+    {
+        // Driver is disabled
+        return true;
+    }
+
     if (!healthy()) {
         strncpy(failure_msg, "not healthy", failure_msg_len);
         return false;
