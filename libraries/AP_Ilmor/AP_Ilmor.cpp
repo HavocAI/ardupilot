@@ -505,6 +505,9 @@ void AP_Ilmor_Driver::handle_r3_status_frame_2(const struct ilmor_r3_status_fram
 void AP_Ilmor_Driver::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
     _current_trim_position = msg.trim_position_adjusted;
+
+    // Populate esc2_rpm with the trim position
+    update_rpm(1, int32_t(msg.trim_position_adjusted));
 }
 
 void AP_Ilmor_Driver::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
