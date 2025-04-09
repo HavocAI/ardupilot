@@ -23,6 +23,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+#include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
 #define IRISORCA_SERIAL_BAUD                    19200   // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY                  2       // communication is always even parity
@@ -133,6 +134,12 @@ static bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
   state.voltage =
       u16_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::VOLTAGE_HI);
   state.errors = u16_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::ERROR_HI);
+
+  struct AP_ESC_Telem_Backend::TelemetryData t = {
+    .temperature_cdeg = state.temperature,
+  };
+  AP_ESC_Telem_Backend::update_telem_data(1, t, 
+                    AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE);
 
   return true;
 }
