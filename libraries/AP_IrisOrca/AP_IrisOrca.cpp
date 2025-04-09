@@ -111,38 +111,14 @@ namespace orca
         return true;
     }
 
-    /**
-     * @brief Parse the response to a 0x68 Motor Read Stream message.
-     *
-     * @param[in] rcvd_buff The buffer containing received response data
-     * @param[in] buff_len The length of the received buffer
-     * @param[out] state Newly read state data of the actuator
-     * @return true response successfully parsed
-     * @return false response parsing failed
-     */
-    static bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len,
-                                        ActuatorState &state)
+    static void handle_error(uint16_t error_reg)
     {
-        if (buff_len < MOTOR_READ_STREAM_MSG_RSP_LEN)
+        if (error_reg)
         {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
-                          "IrisOrca: Motor Read Stream response too short.");
-            return false;
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR,
+                          "IrisOrca: error_reg: 0x%x",
+                          error_reg);
         }
-        // Ignore the read register value and set the other state members
-        state.mode =
-            static_cast<OperatingMode>(rcvd_buff[MotorReadStreamRsp::Idx::MODE]);
-        state.shaft_position =
-            u32_from_be(rcvd_buff, MotorReadStreamRsp::Idx::POSITION_MSB_HI);
-        state.force_realized =
-            u32_from_be(rcvd_buff, MotorReadStreamRsp::Idx::FORCE_MSB_HI);
-        state.power_consumed =
-            u16_from_be(rcvd_buff, MotorReadStreamRsp::Idx::POWER_HI);
-        state.temperature = rcvd_buff[MotorReadStreamRsp::Idx::TEMP];
-        state.voltage = u16_from_be(rcvd_buff, MotorReadStreamRsp::Idx::VOLTAGE_HI);
-        state.errors = u16_from_be(rcvd_buff, MotorReadStreamRsp::Idx::ERROR_HI);
-
-        return true;
     }
 
     /**
@@ -172,6 +148,8 @@ namespace orca
  */
 bool AP_IrisOrca::parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state)
 {
+    using namespace orca;
+
     if (buff_len < orca::MOTOR_COMMAND_STREAM_MSG_RSP_LEN)
     {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
@@ -180,24 +158,77 @@ bool AP_IrisOrca::parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_le
     }
 
     state.shaft_position =
-        u32_from_be(rcvd_buff, orca::MotorCommandStreamRsp::Idx::POSITION_MSB_HI);
+        u32_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::POSITION_MSB_HI);
     state.force_realized =
-        u32_from_be(rcvd_buff, orca::MotorCommandStreamRsp::Idx::FORCE_MSB_HI);
+        u32_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::FORCE_MSB_HI);
     state.power_consumed =
-        u16_from_be(rcvd_buff, orca::MotorCommandStreamRsp::Idx::POWER_HI);
-    state.temperature = rcvd_buff[orca::MotorCommandStreamRsp::Idx::TEMP];
-    state.voltage =
-        u16_from_be(rcvd_buff, orca::MotorCommandStreamRsp::Idx::VOLTAGE_HI);
-    state.errors = u16_from_be(rcvd_buff, orca::MotorCommandStreamRsp::Idx::ERROR_HI);
+        u16_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::POWER_HI);
+
+    // temperature is in degrees celsius
+    state.temperature = rcvd_buff[MotorCommandStreamRsp::Idx::TEMP];
+
+    // voltage is in units of mV
+    state.voltage = u16_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::VOLTAGE_HI);
+    state.errors = u16_from_be(rcvd_buff, MotorCommandStreamRsp::Idx::ERROR_HI);
+
+    handle_error(state.errors);
 
     struct AP_ESC_Telem_Backend::TelemetryData t = {
-        .temperature_cdeg = state.temperature,
-        .voltage = state.voltage * 0.01f,
+        .temperature_cdeg = static_cast<int16_t>(state.temperature * 100),
+        .voltage = state.voltage * 0.001f,
     };
     update_telem_data(1, t,
-                      TelemetryType::TEMPERATURE |
-                      TelemetryType::VOLTAGE
-                    );
+        AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE |
+        AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
+
+    return true;
+}
+
+/**
+ * @brief Parse the response to a 0x68 Motor Read Stream message.
+ *
+ * @param[in] rcvd_buff The buffer containing received response data
+ * @param[in] buff_len The length of the received buffer
+ * @param[out] state Newly read state data of the actuator
+ * @return true response successfully parsed
+ * @return false response parsing failed
+ */
+bool AP_IrisOrca::parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state)
+{
+    using namespace orca;
+
+    if (buff_len < orca::MOTOR_READ_STREAM_MSG_RSP_LEN)
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
+                      "IrisOrca: Motor Read Stream response too short.");
+        return false;
+    }
+    // Ignore the read register value and set the other state members
+    state.mode =
+        static_cast<OperatingMode>(rcvd_buff[MotorReadStreamRsp::Idx::MODE]);
+    state.shaft_position =
+        u32_from_be(rcvd_buff, MotorReadStreamRsp::Idx::POSITION_MSB_HI);
+    state.force_realized =
+        u32_from_be(rcvd_buff, MotorReadStreamRsp::Idx::FORCE_MSB_HI);
+    state.power_consumed =
+        u16_from_be(rcvd_buff, MotorReadStreamRsp::Idx::POWER_HI);
+
+    // temperature is in degrees celsius
+    state.temperature = rcvd_buff[MotorReadStreamRsp::Idx::TEMP];
+
+    // voltage is in units of mV
+    state.voltage = u16_from_be(rcvd_buff, MotorReadStreamRsp::Idx::VOLTAGE_HI);
+    state.errors = u16_from_be(rcvd_buff, MotorReadStreamRsp::Idx::ERROR_HI);
+
+    handle_error(state.errors);
+
+    struct AP_ESC_Telem_Backend::TelemetryData t = {
+        .temperature_cdeg = static_cast<int16_t>(state.temperature * 100),
+        .voltage = state.voltage * 0.001f,
+    };
+    update_telem_data(1, t,
+        AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE |
+        AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 
     return true;
 }
@@ -941,7 +972,7 @@ bool AP_IrisOrca::parse_message()
     case orca::FunctionCode::MOTOR_COMMAND_STREAM:
         return parse_motor_command_stream(_received_buff, _reply_msg_len, _actuator_state);
     case orca::FunctionCode::MOTOR_READ_STREAM:
-        return orca::parse_motor_read_stream(_received_buff, _reply_msg_len, _actuator_state);
+        return parse_motor_read_stream(_received_buff, _reply_msg_len, _actuator_state);
     default:
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: Unexpected message");
         return false;

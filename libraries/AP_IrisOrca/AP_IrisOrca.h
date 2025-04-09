@@ -376,6 +376,7 @@ private:
     bool parse_message();
 
     bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state);
+    bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state);
 
 
     // parameters
