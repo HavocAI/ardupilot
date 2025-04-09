@@ -26,6 +26,7 @@
 #if HAL_IRISORCA_ENABLED
 
 #include <AP_Param/AP_Param.h>
+#include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -277,7 +278,7 @@ namespace orca {
 
 }
 
-class AP_IrisOrca {
+class AP_IrisOrca : public AP_ESC_Telem_Backend {
 public:
     AP_IrisOrca();
 
@@ -373,6 +374,8 @@ private:
     // process message held in _received_buff
     // return true if the message was as expected and there are no actuator errors
     bool parse_message();
+
+    bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state);
 
 
     // parameters
