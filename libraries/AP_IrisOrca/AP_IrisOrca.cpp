@@ -36,7 +36,17 @@
 
 namespace orca {
 
-bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len) {
+/**
+ * @brief Parse the response to a 0x06 write
+ * register response message. Currently only supports
+ * handling the response to a write to register 3.
+ * 
+ * @param[in] rcvd_buff The buffer containing received response data
+ * @param[in] buff_len The length of the received buffer
+ * @return true response successfully parsed 
+ * @return false response parsing failed
+ */
+static bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len) {
   if (buff_len < WRITE_REG_MSG_RSP_LEN) {
     return false;
   }
@@ -56,7 +66,18 @@ bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len) {
   return true;
 }
 
-bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
+
+/**
+ * @brief Parse the response to a 0x10 Multiple Write Registers message.
+ * 
+ * @param[in] rcvd_buff The buffer containing received response data
+ * @param[in] buff_len The length of the received buffer
+ * @param[out] state (output parameter) State data of the actuator to populate with response.
+ * Currently only updates the position params and zero mode config.
+ * @return true response successfully parsed 
+ * @return false response parsing failed
+ */
+static bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
                                     ActuatorState &state) {
   if (buff_len < MULTIPLE_WRITE_REG_MSG_RSP_LEN) {
     return false;
@@ -84,7 +105,17 @@ bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
   return true;
 }
 
-bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
+
+/**
+ * @brief Parse the response to a 0x64 Motor Command Stream message.
+ * 
+ * @param[in] rcvd_buff The buffer containing received response data
+ * @param[in] buff_len The length of the received buffer
+ * @param[out] state (output parameter) Newly read state data of the actuator
+ * @return true response successfully parsed
+ * @return false response parsing failed
+ */
+static bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
                                 ActuatorState &state) {
   if (buff_len < MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
@@ -106,7 +137,17 @@ bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len,
   return true;
 }
 
-bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len,
+
+/**
+ * @brief Parse the response to a 0x68 Motor Read Stream message.
+ * 
+ * @param[in] rcvd_buff The buffer containing received response data
+ * @param[in] buff_len The length of the received buffer
+ * @param[out] state Newly read state data of the actuator
+ * @return true response successfully parsed 
+ * @return false response parsing failed
+ */
+static bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len,
                              ActuatorState &state) {
   if (buff_len < MOTOR_READ_STREAM_MSG_RSP_LEN) {
     GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
@@ -129,7 +170,14 @@ bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len,
   return true;
 }
 
-void add_crc_modbus(uint8_t *buff, uint8_t len) {
+/**
+ * @brief Add the CRC to a modbus message
+ * 
+ * @param buff Input buffer (message) to add CRC to final two bytes
+ * @param len Length of the message WITHOUT 2 trailing CRC bytes.
+ * Lengthstruc must be > 2 since the CRC itself is two bytes.
+ */
+static void add_crc_modbus(uint8_t *buff, uint8_t len) {
   uint16_t crc = calc_crc_modbus(buff, len);
   buff[len] = (uint8_t)(crc & 0xFF);
   buff[len + 1] = (uint8_t)((crc >> 8) & 0xFF);
@@ -252,10 +300,18 @@ void AP_IrisOrca::init()
         return;
     }
 
+    if (!init_internals()) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to init");
+        return;
+    }
+
     // create background thread to process serial input and output
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::thread_main, void), "irisorca", 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1)) {
         return;
     }
+
+    _initialised = true;
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialized");
 }
 
 // initialise serial port (run from background thread)
@@ -287,13 +343,6 @@ bool AP_IrisOrca::init_internals()
 // runs in background thread
 void AP_IrisOrca::thread_main()
 {
-    // initialisation
-    if (!init_internals()) {
-        return;
-    }
-    _initialised = true;
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialized");
 
     _control_state = orca::MotorControlState::CONFIGURING;
     bool auto_zero_commanded = false;
