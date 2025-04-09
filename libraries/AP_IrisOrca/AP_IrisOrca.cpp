@@ -23,6 +23,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+#include <AP_Common/async.h>
 
 #define IRISORCA_SERIAL_BAUD 19200                  // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY 2                    // communication is always even parity
@@ -128,7 +129,7 @@ namespace orca
      * @param len Length of the message WITHOUT 2 trailing CRC bytes.
      * Lengthstruc must be > 2 since the CRC itself is two bytes.
      */
-    static void add_crc_modbus(uint8_t *buff, uint8_t len)
+    static void add_crc_modbus(uint8_t *buff, uint16_t len)
     {
         uint16_t crc = calc_crc_modbus(buff, len);
         buff[len] = (uint8_t)(crc & 0xFF);
@@ -393,6 +394,23 @@ bool AP_IrisOrca::init_internals()
     return true;
 }
 
+typedef struct example_state {
+    async_state;
+} example_state_t;
+
+static async run(example_state_t *pt)
+{
+    async_begin(pt);
+
+    // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
+    send_read_register_cmd(orca::Register::ZERO_MODE);
+    await(message_received);
+
+
+    async_end;
+}
+
+
 // consume incoming messages from actuator, reply with latest actuator speed
 // runs in background thread
 void AP_IrisOrca::thread_main()
@@ -649,6 +667,40 @@ void AP_IrisOrca::check_for_reply_timeout()
 void AP_IrisOrca::set_reply_received()
 {
     _reply_wait_start_ms = 0;
+}
+
+void AP_IrisOrca::send_read_register_cmd(uint16_t reg_addr)
+{
+    using namespace orca;
+    // buffer for outgoing message
+    uint8_t send_buff[16];
+
+    // set expected reply message length
+    _reply_msg_len = READ_REG_MSG_RSP_LEN;
+
+    // build message
+    uint16_t i = 0;
+    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[i++] = static_cast<uint8_t>(FunctionCode::READ_REGISTER);
+    send_buff[i++] = HIGHBYTE(reg_addr);
+    send_buff[i++] = LOWBYTE(reg_addr);
+    send_buff[i++] = HIGHBYTE(1); // number of registers to read
+    send_buff[i++] = LOWBYTE(1);  // number of registers to read
+
+    // Add Modbus CRC-16
+    orca::add_crc_modbus(send_buff, i);
+
+    // set send pin
+    send_start();
+
+    // write message
+    _uart->write(send_buff, i + 2);
+
+    // record start and expected delay to send message
+    _send_start_us = AP_HAL::micros();
+    _send_delay_us = calc_send_delay_us(sizeof(send_buff));
+
+    _reply_wait_start_ms = AP_HAL::millis();
 }
 
 // send a 0x06 Write Register message to the actuator

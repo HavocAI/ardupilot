@@ -44,6 +44,7 @@ namespace orca {
 
     // function codes
     enum class FunctionCode : uint8_t {
+        READ_REGISTER = 0x03,
         WRITE_REGISTER = 0x06,
         WRITE_MULTIPLE_REGISTERS = 0x10,
         MOTOR_COMMAND_STREAM = 0x64,
@@ -328,6 +329,8 @@ private:
     // mark reply received. should be called whenever a message is received 
     // regardless of whether we are actually waiting for a reply
     void set_reply_received();
+
+    void send_read_register_cmd(uint16_t reg_addr);
 
     // send a 0x06 Write Register message to the actuator
     // returns true on success
