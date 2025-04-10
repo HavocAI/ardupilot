@@ -393,25 +393,25 @@ static async run(example_state_t *pt)
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     pt->self->_modbus.send_read_register_cmd((uint16_t) orca::Register::ZERO_MODE);
     
-    await(message_received);
+    await(pt->self->_modbus.message_received());
 
 
     async_end;
 }
 
+typedef struct modbus_receive_task {
+    async_state;
+    AP_IrisOrca *self;
+} modbus_receive_task_t;
 
-static async modbus_receive()
+static async modbus_receive_fn(modbus_receive_task_t *pt)
 {
     int16_t b;
     async_begin(pt);
 
     while(true) {
-        
-
-        if((b = _uart->read()) > 0) {
-
-        }
-
+        pt->self->_modbus.read();
+        async_yield;
     }
 
     async_end;

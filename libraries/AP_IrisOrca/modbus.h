@@ -18,6 +18,9 @@ class OrcaModbus
 
         void init(AP_HAL::UARTDriver *, AP_Int8 pin_de);
         void send_read_register_cmd(uint16_t reg_addr);
+        bool message_received();
+
+        void read();
     
     private:
         AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator

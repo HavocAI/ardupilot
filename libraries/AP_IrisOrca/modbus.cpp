@@ -90,6 +90,11 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, AP_Int8 pin_de)
     }
 }
 
+void OrcaModbus::read()
+{
+    
+}
+
 void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
 {
     // buffer for outgoing message
