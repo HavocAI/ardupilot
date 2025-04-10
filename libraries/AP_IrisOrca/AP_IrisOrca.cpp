@@ -375,21 +375,8 @@ bool AP_IrisOrca::init_internals()
     {
         return false;
     }
-    _uart->begin(IRISORCA_SERIAL_BAUD);
-    _uart->configure_parity(IRISORCA_SERIAL_PARITY);
-    _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
-    _uart->set_unbuffered_writes(true);
 
-    // initialise RS485 DE pin (when high, allows send to actuator)
-    if (_pin_de > -1)
-    {
-        hal.gpio->pinMode(_pin_de, HAL_GPIO_OUTPUT);
-        hal.gpio->write(_pin_de, 0);
-    }
-    else
-    {
-        _uart->set_CTS_pin(false);
-    }
+    _modbus.init(_uart, _pin_de);
 
     return true;
 }
@@ -399,12 +386,12 @@ typedef struct example_state {
     AP_IrisOrca *self;
 } example_state_t;
 
-static async AP_IrisOrca::run(example_state_t *pt)
+static async run(example_state_t *pt)
 {
     async_begin(pt);
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
-    pt->self->_modbus->send_read_register_cmd(orca::Register::ZERO_MODE);
+    pt->self._modbus->send_read_register_cmd(orca::Register::ZERO_MODE);
     
     await(message_received);
 
