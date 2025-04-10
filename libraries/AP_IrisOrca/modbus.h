@@ -23,7 +23,14 @@ class OrcaModbus
         void init(AP_HAL::UARTDriver *, AP_Int8 pin_de);
         void send_read_register_cmd(uint16_t reg_addr);
         void send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value);
+        void send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint16_t *registers);
         
+        /**
+         * adds CRC-16 to the end of the message and then transmits
+         */
+        void send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_len);
+        
+
         /**
          * @breif read a 16-bit modbus register from the receive buf
          * Note: the `send_read_register_cmd()` should have been called before this
@@ -35,12 +42,14 @@ class OrcaModbus
 
         void set_recive_timeout_ms(uint32_t timeout_ms);
 
-        void read();
-
         /**
-         * adds CRC-16 to the end of the message and then transmits
+         * @brief perform various tasks such as reading from the serial port
+         * and checking for timeouts
+         * @note this should be continuously called from the main loop
          */
-        void send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_len);
+        void tick();
+
+        
     
     private:
         AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator
@@ -52,8 +61,9 @@ class OrcaModbus
         uint32_t _send_delay_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
         uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
         bool _received_msg_ready;
+        bool _is_sending;
 
-        
+        void check_send_end();
 
 };
 

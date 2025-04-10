@@ -63,7 +63,8 @@ OrcaModbus::OrcaModbus()
       _send_start_us(0),
       _send_delay_us(0),
       _reply_wait_start_ms(0),
-      _received_msg_ready(false)
+      _received_msg_ready(false),
+      _is_sending(false)
 {
     // Constructor implementation
 }
@@ -91,9 +92,11 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, AP_Int8 pin_de)
     }
 }
 
-void OrcaModbus::read()
+void OrcaModbus::tick()
 {
     uint8_t b;
+
+    check_send_end();
 
     if (_uart->read(b)) {
         _received_buff[_received_buff_len++] = b;
@@ -164,6 +167,31 @@ void OrcaModbus::send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value)
     send_data(send_buff, i, 8);
 }
 
+void OrcaModbus::send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint16_t *registers)
+{
+    // buffer for outgoing message
+    uint8_t* send_buff = static_cast<uint8_t*>(alloca(7 + 2 + (2 * reg_count)));
+
+    // build message
+    uint16_t i = 0;
+    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[i++] = static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS);
+    send_buff[i++] = HIGHBYTE(reg_addr);
+    send_buff[i++] = LOWBYTE(reg_addr);
+    send_buff[i++] = HIGHBYTE(reg_count);
+    send_buff[i++] = LOWBYTE(reg_count);
+    send_buff[i++] = LOWBYTE(reg_count * 2);
+
+    // copy data into message
+    for (uint16_t j = 0; j < reg_count; j++)
+    {
+        send_buff[i++] = HIGHBYTE(registers[j]);
+        send_buff[i++] = LOWBYTE(registers[j]);
+    }
+
+    send_data(send_buff, i, 8);
+}
+
 void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_len)
 {
 
@@ -183,10 +211,29 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     // record start and expected delay to send message
     _send_start_us = AP_HAL::micros();
     _send_delay_us = calc_send_delay_us(len);
+    _is_sending = true;
 
     _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
 
     // write message
     _uart->write(data, len);
+}
+
+void OrcaModbus::check_send_end()
+{
+    uint32_t now_us = AP_HAL::micros();
+
+    if (!_is_sending) {
+        return;
+    }
+
+    if (now_us - _send_start_us > _send_delay_us) {
+        // unset gpio or serial port's CTS pin
+        if (_pin_de > -1) {
+            hal.gpio->write(_pin_de, 0);
+        } else {
+            _uart->set_CTS_pin(false);
+        }
+    }
 }

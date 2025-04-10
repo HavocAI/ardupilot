@@ -383,6 +383,27 @@ bool AP_IrisOrca::init_internals()
 
 #define TIME_PASSED(start, delay_ms) (AP_HAL::millis() - (start) > delay_ms)
 
+static void send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus)
+{
+    using namespace orca;
+
+    uint16_t i = 0;
+    uint8_t send_buff[MOTOR_COMMAND_STREAM_MSG_LEN];
+
+    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[i++] = static_cast<uint8_t>(FunctionCode::MOTOR_COMMAND_STREAM);
+    send_buff[i++] = static_cast<uint8_t>(MotorCommandStreamSubCode::POSITION_CONTROL_STREAM);
+
+    // data is 32 bits - send as 4 bytes
+    send_buff[i++] = HIGHBYTE(HIGHWORD(position_um));
+    send_buff[i++] = LOWBYTE(HIGHWORD(position_um));
+    send_buff[i++] = HIGHBYTE(LOWWORD(position_um));
+    send_buff[i++] = LOWBYTE(LOWWORD(position_um));
+
+    modbus->send_data(send_buff, i, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
+}
+
+
 typedef struct example_state {
     async_state;
     AP_IrisOrca *self;
@@ -424,14 +445,22 @@ static async run(example_state_t *pt)
         
     }
 
+    pt->self->_modbus.set_recive_timeout_ms(75);
+
     while(true) {
 
         pt->self->send_actuator_position_cmd();
         pt->last_send_ms = AP_HAL::millis();
 
         await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
-        
+        if (err == MODBUS_MSG_RECV_TIMEOUT) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position return msg timeout");
+        }
 
+        // TODO: check for errors in the response
+
+
+        // send at 10Hz
         await(TIME_PASSED(pt->last_send_ms, 100));
     }
 
