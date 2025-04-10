@@ -22,6 +22,7 @@
 #pragma once
 
 #include "AP_IrisOrca_config.h"
+#include "modbus.h"
 
 #if HAL_IRISORCA_ENABLED
 
@@ -298,6 +299,8 @@ public:
     bool healthy();
 
     static const struct AP_Param::GroupInfo var_info[];
+
+    OrcaModbus _modbus;
 
 private:
 

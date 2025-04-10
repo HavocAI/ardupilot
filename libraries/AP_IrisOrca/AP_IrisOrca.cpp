@@ -396,16 +396,34 @@ bool AP_IrisOrca::init_internals()
 
 typedef struct example_state {
     async_state;
+    AP_IrisOrca *self;
 } example_state_t;
 
-static async run(example_state_t *pt)
+static async AP_IrisOrca::run(example_state_t *pt)
 {
     async_begin(pt);
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
-    send_read_register_cmd(orca::Register::ZERO_MODE);
+    pt->self->_modbus->send_read_register_cmd(orca::Register::ZERO_MODE);
+    
     await(message_received);
 
+
+    async_end;
+}
+
+static async AP_IrisOrca::modbus_receive()
+{
+    int16_t b;
+    async_begin(pt);
+
+    while(true) {
+
+        if((b = _uart->read()) > 0) {
+
+        }
+
+    }
 
     async_end;
 }
@@ -676,7 +694,7 @@ void AP_IrisOrca::send_read_register_cmd(uint16_t reg_addr)
     uint8_t send_buff[16];
 
     // set expected reply message length
-    _reply_msg_len = READ_REG_MSG_RSP_LEN;
+    _reply_msg_len = 7;
 
     // build message
     uint16_t i = 0;
