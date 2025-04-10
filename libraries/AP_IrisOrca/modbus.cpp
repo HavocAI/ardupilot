@@ -62,7 +62,8 @@ OrcaModbus::OrcaModbus()
       _received_buff_len(0),
       _send_start_us(0),
       _send_delay_us(0),
-      _reply_wait_start_ms(0)
+      _reply_wait_start_ms(0),
+      _received_msg_ready(false)
 {
     // Constructor implementation
 }
@@ -92,16 +93,47 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, AP_Int8 pin_de)
 
 void OrcaModbus::read()
 {
-    
+    uint8_t b;
+
+    if (_uart->read(b)) {
+        _received_buff[_received_buff_len++] = b;
+        if (_received_buff_len >= _reply_msg_len) {
+            // check CRC of the message
+            uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
+            uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
+            if (crc_expected == crc_received) {
+                _received_msg_ready = true;
+                // complete message received
+                _reply_wait_start_ms = 0;
+                _received_buff_len = 0;
+            } else {
+                // CRC error
+                _received_buff_len = 0;
+            }
+        }
+    }
+}
+
+uint8_t OrcaModbus::message_received()
+{
+    if (_received_msg_ready) {
+        return MODBUS_MSG_RECV_READY;
+    }
+
+    // TODO: check for timeout and return MODBUS_MSG_TIMEOUT
+
+    return MODBUS_MSG_RECV_PENDING;
+}
+
+void OrcaModbus::set_recive_timeout_ms(uint32_t timeout_ms)
+{
+
 }
 
 void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
 {
     // buffer for outgoing message
     uint8_t send_buff[16];
-
-    // set expected reply message length
-    _reply_msg_len = 7;
 
     // build message
     uint16_t i = 0;
@@ -112,14 +144,34 @@ void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
     send_buff[i++] = HIGHBYTE(1); // number of registers to read
     send_buff[i++] = LOWBYTE(1);  // number of registers to read
 
-    // Add Modbus CRC-16
-    add_crc_modbus(send_buff, i);
-
-    send_data(send_buff, i + 2);
+    send_data(send_buff, i, 7);
 }
 
-void OrcaModbus::send_data(uint8_t *data, uint16_t len)
+void OrcaModbus::send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value)
 {
+    // buffer for outgoing message
+    uint8_t send_buff[16];
+
+    // build message
+    uint16_t i = 0;
+    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[i++] = static_cast<uint8_t>(FunctionCode::WRITE_REGISTER);
+    send_buff[i++] = HIGHBYTE(reg_addr);
+    send_buff[i++] = LOWBYTE(reg_addr);
+    send_buff[i++] = HIGHBYTE(reg_value);
+    send_buff[i++] = LOWBYTE(reg_value);
+
+    send_data(send_buff, i, 8);
+}
+
+void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_len)
+{
+
+    // Add Modbus CRC-16
+    add_crc_modbus(data, len);
+    len += 2; // add CRC length
+
+
     // set send pin
     // set gpio pin or serial port's CTS pin
     if (_pin_de > -1) {
@@ -133,6 +185,7 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len)
     _send_delay_us = calc_send_delay_us(len);
 
     _reply_wait_start_ms = AP_HAL::millis();
+    _reply_msg_len = expected_reply_len;
 
     // write message
     _uart->write(data, len);

@@ -381,19 +381,59 @@ bool AP_IrisOrca::init_internals()
     return true;
 }
 
+#define TIME_PASSED(start, delay_ms) (AP_HAL::millis() - (start) > delay_ms)
+
 typedef struct example_state {
     async_state;
     AP_IrisOrca *self;
+    uint32_t last_send_ms;
 } example_state_t;
 
 static async run(example_state_t *pt)
 {
+    uint32_t now_ms;
+    uint8_t err;
+
     async_begin(pt);
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     pt->self->_modbus.send_read_register_cmd((uint16_t) orca::Register::ZERO_MODE);
-    
-    await(pt->self->_modbus.message_received());
+    await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+    if (err == MODBUS_MSG_RECV_TIMEOUT) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
+        async_init(pt);
+        return ASYNC_CONT;
+    }
+    uint16_t zero_mode = pt->self->_modbus.read_register();
+
+    if (zero_mode != 0x0003)
+    {
+        // set the auto zero on boot bit
+        pt->self->_modbus.send_write_register_cmd((uint16_t) orca::Register::ZERO_MODE, 0x0003);
+        await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero on boot set");
+
+        // set the auto zero exit mode to 3 (position)
+        pt->self->_modbus.send_write_register_cmd((uint16_t) orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
+        await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+
+        // set the persist bit
+        pt->self->_modbus.send_write_register_cmd((uint16_t) orca::Register::CTRL_REG_2, 0x0001);
+        await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
+        
+    }
+
+    while(true) {
+
+        pt->self->send_actuator_position_cmd();
+        pt->last_send_ms = AP_HAL::millis();
+
+        await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        
+
+        await(TIME_PASSED(pt->last_send_ms, 100));
+    }
 
 
     async_end;
@@ -813,20 +853,7 @@ bool AP_IrisOrca::write_motor_command_stream(const uint8_t sub_code, const uint3
     send_buff[MotorCommandStream::Idx::DATA_LSB_HI] = HIGHBYTE(LOWWORD(data));
     send_buff[MotorCommandStream::Idx::DATA_LSB_LO] = LOWBYTE(LOWWORD(data));
 
-    // Add Modbus CRC-16
-    orca::add_crc_modbus(send_buff, MOTOR_COMMAND_STREAM_MSG_LEN - CRC_LEN);
-
-    // set send pin
-    send_start();
-
-    // write message
-    _uart->write(send_buff, sizeof(send_buff));
-
-    // record start and expected delay to send message
-    _send_start_us = AP_HAL::micros();
-    _send_delay_us = calc_send_delay_us(sizeof(send_buff));
-
-    _reply_wait_start_ms = AP_HAL::millis();
+    _modbus.send_data(send_buff, MOTOR_COMMAND_STREAM_MSG_LEN, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
 
     return true;
 }

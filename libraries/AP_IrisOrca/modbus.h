@@ -7,6 +7,10 @@
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
+#define MODBUS_MSG_RECV_PENDING 0
+#define MODBUS_MSG_RECV_READY 1
+#define MODBUS_MSG_RECV_TIMEOUT 2
+
 class OrcaModbus
 {
     public:
@@ -18,9 +22,25 @@ class OrcaModbus
 
         void init(AP_HAL::UARTDriver *, AP_Int8 pin_de);
         void send_read_register_cmd(uint16_t reg_addr);
-        bool message_received();
+        void send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value);
+        
+        /**
+         * @breif read a 16-bit modbus register from the receive buf
+         * Note: the `send_read_register_cmd()` should have been called before this
+         * and the `message received()` should be true
+         */
+        uint16_t read_register();
+
+        uint8_t message_received();
+
+        void set_recive_timeout_ms(uint32_t timeout_ms);
 
         void read();
+
+        /**
+         * adds CRC-16 to the end of the message and then transmits
+         */
+        void send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_len);
     
     private:
         AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator
@@ -31,8 +51,9 @@ class OrcaModbus
         uint32_t _send_start_us;            // system time (in micros) when last message started being sent (used for timing to unset DE pin)
         uint32_t _send_delay_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
         uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
+        bool _received_msg_ready;
 
-        void send_data(uint8_t *data, uint16_t len);
+        
 
 };
 
