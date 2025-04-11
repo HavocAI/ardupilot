@@ -10,6 +10,7 @@
 #define MODBUS_MSG_RECV_PENDING 0
 #define MODBUS_MSG_RECV_READY 1
 #define MODBUS_MSG_RECV_TIMEOUT 2
+#define MODBUS_MSG_RECV_ERROR 3
 
 class OrcaModbus
 {

@@ -125,6 +125,8 @@ uint8_t OrcaModbus::message_received()
 
     // TODO: check for timeout and return MODBUS_MSG_TIMEOUT
 
+    // TODO: check for reply message CRC error and return MODBUS_MSG_RECV_ERROR
+
     return MODBUS_MSG_RECV_PENDING;
 }
 
