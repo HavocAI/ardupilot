@@ -32,8 +32,8 @@
 #define IRISORCA_REPLY_TIMEOUT_MS 25                // stop waiting for replies after 25ms
 #define IRISORCA_ERROR_REPORT_INTERVAL_MAX_MS 10000 // errors reported to user at no less than once every 10 seconds
 
-#define HIGHWORD(x) ((uint16_t)((x) >> 16))
-#define LOWWORD(x) ((uint16_t)(x))
+#define HIGHWORD(x) ((uint16_t)((x) >> 16) & 0xFFFF)
+#define LOWWORD(x) ((uint16_t)(x) & 0xFFFF)
 
 namespace orca
 {
@@ -444,6 +444,11 @@ static async run(example_state_t *pt)
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
         
     }
+
+    pt->self->send_position_controller_params();
+    await( (err = pt->self->_modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+
+    
 
     pt->self->_modbus.set_recive_timeout_ms(75);
 
@@ -991,28 +996,15 @@ void AP_IrisOrca::send_actuator_status_request()
 // send a write multiple registers message to the actuator to set the position controller params
 void AP_IrisOrca::send_position_controller_params()
 {
-    // buffer for outgoing message
-    uint8_t data[12];
-    data[0] = HIGHBYTE(_gain_p);
-    data[1] = LOWBYTE(_gain_p);
-    data[2] = HIGHBYTE(_gain_i);
-    data[3] = LOWBYTE(_gain_i);
-    data[4] = HIGHBYTE(_gain_dv);
-    data[5] = LOWBYTE(_gain_dv);
-    data[6] = HIGHBYTE(_gain_de);
-    data[7] = LOWBYTE(_gain_de);
-    data[8] = HIGHBYTE(static_cast<uint16_t>(_f_max << 16 >> 16));
-    data[9] = LOWBYTE(static_cast<uint16_t>(_f_max << 16 >> 16));
-    data[10] = HIGHBYTE(static_cast<uint16_t>(_f_max >> 16));
-    data[11] = LOWBYTE(static_cast<uint16_t>(_f_max >> 16));
+    uint16_t registers[6];
+    registers[0] = _gain_p;
+    registers[1] = _gain_i;
+    registers[2] = _gain_dv;
+    registers[3] = _gain_de;
+    registers[4] = HIGHWORD(_f_max);
+    registers[5] = LOWWORD(_f_max);
 
-    // send message
-    if (write_multiple_registers((uint16_t)orca::Register::PC_PGAIN, 6, (uint8_t *)data))
-    {
-        // record time of send for health reporting
-        WITH_SEMAPHORE(_last_healthy_sem);
-        _last_send_actuator_ms = AP_HAL::millis();
-    }
+    _modbus.send_write_multiple_registers((uint16_t)orca::Register::PC_PGAIN, 6, registers);
 }
 
 // send a write multiple registers message to the actuator to set the auto-zero params
