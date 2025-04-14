@@ -51,6 +51,8 @@ private:
     run_state_t _run_state;
 
     OrcaModbus _modbus;
+
+    uint32_t last_send_ms;
     
     // 
     void init(void);

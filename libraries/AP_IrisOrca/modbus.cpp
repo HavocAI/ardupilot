@@ -1,6 +1,7 @@
 
 #include "modbus.h"
 #include <AP_Math/crc.h>
+#include <AP_HAL/utility/sparse-endian.h>
 
 #define IRISORCA_SERIAL_BAUD 19200                  // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY 2                    // communication is always even parity
@@ -12,14 +13,14 @@
 extern const AP_HAL::HAL &hal;
 
 // message addresses
-enum class MsgAddress : uint8_t
+enum MsgAddress : uint8_t
 {
     BUS_MASTER = 0x00,
     DEVICE = 0x01
 };
 
 // function codes
-enum class FunctionCode : uint8_t
+enum FunctionCode : uint8_t
 {
     READ_REGISTER = 0x03,
     WRITE_REGISTER = 0x06,
@@ -63,13 +64,13 @@ OrcaModbus::OrcaModbus()
       _send_start_us(0),
       _send_delay_us(0),
       _reply_wait_start_ms(0),
-      _received_msg_ready(false),
-      _is_sending(false)
+      _sending_state(SendingState::Idle),
+      _receive_state(ReceiveState::Pending)
 {
     // Constructor implementation
 }
 
-void OrcaModbus::init(AP_HAL::UARTDriver *uart, AP_Int8 pin_de)
+void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
 {
     _uart = uart;
     _pin_de = pin_de;
@@ -81,13 +82,10 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, AP_Int8 pin_de)
     _uart->set_unbuffered_writes(true);
 
     // initialise RS485 DE pin (when high, allows send to actuator)
-    if (_pin_de > -1)
-    {
+    if (_pin_de >= 0) {
         hal.gpio->pinMode(_pin_de, HAL_GPIO_OUTPUT);
         hal.gpio->write(_pin_de, 0);
-    }
-    else
-    {
+    } else {
         _uart->set_CTS_pin(false);
     }
 }
@@ -95,36 +93,37 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, AP_Int8 pin_de)
 void OrcaModbus::tick()
 {
     uint8_t b;
+    uint32_t now_us = AP_HAL::micros();
 
-    check_send_end();
-
-    if (_uart->read(b)) {
-        _received_buff[_received_buff_len++] = b;
-        if (_received_buff_len >= _reply_msg_len) {
-            // check CRC of the message
-            uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
-            uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
-            if (crc_expected == crc_received) {
-                _received_msg_ready = true;
-                // complete message received
-                _reply_wait_start_ms = 0;
-            } 
-            _received_buff_len = 0;
+    if (_sending_state == SendingState::Sending) {
+        if (now_us - _send_start_us > _send_delay_us) {
+            // unset gpio or serial port's CTS pin
+            if (_pin_de > -1) {
+                hal.gpio->write(_pin_de, 0);
+            } else {
+                _uart->set_CTS_pin(false);
+            }
         }
     }
-}
 
-uint8_t OrcaModbus::message_received()
-{
-    if (_received_msg_ready) {
-        return MODBUS_MSG_RECV_READY;
+    if (_uart->available() > 0 && _uart->read(b)) {
+        if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
+            _received_buff[_received_buff_len++] = b;
+            if (_received_buff_len >= _reply_msg_len) {
+                // check CRC of the message
+                uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
+                uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
+                if (crc_expected == crc_received) {
+                    _receive_state = ReceiveState::Ready;
+                    _reply_wait_start_ms = 0;
+                } else {
+                    // CRC is incorrect
+                    _receive_state = ReceiveState::Error;
+                }
+                _received_buff_len = 0;
+            }
+        }
     }
-
-    // TODO: check for timeout and return MODBUS_MSG_TIMEOUT
-
-    // TODO: check for reply message CRC error and return MODBUS_MSG_RECV_ERROR
-
-    return MODBUS_MSG_RECV_PENDING;
 }
 
 void OrcaModbus::set_recive_timeout_ms(uint32_t timeout_ms)
@@ -139,14 +138,30 @@ void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
 
     // build message
     uint16_t i = 0;
-    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
-    send_buff[i++] = static_cast<uint8_t>(FunctionCode::READ_REGISTER);
-    send_buff[i++] = HIGHBYTE(reg_addr);
-    send_buff[i++] = LOWBYTE(reg_addr);
-    send_buff[i++] = HIGHBYTE(1); // number of registers to read
-    send_buff[i++] = LOWBYTE(1);  // number of registers to read
+    send_buff[i++] = MsgAddress::DEVICE;
+    send_buff[i++] = FunctionCode::READ_REGISTER;
 
+    put_be16_ptr(&send_buff[i], reg_addr);
+    i += 2;
+
+    put_be16_ptr(&send_buff[i], 1); // number of registers to read
+    i += 2;
+    
     send_data(send_buff, i, 7);
+}
+
+bool OrcaModbus::read_register(uint16_t& reg)
+{
+    if (_receive_state == ReceiveState::Ready) {
+
+        if (_received_buff[1] != FunctionCode::READ_REGISTER) {
+            return false;
+        }
+
+        reg = be16toh_ptr(&_received_buff[3]);
+        return true;
+    }
+    return false;
 }
 
 void OrcaModbus::send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value)
@@ -210,7 +225,8 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     // record start and expected delay to send message
     _send_start_us = AP_HAL::micros();
     _send_delay_us = calc_send_delay_us(len);
-    _is_sending = true;
+    _receive_state = ReceiveState::Pending;
+    _sending_state = SendingState::Sending;
 
     _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
@@ -219,20 +235,3 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     _uart->write(data, len);
 }
 
-void OrcaModbus::check_send_end()
-{
-    uint32_t now_us = AP_HAL::micros();
-
-    if (!_is_sending) {
-        return;
-    }
-
-    if (now_us - _send_start_us > _send_delay_us) {
-        // unset gpio or serial port's CTS pin
-        if (_pin_de > -1) {
-            hal.gpio->write(_pin_de, 0);
-        } else {
-            _uart->set_CTS_pin(false);
-        }
-    }
-}

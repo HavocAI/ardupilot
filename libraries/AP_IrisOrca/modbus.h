@@ -7,21 +7,29 @@
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
-#define MODBUS_MSG_RECV_PENDING 0
-#define MODBUS_MSG_RECV_READY 1
-#define MODBUS_MSG_RECV_TIMEOUT 2
-#define MODBUS_MSG_RECV_ERROR 3
 
 class OrcaModbus
 {
     public:
+
+        enum ReceiveState {
+            Pending,
+            Ready,
+            Timeout,
+            Error,
+        };
+
+        enum SendingState {
+            Idle,
+            Sending,
+        };
 
         friend class AP_IrisOrca;
         
         OrcaModbus();
         CLASS_NO_COPY(OrcaModbus);
 
-        void init(AP_HAL::UARTDriver *, AP_Int8 pin_de);
+        void init(AP_HAL::UARTDriver*, int pin_de);
         void send_read_register_cmd(uint16_t reg_addr);
         void send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value);
         void send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint16_t *registers);
@@ -34,12 +42,14 @@ class OrcaModbus
 
         /**
          * @breif read a 16-bit modbus register from the receive buf
+         * @param reg[out] reference to the register to be read
+         * @returns true if the register was read successfully
          * Note: the `send_read_register_cmd()` should have been called before this
          * and the `message received()` should be true
          */
-        uint16_t read_register();
+        bool read_register(uint16_t& reg);
 
-        uint8_t message_received();
+        ReceiveState receive_state() { return _receive_state; };
 
         void set_recive_timeout_ms(uint32_t timeout_ms);
 
@@ -54,17 +64,17 @@ class OrcaModbus
     
     private:
         AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator
-        AP_Int8 _pin_de;
+        int _pin_de;
         uint16_t _reply_msg_len;
         uint8_t _received_buff[IRISORCA_MESSAGE_LEN_MAX];
         uint16_t _received_buff_len;
         uint32_t _send_start_us;            // system time (in micros) when last message started being sent (used for timing to unset DE pin)
         uint32_t _send_delay_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
         uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
-        bool _received_msg_ready;
-        bool _is_sending;
+        
+        SendingState _sending_state;
+        ReceiveState _receive_state;
 
-        void check_send_end();
 
 };
 

@@ -67,23 +67,7 @@ namespace orca {
 
     static constexpr uint16_t MOTOR_COMMAND_STREAM_MSG_RSP_LEN = 19;
 
-    void send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus)
-    {
-        using namespace orca;
-
-        uint16_t i = 0;
-        uint8_t send_buff[16];
-
-        send_buff[i++] = MsgAddress::DEVICE;
-        send_buff[i++] = FunctionCode::MOTOR_COMMAND_STREAM;
-        send_buff[i++] = MotorCommandStreamSubCode::POSITION_CONTROL_STREAM;
-
-        // data is 32 bits - send as 4 bytes
-        put_be32_ptr(&send_buff[i], position_um);
-        i += 4;
-
-        modbus->send_data(send_buff, i, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
-    }
+    void send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus);
 }
 
 const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
@@ -214,57 +198,60 @@ void AP_IrisOrca::update()
 
 }
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 async AP_IrisOrca::run()
 {
     async_begin(&_run_state)
 
-    uint8_t err;
-    uint16_t zero_mode;
+    OrcaModbus::ReceiveState rx;
+    uint16_t value;
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
-    await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
-    if (err == MODBUS_MSG_RECV_TIMEOUT) {
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
         async_init(&_run_state);
         return ASYNC_CONT;
     }
-    zero_mode = _modbus.read_register();
 
-    if (zero_mode != 0x0003)
-    {
+    if (value != 0x0003) {
         // set the auto zero on boot bit
         _modbus.send_write_register_cmd(orca::Register::ZERO_MODE, 0x0003);
-        await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero on boot set");
 
         // set the auto zero exit mode to 3 (position)
         _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
-        await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
         // set the persist bit
         _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
-        await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
         
         // send the command to start auto-zero
         _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
-        await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
     }
 
     
     // wait until we see its in the position control mode. This should happen automatically after auto zero is finished.
     while (true) {
         _modbus.send_read_register_cmd(orca::Register::CTRL_REG_3);
-        await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
-        if (err == MODBUS_MSG_RECV_TIMEOUT) {
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read CTRL_REG_3 register");
             async_init(&_run_state);
             return ASYNC_CONT;
         }
-        uint16_t ctrl_reg_3 = _modbus.read_register();
-        if (ctrl_reg_3 == 0x0003) {
+        
+        if (value == 0x0003) {
             break;
+        } else {
+            last_send_ms = AP_HAL::millis();
+            await(TIME_PASSED(last_send_ms, 500));
         }
     }
 
@@ -277,7 +264,7 @@ async AP_IrisOrca::run()
     while(true) {
 
         send_actuator_position_cmd();
-        pt->last_send_ms = AP_HAL::millis();
+        last_send_ms = AP_HAL::millis();
 
         await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
         if (err == MODBUS_MSG_RECV_TIMEOUT) {
@@ -288,11 +275,12 @@ async AP_IrisOrca::run()
 
 
         // send at 10Hz
-        await(TIME_PASSED(pt->last_send_ms, 100));
+        await(TIME_PASSED(last_send_ms, 100));
     }
 
     async_end
 }
+#pragma GCC diagnostic pop
 
 void AP_IrisOrca::send_position_controller_params()
 {
@@ -305,6 +293,36 @@ void AP_IrisOrca::send_position_controller_params()
     registers[5] = LOWWORD(_f_max);
 
     _modbus.send_write_multiple_registers(orca::Register::PC_PGAIN, 6, registers);
+}
+
+void AP_IrisOrca::send_actuator_position_cmd()
+{
+    float yaw = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering);
+
+    const float m = (_reverse_direction ? -1.0 : 1.0) * 0.5 * 1000 * (_max_travel_mm - (2.0 * _pad_travel_mm));
+    const float b = 0.5 * 1000 * _max_travel_mm;
+    
+    const float shaft_position_um = yaw * m + b;
+
+    orca::send_actuator_position_cmd(shaft_position_um, &_modbus);
+}
+
+void orca::send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus)
+{
+    using namespace orca;
+
+    uint16_t i = 0;
+    uint8_t send_buff[16];
+
+    send_buff[i++] = MsgAddress::DEVICE;
+    send_buff[i++] = FunctionCode::MOTOR_COMMAND_STREAM;
+    send_buff[i++] = MotorCommandStreamSubCode::POSITION_CONTROL_STREAM;
+
+    // data is 32 bits - send as 4 bytes
+    put_be32_ptr(&send_buff[i], position_um);
+    i += 4;
+
+    modbus->send_data(send_buff, i, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
 }
 
 #endif // AP_IRISORCA_ENABLED
