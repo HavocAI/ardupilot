@@ -108,11 +108,8 @@ void OrcaModbus::tick()
                 _received_msg_ready = true;
                 // complete message received
                 _reply_wait_start_ms = 0;
-                _received_buff_len = 0;
-            } else {
-                // CRC error
-                _received_buff_len = 0;
-            }
+            } 
+            _received_buff_len = 0;
         }
     }
 }

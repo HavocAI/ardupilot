@@ -63,6 +63,7 @@
  */
 
 #include <limits.h>
+#include <AP_Common/AP_Common.h>
 
 /**
  * The async computation status
@@ -89,7 +90,11 @@ typedef enum ASYNC_EVT { ASYNC_INIT = 0, ASYNC_CONT = ASYNC_INIT, ASYNC_DONE = 1
 /**
  * Mark the end of a async subroutine
  */
-#define async_end *_async_k=ASYNC_DONE; case ASYNC_DONE: return ASYNC_DONE; }
+#define async_end \
+*_async_k=ASYNC_DONE; \
+FALLTHROUGH \
+case ASYNC_DONE: \
+return ASYNC_DONE; }
 
 /**
  * Wait until the condition succeeds

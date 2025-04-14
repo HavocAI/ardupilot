@@ -10,6 +10,8 @@
 
 #include <AP_HAL/AP_HAL.h>
 #include <AP_Param/AP_Param.h>
+#include <AP_Common/async.h>
+#include "modbus.h"
 
 class AP_IrisOrca
 {
@@ -24,9 +26,7 @@ public:
     void update();
 
 private:
-    AP_HAL::UARTDriver *_uart;
-
-    void init(void);
+    
 
     // parameters
     AP_Int8 _pin_de;                    // Pin number connected to RS485 to Serial converter's DE pin. -1 to disable sending commands to actuator
@@ -40,6 +40,23 @@ private:
     AP_Int16 _gain_de;                  // position control derivative error gain
     AP_Int16 _auto_zero_f_max;          // maximum force for auto zero in Newtons
 
+    // members
+    AP_HAL::UARTDriver *_uart;
+
+    typedef struct run_state {
+        async_state;
+        uint32_t last_send_ms;
+    } run_state_t;
+
+    run_state_t _run_state;
+
+    OrcaModbus _modbus;
+    
+    // 
+    void init(void);
+    async run();
+    void send_position_controller_params();
+    void send_actuator_position_cmd();
 
 };
 

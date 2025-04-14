@@ -31,8 +31,8 @@
 #define IRISORCA_REPLY_TIMEOUT_MS               25      // stop waiting for replies after 25ms
 #define IRISORCA_ERROR_REPORT_INTERVAL_MAX_MS   10000   // errors reported to user at no less than once every 10 seconds
 
-#define HIGHWORD(x) ((uint16_t)((x) >> 16))
-#define LOWWORD(x) ((uint16_t)(x))
+#define HIGHWORD(x) ((uint16_t)((x) >> 16) & 0xFFFF)
+#define LOWWORD(x) ((uint16_t)(x) & 0xFFFF)
 
 namespace orca {
 
