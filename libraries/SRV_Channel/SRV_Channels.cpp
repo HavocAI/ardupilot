@@ -193,6 +193,12 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
     AP_SUBGROUPINFO(robotis, "_ROB_",  22, SRV_Channels, AP_RobotisServo),
 #endif
 
+#if AP_IRISORCA_ENABLED
+    // @Group: _ORCA_
+    // @Path: ../AP_IrisOrca/AP_IrisOrca.cpp
+    AP_SUBGROUPINFO(irisorca, "_ORCA_",  45, SRV_Channels, AP_IrisOrca),
+#endif
+
 #if AP_FETTEC_ONEWIRE_ENABLED
     // @Group: _FTW_
     // @Path: ../AP_FETtecOneWire/AP_FETtecOneWire.cpp
@@ -499,6 +505,11 @@ void SRV_Channels::push()
 
 #if AP_FETTEC_ONEWIRE_ENABLED
     fetteconwire.update();
+#endif
+
+#if AP_IRISORCA_ENABLED
+    // give orca library a chance to update
+    irisorca.update();
 #endif
 
 #if AP_KDECAN_ENABLED

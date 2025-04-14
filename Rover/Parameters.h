@@ -438,11 +438,6 @@ public:
 
     class ModeCircle mode_circle;
 
-#if HAL_IRISORCA_ENABLED
-    // IrisOrca driver
-    AP_IrisOrca iris_orca;
-#endif
-
 };
 
 extern const AP_Param::Info var_info[];

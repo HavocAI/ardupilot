@@ -22,6 +22,7 @@
 #include <AP_SBusOut/AP_SBusOut.h>
 #include <AP_BLHeli/AP_BLHeli.h>
 #include <AP_FETtecOneWire/AP_FETtecOneWire.h>
+#include <AP_IrisOrca/AP_IrisOrca.h>
 
 #include "SRV_Channel_config.h"
 
@@ -619,6 +620,11 @@ private:
 #if AP_ROBOTISSERVO_ENABLED
     // support for Robotis servo protocol
     AP_RobotisServo robotis;
+#endif
+
+#if AP_IRISORCA_ENABLED
+    // support for IrisOrca modbus protocol
+    AP_IrisOrca irisorca;
 #endif
 
 #if HAL_SUPPORT_RCOUT_SERIAL

@@ -694,12 +694,6 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     // @Path: mode_circle.cpp
     AP_SUBGROUPINFO(mode_circle, "CIRC", 57, ParametersG2, ModeCircle),
 
-#if HAL_IRISORCA_ENABLED
-    // @Group: ORCA_
-    // @Path: ../libraries/AP_IrisOrca/AP_IrisOrca.cpp
-    AP_SUBGROUPINFO(iris_orca, "ORCA_", 58, ParametersG2, AP_IrisOrca),
-#endif
-
     AP_GROUPEND
 };
 

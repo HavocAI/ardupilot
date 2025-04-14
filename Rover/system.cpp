@@ -80,11 +80,6 @@ void Rover::init_ardupilot()
     g2.torqeedo.init();
 #endif
 
-#if HAL_IRISORCA_ENABLED
-    // init iris orca actuator driver
-    g2.iris_orca.init();
-#endif
-
 #if AP_OPTICALFLOW_ENABLED
     // initialise optical flow sensor
     optflow.init(MASK_LOG_OPTFLOW);
