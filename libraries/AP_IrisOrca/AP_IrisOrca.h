@@ -22,12 +22,10 @@
 #pragma once
 
 #include "AP_IrisOrca_config.h"
-#include "modbus.h"
 
 #if HAL_IRISORCA_ENABLED
 
 #include <AP_Param/AP_Param.h>
-#include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -45,7 +43,6 @@ namespace orca {
 
     // function codes
     enum class FunctionCode : uint8_t {
-        READ_REGISTER = 0x03,
         WRITE_REGISTER = 0x06,
         WRITE_MULTIPLE_REGISTERS = 0x10,
         MOTOR_COMMAND_STREAM = 0x64,
@@ -278,9 +275,63 @@ namespace orca {
                         bytes[start_idx + 3]);
     }
 
+    /**
+     * @brief Parse the response to a 0x06 write
+     * register response message. Currently only supports
+     * handling the response to a write to register 3.
+     * 
+     * @param[in] rcvd_buff The buffer containing received response data
+     * @param[in] buff_len The length of the received buffer
+     * @return true response successfully parsed 
+     * @return false response parsing failed
+     */
+    bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len);
+
+    /**
+     * @brief Parse the response to a 0x10 Multiple Write Registers message.
+     * 
+     * @param[in] rcvd_buff The buffer containing received response data
+     * @param[in] buff_len The length of the received buffer
+     * @param[out] state (output parameter) State data of the actuator to populate with response.
+     * Currently only updates the position params and zero mode config.
+     * @return true response successfully parsed 
+     * @return false response parsing failed
+     */
+    bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
+
+    /**
+     * @brief Parse the response to a 0x64 Motor Command Stream message.
+     * 
+     * @param[in] rcvd_buff The buffer containing received response data
+     * @param[in] buff_len The length of the received buffer
+     * @param[out] state (output parameter) Newly read state data of the actuator
+     * @return true response successfully parsed
+     * @return false response parsing failed
+     */
+    bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
+
+    /**
+     * @brief Parse the response to a 0x68 Motor Read Stream message.
+     * 
+     * @param[in] rcvd_buff The buffer containing received response data
+     * @param[in] buff_len The length of the received buffer
+     * @param[out] state Newly read state data of the actuator
+     * @return true response successfully parsed 
+     * @return false response parsing failed
+     */
+    bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
+
+    /**
+     * @brief Add the CRC to a modbus message
+     * 
+     * @param buff Input buffer (message) to add CRC to final two bytes
+     * @param len Length of the message WITHOUT 2 trailing CRC bytes.
+     * Lengthstruc must be > 2 since the CRC itself is two bytes.
+     */
+    void add_crc_modbus(uint8_t *buff, uint8_t len);
 }
 
-class AP_IrisOrca : public AP_ESC_Telem_Backend {
+class AP_IrisOrca {
 public:
     AP_IrisOrca();
 
@@ -299,8 +350,6 @@ public:
     bool healthy();
 
     static const struct AP_Param::GroupInfo var_info[];
-
-    OrcaModbus _modbus;
 
 private:
 
@@ -332,8 +381,6 @@ private:
     // mark reply received. should be called whenever a message is received 
     // regardless of whether we are actually waiting for a reply
     void set_reply_received();
-
-    void send_read_register_cmd(uint16_t reg_addr);
 
     // send a 0x06 Write Register message to the actuator
     // returns true on success
@@ -380,9 +427,6 @@ private:
     // process message held in _received_buff
     // return true if the message was as expected and there are no actuator errors
     bool parse_message();
-
-    bool parse_motor_command_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state);
-    bool parse_motor_read_stream(uint8_t *rcvd_buff, uint8_t buff_len, orca::ActuatorState &state);
 
 
     // parameters
