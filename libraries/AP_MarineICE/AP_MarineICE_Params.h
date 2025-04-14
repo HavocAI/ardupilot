@@ -13,6 +13,7 @@ public:
     CLASS_NO_COPY(AP_MarineICE_Params);
 
     // parameters
+    AP_Int8 type;          // backend type used (0:disabled, 1:simulated, 2:NMEA2000-Dometic-Suzuki)
     AP_Int8 auto_start;    // whether to automatically start the engine
     AP_Int8 auto_trim;     // whether to automatically trim the engine
     AP_Float safe_trim;    // maximum trim level to allow the engine to run (deg)

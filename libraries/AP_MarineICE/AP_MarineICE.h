@@ -52,30 +52,11 @@ public:
     // Get singleton instance
     static AP_MarineICE* get_singleton();
     
-    // Gear Position corresponds to Dometic shift control byte
-    enum class GearPosition {
-        FORWARD,
-        NEUTRAL,
-        REVERSE
-    };
-
-    enum class TrimCommand {
-        STOP,
-        UP,
-        DOWN
-    };
-
-    // Struct for engine data
-    struct EngineData {
-        uint16_t rpm;
-        float alternator_voltage_v;
-        float engine_time_hr;
-        float temp_degc;
-        float trim_deg;
-        float fuel_rate_lpm;
-        float fuel_used_l;
-        float seasonal_fuel_used_l;
-        float trip_fuel_used_l;
+    // TYPE parameter values
+    enum class BackendType : uint8_t {
+        TYPE_DISABLED = 0,
+        TYPE_SIMULATED = 1,
+        TYPE_NMEA2000 = 2
     };
 
     // Initialize driver
@@ -100,37 +81,19 @@ public:
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
 
+    // Parameters for backends
+    AP_MarineICE_Params _params;
+
 private:
+    // Get pointer to backend
+    AP_MarineICE_Backend* get_backend() const;
+    // Pointer to backend
+    AP_MarineICE_Backend* _backend;
+
     static AP_MarineICE* _singleton;
 
     StateMachine<EngineState, AP_MarineICE> _fsm;
     void setup_states();
-
-    // Internal state variables
-    EngineData _engine_data;
-    bool _starter_on = false;
-    TrimCommand _trim_command = TrimCommand::STOP;
-    float _water_depth_m = 0.0f;
-
-    //** NMEA2000 data handlers
-
-    // Reads the Suzuki NMEA2000 engine data
-    void handle_suzuki_engine_feedback( void );
-
-    // Reads the load channel feedback for trim and starter channel status
-    void handle_load_channel_feedback( void );
-
-    // Reads the water depth feedback from NMEA2000
-    void handle_water_depth_feedback( void );
-
-
-    //** NMEA2000 command outputs
-    void set_cmd_throttle(uint16_t throttle_pct);
-    void set_cmd_gear(GearPosition gear);
-    void set_cmd_trim(TrimCommand trim);
-    void set_cmd_starter(bool enable);
-
-    //** Simulation functions
 };
 
 namespace AP {

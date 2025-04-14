@@ -18,13 +18,21 @@
 
 const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
 
+    // @Param: TYPE
+    // @DisplayName: Enable
+    // @Description: Driver type to use
+    // @Values: 0:Disabled, 1:Simulated, 2:NMEA2000-Dometic-Suzuki
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO_FLAGS("ENABLED", 1, AP_MarineICE_Params, type, 0, AP_PARAM_FLAG_ENABLE),
+
     // @Param: AUTO_START
     // @DisplayName: Auto Start
     // @Description: Whether to automatically start the engine
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO_FLAGS("AUTO_START", 1, AP_MarineICE_Params, auto_start, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO_FLAGS("AUTO_START", 2, AP_MarineICE_Params, auto_start, 0, AP_PARAM_FLAG_ENABLE),
 
     // @Param: AUTO_TRIM
     // @DisplayName: Auto Trim
@@ -32,7 +40,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO_FLAGS("AUTO_TRIM", 2, AP_MarineICE_Params, auto_trim, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO_FLAGS("AUTO_TRIM", 3, AP_MarineICE_Params, auto_trim, 0, AP_PARAM_FLAG_ENABLE),
 
     // @Param: SAFE_TRIM
     // @DisplayName: Safe Trim
@@ -42,7 +50,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("SAFE_TRIM", 3, AP_MarineICE_Params, safe_trim, 45.0f),
+    AP_GROUPINFO("SAFE_TRIM", 4, AP_MarineICE_Params, safe_trim, 45.0f),
 
     // @Param: START_TIME
     // @DisplayName: Start Time
@@ -52,7 +60,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("START_TIME", 4, AP_MarineICE_Params, start_time, 5),
+    AP_GROUPINFO("START_TIME", 5, AP_MarineICE_Params, start_time, 5),
 
     // @Param: START_DELAY
     // @DisplayName: Start Delay
@@ -62,7 +70,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("START_DELAY", 5, AP_MarineICE_Params, start_delay, 15),
+    AP_GROUPINFO("START_DELAY", 6, AP_MarineICE_Params, start_delay, 15),
 
     // @Param: START_RETRY
     // @DisplayName: Start Retries
@@ -72,7 +80,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("START_RETRY", 6, AP_MarineICE_Params, start_retries, 2),
+    AP_GROUPINFO("START_RETRY", 7, AP_MarineICE_Params, start_retries, 2),
 
     // @Param: RPM_THRES
     // @DisplayName: RPM Threshold
@@ -82,7 +90,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("RPM_THRES", 7, AP_MarineICE_Params, rpm_thres, 500),
+    AP_GROUPINFO("RPM_THRES", 8, AP_MarineICE_Params, rpm_thres, 500),
 
     // @Param: THR_SLEW
     // @DisplayName: Throttle Slew Rate
@@ -92,7 +100,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("THR_SLEW", 8, AP_MarineICE_Params, thr_slewrate, 25),
+    AP_GROUPINFO("THR_SLEW", 9, AP_MarineICE_Params, thr_slewrate, 25),
 
     // @Param: THR_MAX
     // @DisplayName: Max Throttle
@@ -102,7 +110,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("THR_MAX", 9, AP_MarineICE_Params, thr_max, 100),
+    AP_GROUPINFO("THR_MAX", 10, AP_MarineICE_Params, thr_max, 100),
 
     // @Param: THR_DB
     // @DisplayName: Throttle Deadband
@@ -112,7 +120,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("THR_DB", 10, AP_MarineICE_Params, thr_deadband, 5),
+    AP_GROUPINFO("THR_DB", 11, AP_MarineICE_Params, thr_deadband, 5),
 
     // @Param: RPM_MAX
     // @DisplayName: Max RPM
@@ -122,7 +130,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("RPM_MAX", 11, AP_MarineICE_Params, rpm_max, 6000),
+    AP_GROUPINFO("RPM_MAX", 12, AP_MarineICE_Params, rpm_max, 6000),
 
     // @Param: TEMP_MAX
     // @DisplayName: Max Temperature
@@ -132,7 +140,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("TEMP_MAX", 12, AP_MarineICE_Params, temp_max, 150.0f),
+    AP_GROUPINFO("TEMP_MAX", 13, AP_MarineICE_Params, temp_max, 150.0f),
 
     // @Param: RNG_FNDR
     // @DisplayName: Water Depth Range Finder
@@ -142,7 +150,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("RNG_FNDR", 13, AP_MarineICE_Params, rng_fndr, -1),
+    AP_GROUPINFO("RNG_FNDR", 14, AP_MarineICE_Params, rng_fndr, -1),
 
     AP_GROUPEND
 };

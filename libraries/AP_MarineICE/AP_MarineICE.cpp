@@ -17,17 +17,83 @@
 
 #if HAL_MARINEICE_ENABLED
 
+#include "AP_MarineICE_Backend.h"
+#include "AP_MarineICE_Simulator.h"
+
 AP_MarineICE::AP_MarineICE() {
+    _singleton = this;
+    AP_Param::setup_object_defaults(this, var_info);
+    
+    // setup the state machine
     setup_states();
 }
 
 void AP_MarineICE::init() {
-    _fsm.change_state(EngineState::STARTUP, *this);
+
+    // check init has not been called before
+    if (_backend != nullptr) {
+        return;
+    }
+
+    // Set up the backend
+    switch ((BackendType)_params.type.get()) {
+        case BackendType::TYPE_DISABLED:
+            // do nothing
+            break;
+        case BackendType::TYPE_SIMULATED:
+            _backend = NEW_NOTHROW AP_MarineICE_Simulator(_params);
+            break;
+        case BackendType::TYPE_NMEA2000:
+            // TODO: implement NMEA2000 backend
+            break;
+        default:
+            // do nothing
+            break;
+        }
+
+    _backend->init();
+
+    _fsm.change_state(EngineState::INIT, *this);
+}
+
+// returns true if a backend has been configured (e.g. TYPE param has been set)
+bool AP_MarineICE::enabled() const {
+    switch ((BackendType)_params.type.get()) {
+        case BackendType::TYPE_DISABLED:
+            return false;
+        case BackendType::TYPE_SIMULATED:
+            return true;
+        case BackendType::TYPE_NMEA2000:
+            return true;
+        default:
+            return false;
+        }
+    return false;
+}
+
+bool AP_MarineICE::healthy() {
+    if (_backend == nullptr) {
+        return false;
+    }
+    return _backend->healthy();
+}
+
+bool AP_MarineICE::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len) {
+    // exit immediately if not enabled
+    if (!enabled()) {
+        return true;
+    }
+
+    // check if the backend is healthy
+    if (!healthy()) {
+        strncpy(failure_msg, "not healthy", failure_msg_len);
+        return false;
+    }
+    return true;
 }
 
 void AP_MarineICE::update() {
-    simulate_rpm();
-    simulate_temp();
+
 
     _fsm.update(*this);
 }
@@ -44,45 +110,6 @@ void AP_MarineICE::setup_states() {
 
 StateMachine<EngineState, AP_MarineICE>& AP_MarineICE::fsm() {
     return _fsm;
-}
-
-void AP_MarineICE::set_starter(bool enable) {
-    starter_on = enable;
-}
-
-int AP_MarineICE::get_rpm() const {
-    return mock_rpm;
-}
-
-float AP_MarineICE::get_temp() const {
-    return mock_temp;
-}
-
-void AP_MarineICE::request_stop() {
-    stop_requested = true;
-}
-
-// Simulation classes
-
-// Mock simulation: increase RPM when starter is on
-void AP_MarineICE::simulate_rpm() {
-    if (starter_on) {
-        mock_rpm += 100;
-        if (mock_rpm > 600) mock_rpm = 600;
-    } else {
-        mock_rpm -= 50;
-        if (mock_rpm < 0) mock_rpm = 0;
-    }
-}
-
-void AP_MarineICE::simulate_temp() {
-    if (_fsm.current_state() == EngineState::RUNNING) {
-        mock_temp += 0.2f;
-    } else {
-        mock_temp -= 0.1f;
-    }
-    if (mock_temp < 20.0f) mock_temp = 20.0f;
-    if (mock_temp > 100.0f) mock_temp = 100.0f;
 }
 
 #endif // HAL_MARINEICE_ENABLED
