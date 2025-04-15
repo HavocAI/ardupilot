@@ -36,7 +36,7 @@
 
 namespace orca {
 
-bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len) {
+bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state) {
   if (buff_len < WRITE_REG_MSG_RSP_LEN) {
     return false;
   }
@@ -47,6 +47,12 @@ bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len) {
     case static_cast<uint16_t>(Register::CTRL_REG_3):
       // Mode of operation was set
       break;
+    case static_cast<uint16_t>(Register::SAFETY_DGAIN):
+        state.safety_dgain_set = true;
+        break;
+    case static_cast<uint16_t>(Register::POS_FILT):
+        state.pos_filter_set = true;
+        break;
     default:
       GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
                     "IrisOrca: Unsupported write register.");
@@ -235,6 +241,26 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
 
+    // @Param: SAFETY_DGAIN
+    // @DisplayName: Safety derivative gain
+    // @Description: Safety derivative gain for position control
+    // @Units: 2*N*s/m
+    // @Range: 0 65535
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO("SAFETY_DGAIN", 11, AP_IrisOrca, _safety_dgain, 0),
+
+    // @Param: POS_FILT
+    // @DisplayName: Position filter
+    // @Description: Position filter for position control
+    // @Units: 1/10000
+    // @Range: 0 9999
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO("POS_FILT", 12, AP_IrisOrca, _pos_filt, 9950),
+
     AP_GROUPEND
 };
 
@@ -332,6 +358,18 @@ void AP_IrisOrca::thread_main()
                             if (safe_to_send()) {
                                 send_position_controller_params();
                                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring position controller params");
+                            }
+                        }
+                        else if (!_actuator_state.safety_dgain_set) {
+                            if (safe_to_send()) {
+                                send_safety_dgain();
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring safety dgain params");
+                            }
+                        }
+                        else if (!_actuator_state.pos_filter_set) {
+                            if (safe_to_send()) {
+                                send_position_filter();
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring position filter");
                             }
                         }
                         else if (!_actuator_state.auto_zero_params_set) {
@@ -760,6 +798,26 @@ void AP_IrisOrca::send_position_controller_params()
     }
 }
 
+void AP_IrisOrca::send_safety_dgain()
+{
+    if (write_register((uint16_t) orca::Register::SAFETY_DGAIN, _safety_dgain)) {
+        // record time of send for health reporting
+        WITH_SEMAPHORE(_last_healthy_sem);
+        _last_send_actuator_ms = AP_HAL::millis();
+    }
+
+}
+
+void AP_IrisOrca::send_position_filter()
+{
+    if (write_register((uint16_t) orca::Register::POS_FILT, _pos_filt)) {
+        // record time of send for health reporting
+        WITH_SEMAPHORE(_last_healthy_sem);
+        _last_send_actuator_ms = AP_HAL::millis();
+    }
+
+}
+
 // send a write multiple registers message to the actuator to set the auto-zero params
 void AP_IrisOrca::send_auto_zero_params()
 {
@@ -823,7 +881,7 @@ bool AP_IrisOrca::parse_message()
     switch (static_cast<orca::FunctionCode>(_received_buff[1])) 
     {
         case orca::FunctionCode::WRITE_REGISTER:
-            return orca::parse_write_register(_received_buff, _reply_msg_len);
+            return orca::parse_write_register(_received_buff, _reply_msg_len, _actuator_state);
         case orca::FunctionCode::WRITE_MULTIPLE_REGISTERS:
             return orca::parse_multiple_write_registers(_received_buff, _reply_msg_len, _actuator_state);
         case orca::FunctionCode::MOTOR_COMMAND_STREAM:

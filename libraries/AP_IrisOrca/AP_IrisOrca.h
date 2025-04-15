@@ -70,6 +70,8 @@ namespace orca {
         PC_DEGAIN = 136,
         PC_FSATU = 137,
         PC_FSATU_H = 138,
+        SAFETY_DGAIN = 143,
+        POS_FILT = 167,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
         AUTO_ZERO_EXIT_MODE = 173
@@ -261,6 +263,8 @@ namespace orca {
         uint16_t voltage;
         uint16_t errors{2048};
         bool pc_params_set{false};
+        bool safety_dgain_set{false};
+        bool pos_filter_set{false};
         bool auto_zero_params_set{false};
     };
 
@@ -285,7 +289,7 @@ namespace orca {
      * @return true response successfully parsed 
      * @return false response parsing failed
      */
-    bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len);
+    bool parse_write_register(uint8_t *rcvd_buff, uint8_t buff_len, ActuatorState &state);
 
     /**
      * @brief Parse the response to a 0x10 Multiple Write Registers message.
@@ -416,6 +420,10 @@ private:
     // position controller params
     void send_position_controller_params();
 
+    void send_safety_dgain();
+
+    void send_position_filter();
+
     // send a write multiple registers message to the actuator to set the
     // auto zero params
     void send_auto_zero_params();
@@ -440,6 +448,8 @@ private:
     AP_Int16 _gain_dv;                  // position control derivative gain
     AP_Int16 _gain_de;                  // position control derivative error gain
     AP_Int16 _auto_zero_f_max;          // maximum force for auto zero in Newtons
+    AP_Int16 _safety_dgain;             // safety derivative gain
+    AP_Int16 _pos_filt;                 // position filter
 
     // members
     AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator
