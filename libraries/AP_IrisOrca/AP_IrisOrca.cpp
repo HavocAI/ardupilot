@@ -241,7 +241,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
 
-    // @Param: SAFETY_DGAIN
+    // @Param: SAFE_DGAIN
     // @DisplayName: Safety derivative gain
     // @Description: Safety derivative gain for position control
     // @Units: 2*N*s/m
@@ -249,7 +249,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("SAFETY_DGAIN", 11, AP_IrisOrca, _safety_dgain, 0),
+    AP_GROUPINFO("SAFE_DGAIN", 11, AP_IrisOrca, _safety_dgain, 0),
 
     // @Param: POS_FILT
     // @DisplayName: Position filter
