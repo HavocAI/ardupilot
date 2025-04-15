@@ -271,12 +271,11 @@ async AP_IrisOrca::run()
         last_send_ms = AP_HAL::millis();
 
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-        if (err == MODBUS_MSG_RECV_TIMEOUT) {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position return msg timeout");
+        if (rx != OrcaModbus::ReceiveState::Ready) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: error read state");
+        } else {
+            // TODO: check for errors in the response
         }
-
-        // TODO: check for errors in the response
-
 
         // send at 10Hz
         await(TIME_PASSED(last_send_ms, 100));
