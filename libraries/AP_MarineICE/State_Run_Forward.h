@@ -17,12 +17,11 @@
 
 #include "BaseState.h"
 
-class State_Start : public BaseState {
+class AP_MarineICE;
+
+class State_Run_Forward : public BaseState<AP_MarineICE> {
 public:
     void enter(AP_MarineICE& ctx) override;
     void run(AP_MarineICE& ctx) override;
     void exit(AP_MarineICE& ctx) override;
-
-private:
-    uint32_t _start_time;
 };

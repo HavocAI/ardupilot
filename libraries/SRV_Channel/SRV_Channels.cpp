@@ -26,6 +26,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <AP_KDECAN/AP_KDECAN.h>
 #include <AP_Ilmor/AP_Ilmor.h>
+#include <AP_MarineICE/AP_MarineICE.h>
 
 #if HAL_MAX_CAN_PROTOCOL_DRIVERS
   #include <AP_CANManager/AP_CANManager.h>
@@ -511,6 +512,12 @@ void SRV_Channels::push()
 #if HAL_ILMOR_ENABLED
     if (AP::ilmor() != nullptr) {
         AP::ilmor()->update();
+    }
+#endif
+
+#if HAL_MARINEICE_ENABLED
+    if (AP::marineice() != nullptr) {
+        AP::marineice()->update();
     }
 #endif
 

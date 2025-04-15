@@ -20,13 +20,19 @@
 #include "AP_MarineICE_Backend.h"
 #include "AP_MarineICE_Simulator.h"
 
-#include "AP_Vehicle.h"
-#include "AP_Arming.h"
+#include <AP_Vehicle/AP_Vehicle.h>
+#include <AP_Arming/AP_Arming.h>
 #include <SRV_Channel/SRV_Channel.h>
-#include <Rover/mode.h>
 
 using namespace MarineICE::Types;
 using namespace MarineICE::States;
+
+const AP_Param::GroupInfo AP_MarineICE::var_info[] = {
+
+    AP_SUBGROUPINFO(_params, "", 1, AP_MarineICE, AP_MarineICE_Params),
+
+    AP_GROUPEND
+};
 
 AP_MarineICE::AP_MarineICE()
 {
@@ -113,9 +119,27 @@ bool AP_MarineICE::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 
 void AP_MarineICE::update()
 {
-    // TODO: check for a fault condition
+    // Check for faults
+    monitor_faults();
 
-    // TODO: check for an engine stop condition
+    // Check if any fault is set
+    bool any_fault = false;
+    for (bool fault : _faults) {
+        if (fault) {
+            any_fault = true;
+            break;
+        }
+    }
+
+    if (any_fault &&
+        _fsm_engine.current_state_id() != EngineState::ENGINE_FAULT) {
+        // If any fault is set, change to the fault state
+        _fsm_engine.change_state(EngineState::ENGINE_FAULT, *this);
+    } else if (get_active_engine_stop() && 
+            _fsm_engine.current_state_id() != EngineState::ENGINE_INIT) {
+        // If there is an engine stop condition, change to the init state
+        _fsm_engine.change_state(EngineState::ENGINE_INIT, *this);
+    }
 
     _fsm_engine.update(*this);
     _fsm_trim.update(*this);
@@ -167,7 +191,7 @@ bool AP_MarineICE::get_active_engine_stop() const
 {
     return get_cmd_e_stop() || 
         !get_armed() || 
-        (get_current_mode() == static_cast<uint8_t>(Mode::Number::HOLD));
+        (get_current_mode() == 4); // TODO: Use enum lookup. MODE 4 = HOLD for Rover
 }
 
 void AP_MarineICE::setup_states()
@@ -185,5 +209,53 @@ void AP_MarineICE::setup_states()
     _fsm_trim.register_state(TrimState::TRIM_AUTO_UP, new State_Trim_Auto_Up());
     _fsm_trim.register_state(TrimState::TRIM_AUTO_DOWN, new State_Trim_Auto_Down());
 }
+
+void AP_MarineICE::monitor_faults()
+{
+    // Check for engine overspeed
+    if (_backend->get_engine_data().rpm > _params.rpm_max.get())
+    {
+        set_fault(ENGINE_OVERSPEED, true);
+    }
+
+    // Check for engine overtemp
+    if (_backend->get_engine_data().temp_degc > _params.temp_max.get())
+    {
+        set_fault(ENGINE_OVERTEMP, true);
+    }
+
+    // Check for throttle actuator failure - backend throttle percent is not within tolerance of commanded
+    // taking into account the slew rate
+    // float throttle_tolerance = _params.thr_slewrate.get() * MARINEICE_UPDATE_INTERVAL_MS / 1000.0f;
+    float throttle_tolerance = 25.0;
+    if (abs(_backend->get_throttle_pct() - get_cmd_throttle()) > throttle_tolerance)
+    {
+        set_fault(THROTTLE_ACTUATOR_FAILURE, true);
+    }
+
+    // TODO: Check for gear actuator failure
+
+    // TODO: Check for alternator voltage low
+
+    // Check for engine start attempts exceeded
+    if (get_num_start_attempts() > _params.start_retries.get())
+    {
+        set_fault(ENGINE_START_ATTEMPTS_EXCEEDED, true);
+    }
+}
+
+// Get the AP_MarineICE singleton
+AP_MarineICE* AP_MarineICE::get_singleton()
+{
+    return _singleton;
+}
+AP_MarineICE* AP_MarineICE::_singleton = nullptr;
+
+namespace AP {
+AP_MarineICE* marineice()
+{
+    return AP_MarineICE::get_singleton();
+}
+};
 
 #endif // HAL_MARINEICE_ENABLED

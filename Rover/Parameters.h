@@ -17,6 +17,7 @@
 #include <AP_WindVane/AP_WindVane.h>
 #include "AP_FortVsc/AP_FortVsc.h"
 #include "AP_Ilmor/AP_Ilmor.h"
+#include "AP_MarineICE/AP_MarineICE.h"
 
 #define AP_PARAM_VEHICLE_NAME rover
 
@@ -453,6 +454,11 @@ public:
 #if HAL_ILMOR_ENABLED
     // Ilmor driver
     AP_Ilmor ilmor;
+#endif
+
+#if HAL_MARINEICE_ENABLED
+    // MarineICE driver
+    AP_MarineICE marineice;
 #endif
 
 };

@@ -13,19 +13,15 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "State_Fault.h"
-#include <GCS_MAVLink/GCS.h>
+#pragma once
 
-void State_Fault::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] FAULT: Entering fault state...");
-    // Add fault handling logic
-}
+#include "BaseState.h"
 
-void State_Fault::run(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] FAULT: Monitoring fault...");
-    // Add logic for fault monitoring
-}
+class AP_MarineICE;
 
-void State_Fault::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Exiting fault state...");
-}
+class State_Run_Reverse : public BaseState<AP_MarineICE> {
+public:
+    void enter(AP_MarineICE& ctx) override;
+    void run(AP_MarineICE& ctx) override;
+    void exit(AP_MarineICE& ctx) override;
+};

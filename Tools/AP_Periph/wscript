@@ -88,6 +88,7 @@ def build(bld):
                      'AP_MultiHeap',
                      'AP_FortVsc',
                      'AP_J1939_CAN',
+                     'AP_MarineICE',
                      ]
 
     bld.ap_stlib(

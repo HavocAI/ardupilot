@@ -13,18 +13,20 @@
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "State_Run_Neutral.h"
-#include <GCS_MAVLink/GCS.h>
+#pragma once
 
-void State_Run_Neutral::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_NEUTRAL: Entering neutral mode...");
-}
+template<typename Context>
+class BaseState
+{
+public:
+    virtual ~BaseState() = default;
 
-void State_Run_Neutral::run(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_NEUTRAL: Running...");
-    // Add logic for neutral operation
-}
+    // Called once when the state is entered
+    virtual void enter(Context &ctx) = 0;
 
-void State_Run_Neutral::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_NEUTRAL: Exiting neutral mode...");
-}
+    // Called on each update cycle (e.g. in the main loop)
+    virtual void run(Context &ctx) = 0;
+
+    // Called once when the state is exited
+    virtual void exit(Context &ctx) = 0;
+};

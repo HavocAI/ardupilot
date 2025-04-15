@@ -712,6 +712,12 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(ilmor, "ILMOR_", 60, ParametersG2, AP_Ilmor),
 #endif
 
+#if HAL_MARINEICE_ENABLED
+    // @Group: MICE_
+    // @Path: ../libraries/AP_MarineICE/AP_MarineICE.cpp
+    AP_SUBGROUPINFO(marineice, "MICE_", 61, ParametersG2, AP_MarineICE),
+#endif
+
     AP_GROUPEND
 };
 

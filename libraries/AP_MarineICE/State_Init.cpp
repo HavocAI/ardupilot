@@ -15,16 +15,22 @@
 
 #include "State_Init.h"
 #include <GCS_MAVLink/GCS.h>
+#include <AP_MarineICE/AP_MarineICE.h>
+#include <AP_MarineICE/AP_MarineICE_Backend.h>
+
+using namespace MarineICE::States;
+using namespace MarineICE::Types;
 
 void State_Init::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Initializing...");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Entering...");
 }
 
 void State_Init::run(AP_MarineICE& ctx) {
 
-    // Set safe commands for the engine
+    // Set "safe" commands for the engine
     ctx.get_backend()->set_cmd_throttle(0.0f);
     ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
 
     // If there is no engine stop condition and the water depth is above the threshold, 
@@ -37,5 +43,5 @@ void State_Init::run(AP_MarineICE& ctx) {
 }
 
 void State_Init::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Exiting initialization...");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Exiting...");
 }

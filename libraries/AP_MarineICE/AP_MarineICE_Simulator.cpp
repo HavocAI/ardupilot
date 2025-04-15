@@ -3,6 +3,7 @@
 #if HAL_MARINEICE_ENABLED
 
 #include <AP_Math/AP_Math.h>
+#include <algorithm>
 #include <SRV_Channel/SRV_Channel.h>
 
 #define MARINEICE_SIMULATOR_RATE_HZ 10
@@ -18,9 +19,7 @@ void AP_MarineICE_Simulator::init()
 {
     // Create background thread to run the simulation
     // Use the scripting priority
-    char thread_name[15];
-    hal.util->snprintf(thread_name, sizeof(thread_name), "marineice%u");
-    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_MarineICE_Simulator::thread_main, void), thread_name, 2048, AP_HAL::Scheduler::PRIORITY_SCRIPTING, 1)) {
+    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_MarineICE_Simulator::thread_main, void), "marineice_besim", 2048, AP_HAL::Scheduler::PRIORITY_SCRIPTING, 1)) {
         return;
     }
 }
@@ -152,9 +151,7 @@ void AP_MarineICE_Simulator::simulate_dometic_shift_throttle() {
 
     // Simulate throttle percent feedback by applying the slew rate to the command
     if (_cmd_throttle_pct > 100) {
-        _cmd_throttle_pct = 100; // Clamp to max throttle
-    } else if (_cmd_throttle_pct < 0) {
-        _cmd_throttle_pct = 0; // Clamp to min throttle
+        _cmd_throttle_pct = 100; // Clamp to 100%
     }
     // Apply slew rate to throttle percentage
     if (_cmd_throttle_pct > _state.throttle_pct) {

@@ -17,7 +17,9 @@
 
 #include "BaseState.h"
 
-class State_Run_Reverse : public BaseState {
+class AP_MarineICE;
+
+class State_Fault : public BaseState<AP_MarineICE> {
 public:
     void enter(AP_MarineICE& ctx) override;
     void run(AP_MarineICE& ctx) override;

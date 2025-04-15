@@ -16,7 +16,7 @@ void AP_MarineICE_Backend::update_esc_telemetry()
     uint8_t telem_esc_index = 0;
     update_rpm(0, float(_state.engine_data.rpm));
     const AP_ESC_Telem_Backend::TelemetryData &telemetry_data = {
-        .temperature_cdeg = _state.engine_data.temp_degc * 100,
+        .temperature_cdeg = static_cast<int16_t>(_state.engine_data.temp_degc * 100),
         .voltage = _state.engine_data.alternator_voltage_v,
         .current = _state.engine_data.fuel_rate_lpm,
     };

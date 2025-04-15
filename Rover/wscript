@@ -26,6 +26,7 @@ def build(bld):
             'AP_IRLock',
             'AP_FortVsc',
             'AP_Ilmor',
+            'AP_MarineICE',
         ],
     )
 

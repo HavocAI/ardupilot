@@ -20,10 +20,10 @@ public:
     CLASS_NO_COPY(AP_MarineICE_Backend);
 
     // initialize driver
-    virtual void init();
+    virtual void init() = 0;
 
     // returns true if communicating with all required interfaces
-    virtual bool healthy();
+    virtual bool healthy() = 0;
 
     // Struct for engine data
     struct EngineData {
@@ -39,11 +39,11 @@ public:
     };
 
     //** Virtual command setters, to be overridden by implementation
-    virtual void set_cmd_throttle(uint16_t throttle_pct);
-    virtual void set_cmd_gear(GearPosition gear);
-    virtual void set_cmd_trim(TrimCommand trim);
-    virtual void set_cmd_ignition(bool enable);
-    virtual void set_cmd_starter(bool enable);
+    virtual void set_cmd_throttle(uint16_t throttle_pct) = 0;
+    virtual void set_cmd_gear(GearPosition gear) = 0;
+    virtual void set_cmd_trim(TrimCommand trim) = 0;
+    virtual void set_cmd_ignition(bool enable) = 0;
+    virtual void set_cmd_starter(bool enable) = 0;
 
     // Called in the main loop to update the ESC telemetry
     void update_esc_telemetry();

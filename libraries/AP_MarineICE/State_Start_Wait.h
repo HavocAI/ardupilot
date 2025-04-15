@@ -16,10 +16,16 @@
 #pragma once
 
 #include "BaseState.h"
+#include <cstdint>
 
-class State_Fault : public BaseState {
+class AP_MarineICE;
+
+class State_Start_Wait : public BaseState<AP_MarineICE> {
 public:
     void enter(AP_MarineICE& ctx) override;
     void run(AP_MarineICE& ctx) override;
     void exit(AP_MarineICE& ctx) override;
+    
+private:
+    uint32_t _begin_starter_wait_time;
 };

@@ -18,12 +18,12 @@
 const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
 
     // @Param: TYPE
-    // @DisplayName: Enable
+    // @DisplayName: Type
     // @Description: Driver type to use
     // @Values: 0:Disabled, 1:Simulated, 2:NMEA2000-Dometic-Suzuki
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO_FLAGS("ENABLED", 1, AP_MarineICE_Params, type, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO_FLAGS("TYPE", 1, AP_MarineICE_Params, type, 0, AP_PARAM_FLAG_ENABLE),
 
     // @Param: AUTO_START
     // @DisplayName: Auto Start
@@ -31,7 +31,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO_FLAGS("AUTO_START", 2, AP_MarineICE_Params, auto_start, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO("AUTO_START", 2, AP_MarineICE_Params, auto_start, 0),
 
     // @Param: AUTO_TRIM
     // @DisplayName: Auto Trim
@@ -39,7 +39,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO_FLAGS("AUTO_TRIM", 3, AP_MarineICE_Params, auto_trim, 0, AP_PARAM_FLAG_ENABLE),
+    AP_GROUPINFO("AUTO_TRIM", 3, AP_MarineICE_Params, auto_trim, 0),
 
     // @Param: SAFE_TRIM
     // @DisplayName: Safe Trim

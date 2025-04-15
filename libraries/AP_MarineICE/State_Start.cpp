@@ -15,19 +15,25 @@
 
 #include "State_Start.h"
 #include <GCS_MAVLink/GCS.h>
+#include <AP_MarineICE/AP_MarineICE.h>
+#include <AP_MarineICE/AP_MarineICE_Backend.h>
+
+using namespace MarineICE::States;
+using namespace MarineICE::Types;
 
 void State_Start::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START: Starting engine...");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START: Entering...");
     
     // Reset local variables
-    _start_time = AP_HAL::millis();
+    _begin_starter_run_time = AP_HAL::millis();
+
+    // Increment the number of start attempts
+    ctx.set_num_start_attempts(ctx.get_num_start_attempts() + 1);
 }
 
 void State_Start::run(AP_MarineICE& ctx) {
-
     // Check if the start command has been rescinded (auto or manual)
-    // TODO: Add the manual start command check
-    if (!ctx.get_params().auto_start.get() ) {
+    if (!ctx.get_params().auto_start.get() && !ctx.get_cmd_manual_engine_start()) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine start command rescinded.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
         return;
@@ -42,9 +48,9 @@ void State_Start::run(AP_MarineICE& ctx) {
     }
 
     // Check if start time limit has been reached
-    if ((AP_HAL::millis() - _start_time) > (ctx.get_params().start_time.get() * 1000)) {
+    if ((AP_HAL::millis() - _begin_starter_run_time) > (ctx.get_params().start_time.get() * 1000)) {
         // Engine start failed
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Engine start failed.");
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] Engine start failed.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_START_WAIT, ctx);
         return;
     }
@@ -52,12 +58,13 @@ void State_Start::run(AP_MarineICE& ctx) {
     // Start the engine
     ctx.get_backend()->set_cmd_throttle(0.0f);
     ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_ignition(true);
     ctx.get_backend()->set_cmd_starter(true);
 
 }
 
 void State_Start::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] EXIT: START\n");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START: Exiting...");
 
     // Disable the starter
     ctx.get_backend()->set_cmd_throttle(0.0f);

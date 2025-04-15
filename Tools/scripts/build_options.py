@@ -415,6 +415,7 @@ BUILD_OPTIONS = [
     Feature('Actuators', 'HimarkServo', 'AP_DRONECAN_HIMARK_SERVO_SUPPORT', 'Enable Himark DroneCAN servos', 0, "DroneCAN"),
     Feature('Actuators', 'HobbywingESC', 'AP_DRONECAN_HOBBYWING_ESC_SUPPORT', 'Enable Hobbywing DroneCAN ESCs', 0, "DroneCAN"),
     Feature('Actuators', 'IrisOrca', 'HAL_IRISORCA_ENABLED', 'Enable Iris Orca Actuator', 0, None),
+    Feature('Actuators', 'MarineICE', 'HAL_MARINEICE_ENABLED', 'Enable Marine ICE Actuator', 0, None),
 
     Feature('Precision Landing', 'PrecLand', 'AC_PRECLAND_ENABLED', 'Enable Precision landing support', 0, None),
     Feature('Precision Landing', 'PrecLand - Companion', 'AC_PRECLAND_COMPANION_ENABLED', 'Enable Companion computer precision landing ', 0, "PrecLand"),  # noqa

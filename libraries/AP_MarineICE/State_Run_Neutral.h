@@ -11,13 +11,15 @@
 
    You should have received a copy of the GNU General Public License
    along with this program.  If not, see <http://www.gnu.org/licenses/>.
- */
+*/
 
 #pragma once
 
 #include "BaseState.h"
 
-class State_Init : public BaseState {
+class AP_MarineICE;
+
+class State_Run_Neutral : public BaseState<AP_MarineICE> {
 public:
     void enter(AP_MarineICE& ctx) override;
     void run(AP_MarineICE& ctx) override;

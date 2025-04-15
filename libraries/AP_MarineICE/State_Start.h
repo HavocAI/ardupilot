@@ -15,18 +15,17 @@
 
 #pragma once
 
-#include <AP_MarineICE/AP_MarineICE.h>
-#include <AP_MarineICE/AP_MarineICE_Backend.h>
-#include <AP_MarineICE/AP_MarineICE_States.h>
-#include <AP_MarineICE/AP_MarineICE_Types.h>
+#include "BaseState.h"
+#include <cstdint>
 
-using namespace MarineICE::States;
-using namespace MarineICE::Types;
+class AP_MarineICE;
 
-class BaseState {
+class State_Start : public BaseState<AP_MarineICE> {
 public:
-    virtual ~BaseState() = default;
-    virtual void enter(AP_MarineICE& ctx) = 0;
-    virtual void run(AP_MarineICE& ctx) = 0;
-    virtual void exit(AP_MarineICE& ctx) = 0;
+    void enter(AP_MarineICE& ctx) override;
+    void run(AP_MarineICE& ctx) override;
+    void exit(AP_MarineICE& ctx) override;
+
+private:
+    uint32_t _begin_starter_run_time;
 };

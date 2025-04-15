@@ -228,5 +228,16 @@ bool AP_Arming_Rover::motor_checks(bool report)
     }
 #endif
 
+#if HAL_MARINEICE_ENABLED
+    char marineice_failure_msg[50] = {};
+    AP_MarineICE *marineice = AP_MarineICE::get_singleton();
+    if (marineice != nullptr) {
+        if (!marineice->pre_arm_checks(marineice_failure_msg, ARRAY_SIZE(marineice_failure_msg))) {
+            check_failed(report, "MarineICE: %s", marineice_failure_msg);
+            ret = false;
+        }
+    }
+#endif
+
     return ret;
 }

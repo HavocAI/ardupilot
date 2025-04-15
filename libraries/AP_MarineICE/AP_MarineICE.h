@@ -25,25 +25,28 @@
 #include "AP_MarineICE_Types.h"
 #include "AP_MarineICE_States.h"
 #include "StateMachine.h"
-#include "States/State_Init.h"
-#include "States/State_Run_Forward.h"
-#include "States/State_Run_Neutral.h"
-#include "States/State_Run_Reverse.h"
-#include "States/State_Start.h"
-#include "States/State_Start_Wait.h"
-#include "States/State_Fault.h"
-#include "States/State_Trim.h"
+#include "State_Init.h"
+#include "State_Run_Forward.h"
+#include "State_Run_Neutral.h"
+#include "State_Run_Reverse.h"
+#include "State_Start.h"
+#include "State_Start_Wait.h"
+#include "State_Fault.h"
+#include "State_Trim.h"
+#include <array>
 
 using namespace MarineICE::Types;
 using namespace MarineICE::States;
 
 // declare backend classes
 class AP_MarineICE_Backend;
+class AP_MarineICE_Simulator;
 
 class AP_MarineICE {
 
-    // declare backend as friend
+    // declare backends as friend
     friend class AP_MarineICE_Backend;
+    friend class AP_MarineICE_Simulator;
 
 public:
     AP_MarineICE();
@@ -80,7 +83,7 @@ public:
     StateMachine<TrimState, AP_MarineICE>& get_fsm_trim() { return _fsm_trim; }
 
     // Get pointer to backend
-    AP_MarineICE_Backend* get_backend() const;
+    AP_MarineICE_Backend* get_backend() { return _backend; } const
 
     // Get reference to the frontend parameters
     AP_MarineICE_Params& get_params() { return _params; }
@@ -89,6 +92,7 @@ public:
     bool get_cmd_neutral_lock() const;
 
     // Helper function to get the throttle command from k_throttle
+    // Returns a percentage value between -100 and 100
     int16_t get_cmd_throttle() const;
 
     // Helper function to get the gear command from k_motor_tilt
@@ -109,6 +113,22 @@ public:
     // Roll-up: Get whether there is an active engine stop condition
     bool get_active_engine_stop() const;
 
+    // Set a fault condition in the array
+    void set_fault(FaultIndex fault, bool state) { 
+        if (fault < NUM_FAULTS) {
+            _faults[fault] = state; 
+        }
+    }
+    // Get a fault condition in the array
+    bool get_fault(FaultIndex fault) const { 
+        return (fault < NUM_FAULTS) ? _faults[fault] : false; 
+    }
+    
+    // Set the number of start attempts
+    void set_num_start_attempts(uint8_t attempts) { _num_start_attempts = attempts; }
+    // Get the number of start attempts
+    uint8_t get_num_start_attempts() const { return _num_start_attempts; }
+
 private:
     static AP_MarineICE* _singleton;
 
@@ -120,7 +140,19 @@ private:
     StateMachine<EngineState, AP_MarineICE> _fsm_engine;
     StateMachine<TrimState, AP_MarineICE> _fsm_trim;
 
+    // Set up a state machine
     void setup_states();
+
+    // Monitor for faults
+    void monitor_faults();
+
+    // Fault array (issues using bitset)
+    static constexpr size_t NUM_FAULTS = 6;
+    std::array<bool, NUM_FAULTS> _faults = {false};
+
+    // Variables accessed across states of FSM
+    uint8_t _num_start_attempts;
+
 };
 
 namespace AP {
