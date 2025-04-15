@@ -243,6 +243,10 @@ async AP_IrisOrca::run()
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read CTRL_REG_3 register");
+            
+            last_send_ms = AP_HAL::millis();
+            await(TIME_PASSED(last_send_ms, 1000));
+
             async_init(&_run_state);
             return ASYNC_CONT;
         }
@@ -256,7 +260,7 @@ async AP_IrisOrca::run()
     }
 
     send_position_controller_params();
-    await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
 
     _modbus.set_recive_timeout_ms(75);
@@ -266,7 +270,7 @@ async AP_IrisOrca::run()
         send_actuator_position_cmd();
         last_send_ms = AP_HAL::millis();
 
-        await( (err = _modbus.message_received()) != MODBUS_MSG_RECV_PENDING );
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         if (err == MODBUS_MSG_RECV_TIMEOUT) {
             GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position return msg timeout");
         }
