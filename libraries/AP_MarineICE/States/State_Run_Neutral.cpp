@@ -14,11 +14,10 @@
 */
 
 #include "State_Run_Neutral.h"
-#include "../AP_MarineICE.h"
+#include <GCS_MAVLink/GCS.h>
 
 void State_Run_Neutral::enter(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_NEUTRAL: Entering neutral mode...");
-    ctx.set_gear(AP_MarineICE::GearPosition::NEUTRAL);
 }
 
 void State_Run_Neutral::run(AP_MarineICE& ctx) {

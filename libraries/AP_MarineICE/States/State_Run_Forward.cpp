@@ -14,11 +14,10 @@
 */
 
 #include "State_Run_Forward.h"
-#include "../AP_MarineICE.h"
+#include <GCS_MAVLink/GCS.h>
 
 void State_Run_Forward::enter(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_FORWARD: Entering forward mode...");
-    ctx.set_gear(AP_MarineICE::GearPosition::FORWARD);
 }
 
 void State_Run_Forward::run(AP_MarineICE& ctx) {

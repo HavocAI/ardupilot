@@ -2,13 +2,8 @@
 
 #if HAL_MARINEICE_ENABLED
 
-#include <AP_Common/AP_Common.h>
 #include <AP_Math/AP_Math.h>
 #include <SRV_Channel/SRV_Channel.h>
-#include <AP_Logger/AP_Logger.h>
-#include <GCS_MAVLink/GCS.h>
-#include <map>
-#include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
 #define MARINEICE_SIMULATOR_RATE_HZ 10
 #define MARINEICE_SIMULATOR_MAX_RPM 6000
@@ -16,6 +11,8 @@
 #define MARINEICE_SIMULATOR_MIN_TRIM 0.0f
 
 extern const AP_HAL::HAL& hal;
+
+using namespace MarineICE::Types;
 
 void AP_MarineICE_Simulator::init()
 {
@@ -55,6 +52,11 @@ void AP_MarineICE_Simulator::set_cmd_starter(bool enable)
     _cmd_starter = enable;
 }
 
+void AP_MarineICE_Simulator::set_cmd_ignition(bool enable)
+{
+    _cmd_ignition = enable;
+}
+
 // thread main function
 void AP_MarineICE_Simulator::thread_main()
 {
@@ -73,24 +75,21 @@ void AP_MarineICE_Simulator::thread_main()
 }
 
 void AP_MarineICE_Simulator::simulate_motor() {
-
-    // Handle starting and enforce the Neutral interlock
-    if (_state.starter_on && _state.gear_position == GearPosition::GEAR_NEUTRAL) {
-        // Increment the engine RPM until it reaches the threshold
-        if (_state.engine_data.rpm < _params.rpm_thres.get()) {
-            _state.engine_data.rpm += 100 / MARINEICE_SIMULATOR_RATE_HZ; // Increment RPM
-        }
-    }
-
-    if (SRV_Channels::get_emergency_stop()) {
-        // Simulate engine stopping if e-stop is pressed
+    if (SRV_Channels::get_emergency_stop() || !_state.ignition_on) {
+        // Simulate engine stopping if e-stop is pressed or ignition is off
         // This simulates an E-stop button that is also wired directly to the engine Ign/Kill circuit
         _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 100) / MARINEICE_SIMULATOR_RATE_HZ), 
             0.0f);
     } else if ((_state.engine_data.rpm < (_params.rpm_thres.get() - 100)) && !_state.starter_on) {
-        // Simulate engine stopping if below min RPM and starter is off
+        // Simulate engine stalling if below min RPM and starter is off
         _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 100) / MARINEICE_SIMULATOR_RATE_HZ), 
             0.0f);
+    } else if (_state.starter_on && _state.gear_position == GearPosition::GEAR_NEUTRAL) {
+        // Simulate starting and enforce the Neutral interlock
+        // Increment the engine RPM until it reaches the threshold
+        if (_state.engine_data.rpm < _params.rpm_thres.get()) {
+            _state.engine_data.rpm += 100 / MARINEICE_SIMULATOR_RATE_HZ; // Increment RPM
+        }
     } else {
         // Simulate engine running based on throttle percentage, with a minimum idle threshold
         _state.engine_data.rpm = std::max((_cmd_throttle_pct * MARINEICE_SIMULATOR_MAX_RPM / 100.0f), 
@@ -181,6 +180,13 @@ void AP_MarineICE_Simulator::simulate_maretron_load_center() {
         _state.starter_on = true; // Simulate starter on
     } else {
         _state.starter_on = false; // Simulate starter off
+    }
+
+    // Simulate load center feedback responding to ignition
+    if (_cmd_ignition) {
+        _state.ignition_on = true; // Simulate ignition on
+    } else {
+        _state.ignition_on = false; // Simulate ignition off
     }
 }
 

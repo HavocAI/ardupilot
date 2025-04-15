@@ -14,29 +14,54 @@
  */
 
 #include "State_Start.h"
-#include "../AP_MarineICE.h"
-#include "../EngineState.h"
+#include <GCS_MAVLink/GCS.h>
 
 void State_Start::enter(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START: Starting engine...");
-
+    
+    // Reset local variables
+    _start_time = AP_HAL::millis();
 }
 
 void State_Start::run(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START\n");
+
+    // Check if the start command has been rescinded (auto or manual)
+    // TODO: Add the manual start command check
+    if (!ctx.get_params().auto_start.get() ) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine start command rescinded.");
+        ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
+        return;
+    }
+
+    // Check for reaching the minimum RPM threshold
+    if (ctx.get_backend()->get_engine_data().rpm >= ctx.get_params().rpm_thres.get()) {
+        // Engine started successfully
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine started successfully.");
+        ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
+        return;
+    }
+
+    // Check if start time limit has been reached
+    if ((AP_HAL::millis() - _start_time) > (ctx.get_params().start_time.get() * 1000)) {
+        // Engine start failed
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Engine start failed.");
+        ctx.get_fsm_engine().change_state(EngineState::ENGINE_START_WAIT, ctx);
+        return;
+    }
 
     // Start the engine
-    ctx.set_starter(true);
-    ctx.set_gear(GearPosition::NEUTRAL);
-    ctx.set_throttle(0.0f);
+    ctx.get_backend()->set_cmd_throttle(0.0f);
+    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_starter(true);
 
-    // Transition to the next state
-    ctx.get_state_machine().change_state(EngineState::RUN_NEUTRAL, ctx);
 }
 
 void State_Start::exit(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] EXIT: START\n");
 
-    // Stop starter motor
-    ctx.set_starter(false);
+    // Disable the starter
+    ctx.get_backend()->set_cmd_throttle(0.0f);
+    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_starter(false);
+
 }

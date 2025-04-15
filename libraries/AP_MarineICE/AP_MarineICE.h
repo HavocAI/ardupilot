@@ -19,12 +19,12 @@
 
 #if HAL_MARINEICE_ENABLED
 
-#include <AP_Param/AP_Param.h>
+#include <AP_Common/AP_Common.h>
 #include "AP_MarineICE_Params.h"
 
-#include "EngineState.h"
+#include "AP_MarineICE_Types.h"
+#include "AP_MarineICE_States.h"
 #include "StateMachine.h"
-
 #include "States/State_Init.h"
 #include "States/State_Run_Forward.h"
 #include "States/State_Run_Neutral.h"
@@ -32,9 +32,10 @@
 #include "States/State_Start.h"
 #include "States/State_Start_Wait.h"
 #include "States/State_Fault.h"
+#include "States/State_Trim.h"
 
-#include <AP_Common/AP_Common.h>
-#include <GCS_MAVLink/GCS.h>
+using namespace MarineICE::Types;
+using namespace MarineICE::States;
 
 // declare backend classes
 class AP_MarineICE_Backend;
@@ -51,13 +52,6 @@ public:
 
     // Get singleton instance
     static AP_MarineICE* get_singleton();
-    
-    // TYPE parameter values
-    enum class BackendType : uint8_t {
-        TYPE_DISABLED = 0,
-        TYPE_SIMULATED = 1,
-        TYPE_NMEA2000 = 2
-    };
 
     // Initialize driver
     void init();
@@ -72,7 +66,7 @@ public:
     // Any failure_msg returned will not include a prefix
     bool pre_arm_checks(char *failure_msg, uint8_t failure_msg_len);
   
-    // Update the state machines
+    // Update the state machines and the telemetry
     void update();
 
     // State machine access
@@ -81,18 +75,51 @@ public:
     // parameter var table
     static const struct AP_Param::GroupInfo var_info[];
 
+    // Getters for FSMs
+    StateMachine<EngineState, AP_MarineICE>& get_fsm_engine() { return _fsm_engine; }
+    StateMachine<TrimState, AP_MarineICE>& get_fsm_trim() { return _fsm_trim; }
+
+    // Get pointer to backend
+    AP_MarineICE_Backend* get_backend() const;
+
+    // Get reference to the frontend parameters
+    AP_MarineICE_Params& get_params() { return _params; }
+
+    // Helper function to get the neutral lock state from k_engine_run_enable
+    bool get_cmd_neutral_lock() const;
+
+    // Helper function to get the throttle command from k_throttle
+    int16_t get_cmd_throttle() const;
+
+    // Helper function to get the gear command from k_motor_tilt
+    uint16_t get_cmd_trim() const;
+
+    // Helper function to get the gear command from k_starter
+    bool get_cmd_manual_engine_start() const;
+
+    // Helper function to get the state of the e-stop
+    bool get_cmd_e_stop() const;
+
+    // Helper function to get the current mode
+    uint8_t get_current_mode() const;
+
+    // Helper function to get whether the vehicle is armed
+    bool get_armed() const;
+
+    // Roll-up: Get whether there is an active engine stop condition
+    bool get_active_engine_stop() const;
+
+private:
+    static AP_MarineICE* _singleton;
+
+    AP_MarineICE_Backend* _backend;
+
     // Parameters for backends
     AP_MarineICE_Params _params;
 
-private:
-    // Get pointer to backend
-    AP_MarineICE_Backend* get_backend() const;
-    // Pointer to backend
-    AP_MarineICE_Backend* _backend;
+    StateMachine<EngineState, AP_MarineICE> _fsm_engine;
+    StateMachine<TrimState, AP_MarineICE> _fsm_trim;
 
-    static AP_MarineICE* _singleton;
-
-    StateMachine<EngineState, AP_MarineICE> _fsm;
     void setup_states();
 };
 

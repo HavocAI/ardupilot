@@ -15,9 +15,13 @@
 
 #pragma once
 
-#include <GCS_MAVLink/GCS.h>
+#include <AP_MarineICE/AP_MarineICE.h>
+#include <AP_MarineICE/AP_MarineICE_Backend.h>
+#include <AP_MarineICE/AP_MarineICE_States.h>
+#include <AP_MarineICE/AP_MarineICE_Types.h>
 
-class AP_MarineICE;
+using namespace MarineICE::States;
+using namespace MarineICE::Types;
 
 class BaseState {
 public:

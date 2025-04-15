@@ -5,7 +5,6 @@
 #if HAL_MARINEICE_ENABLED
 
 #include "AP_MarineICE_Backend.h"
-#include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
 class AP_MarineICE_Simulator : public AP_MarineICE_Backend {
 public:
@@ -24,6 +23,7 @@ public:
     void set_cmd_throttle(uint16_t throttle_pct) override;
     void set_cmd_gear(GearPosition gear) override;
     void set_cmd_trim(TrimCommand trim) override;
+    void set_cmd_ignition(bool enable) override;
     void set_cmd_starter(bool enable) override;
 
 private:
@@ -52,6 +52,7 @@ private:
     GearPosition _cmd_gear = GearPosition::GEAR_NEUTRAL;
     TrimCommand _cmd_trim = TrimCommand::TRIM_STOP;
     bool _cmd_starter = false;
+    bool _cmd_ignition = false;
 
 };
 

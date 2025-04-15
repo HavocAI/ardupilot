@@ -14,7 +14,6 @@
 */
 
 #include "AP_MarineICE_Params.h"
-#include <SRV_Channel/SRV_Channel.h>
 
 const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
 
@@ -151,6 +150,16 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @User: Standard
     // @RebootRequired: False
     AP_GROUPINFO("RNG_FNDR", 14, AP_MarineICE_Params, rng_fndr, -1),
+
+    //@Param: MIN_DPTH
+    // @DisplayName: Minimum Water Depth
+    // @Description: Minimum water depth (m) to start the engine
+    // @Units: meters
+    // @Range: 0.0 100.0
+    // @Increment: 0.1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("MIN_DPTH", 15, AP_MarineICE_Params, water_depth_thres, 1.0f),
 
     AP_GROUPEND
 };

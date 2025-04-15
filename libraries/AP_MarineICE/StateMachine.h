@@ -2,8 +2,6 @@
 
 #pragma once
 
-#include "States/BaseState.h"
-#include <AP_Common/AP_Common.h>
 #include <map>
 
 template<typename StateEnum, typename Context>

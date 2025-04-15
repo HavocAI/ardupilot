@@ -14,6 +14,7 @@
 */
 
 #pragma once
+
 #include "BaseState.h"
 
 class State_Start : public BaseState {
@@ -21,4 +22,7 @@ public:
     void enter(AP_MarineICE& ctx) override;
     void run(AP_MarineICE& ctx) override;
     void exit(AP_MarineICE& ctx) override;
+
+private:
+    uint32_t _start_time;
 };

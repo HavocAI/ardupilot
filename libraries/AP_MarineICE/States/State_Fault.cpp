@@ -14,7 +14,7 @@
 */
 
 #include "State_Fault.h"
-#include "../AP_MarineICE.h"
+#include <GCS_MAVLink/GCS.h>
 
 void State_Fault::enter(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] FAULT: Entering fault state...");

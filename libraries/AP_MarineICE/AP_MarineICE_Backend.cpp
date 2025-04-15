@@ -2,9 +2,6 @@
 
 #if HAL_MARINEICE_ENABLED
 
-#include <AP_Common/AP_Common.h>
-#include <AP_Math/AP_Math.h>
-
 extern const AP_HAL::HAL& hal;
 
 // constructor
@@ -27,7 +24,7 @@ void AP_MarineICE_Backend::update_esc_telemetry()
                       AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE |
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE |
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT);
-#endif
+#endif // HAL_WITH_ESC_TELEM
 }
 
 #endif // HAL_MARINEICE_ENABLED

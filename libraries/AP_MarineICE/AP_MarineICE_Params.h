@@ -27,4 +27,5 @@ public:
     AP_Int16 rpm_max;      // maximum normal RPM (RPM)
     AP_Float temp_max;     // maximum normal temperature (deg C)
     AP_Int8 rng_fndr;      // water depth range finder instance number (-1 if not used, zero indexed)
+    AP_Float water_depth_thres; // minimum water depth (m) to start the engine
 };
