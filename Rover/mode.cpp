@@ -391,6 +391,11 @@ float Mode::calc_speed_nudge(float target_speed, bool reversed)
         return target_speed;
     }
 
+    // completely disable speed nudge based on parameter
+    if (rover.g2.pilot_speed_nudge == 0) {
+        return target_speed;
+    }
+
     // convert pilot throttle input to speed
     float pilot_steering, pilot_throttle;
     get_pilot_input(pilot_steering, pilot_throttle);

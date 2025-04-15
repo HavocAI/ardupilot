@@ -700,6 +700,15 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(iris_orca, "ORCA_", 58, ParametersG2, AP_IrisOrca),
 #endif
 
+    // @Param: PILOT_SPEED_NUDGE
+    // @DisplayName: Pilot Throttle Speed Nudge
+    // @Description: Enables/Disables pilot speed nudge in GUIDED or AUTO mode.
+    // @Values: 0:Disabled,1:Enabled
+    // @Range: 0 1
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("PILOT_SPEED_NUDGE", 59, ParametersG2, pilot_speed_nudge, 1),
+
     AP_GROUPEND
 };
 
