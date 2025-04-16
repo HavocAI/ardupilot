@@ -32,6 +32,8 @@ namespace orca {
         PC_DEGAIN = 136,
         PC_FSATU = 137,
         PC_FSATU_H = 138,
+        SAFETY_DGAIN = 143,
+        POS_FILT = 167,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
         AUTO_ZERO_EXIT_MODE = 173
@@ -143,7 +145,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 800),
+    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 0),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -164,6 +166,26 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @User: Standard
     // @RebootRequired: True
     AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
+
+    // @Param: SAFE_DGAIN
+    // @DisplayName: Safety derivative gain
+    // @Description: Safety derivative gain for position control
+    // @Units: 2*N*s/m
+    // @Range: 0 65535
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO("SAFE_DGAIN", 11, AP_IrisOrca, _safety_dgain, 0),
+
+    // @Param: POS_FILT
+    // @DisplayName: Position filter
+    // @Description: Position filter for position control
+    // @Units: 1/10000
+    // @Range: 0 9999
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO("POS_FILT", 12, AP_IrisOrca, _pos_filt, 9950),
 
     AP_GROUPEND
 };
@@ -275,6 +297,9 @@ async AP_IrisOrca::run()
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: error read state");
         } else {
             // TODO: check for errors in the response
+            // TODO: if timeout just reset state machine to begining
+
+            // TODO: if getting close to over temp then ramp down the max force register (keep average power ~30w)
         }
 
         // send at 10Hz
@@ -296,6 +321,14 @@ void AP_IrisOrca::send_position_controller_params()
     registers[5] = LOWWORD(_f_max);
 
     _modbus.send_write_multiple_registers(orca::Register::PC_PGAIN, 6, registers);
+
+    // TODO: set safty gain
+
+    // TODO: set position filter
+
+    // TODO: set soft start PC_SOFTSTART_PERIOD (3000ms)
+
+    // TODO: set the bit to have the PID values take effect: CTRL_REG_1: 1024 (1 << 10)
 }
 
 void AP_IrisOrca::send_actuator_position_cmd()
