@@ -16,7 +16,7 @@ class OrcaModbus
             Pending,
             Ready,
             Timeout,
-            Error,
+            CRCError,
         };
 
         enum SendingState {

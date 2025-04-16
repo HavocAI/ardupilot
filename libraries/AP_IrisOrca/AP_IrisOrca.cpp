@@ -33,6 +33,7 @@ namespace orca {
         PC_FSATU = 137,
         PC_FSATU_H = 138,
         SAFETY_DGAIN = 143,
+        PC_SOFTSTART_PERIOD = 150,
         POS_FILT = 167,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
@@ -229,6 +230,9 @@ async AP_IrisOrca::run()
     OrcaModbus::ReceiveState rx;
     uint16_t value;
 
+    last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(last_send_ms, 1000));
+
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
@@ -265,10 +269,6 @@ async AP_IrisOrca::run()
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read CTRL_REG_3 register");
-            
-            last_send_ms = AP_HAL::millis();
-            await(TIME_PASSED(last_send_ms, 1000));
-
             async_init(&_run_state);
             return ASYNC_CONT;
         }
@@ -284,6 +284,18 @@ async AP_IrisOrca::run()
     send_position_controller_params();
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
+    _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    // TODO: set position filter
+    _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    // TODO: set soft start PC_SOFTSTART_PERIOD (3000ms)
+
+    // TODO: set the bit to have the PID values take effect: CTRL_REG_1: 1024 (1 << 10)
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_0, 0x0400);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
     _modbus.set_recive_timeout_ms(75);
 
@@ -293,13 +305,22 @@ async AP_IrisOrca::run()
         last_send_ms = AP_HAL::millis();
 
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-        if (rx != OrcaModbus::ReceiveState::Ready) {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: error read state");
-        } else {
-            // TODO: check for errors in the response
-            // TODO: if timeout just reset state machine to begining
-
-            // TODO: if getting close to over temp then ramp down the max force register (keep average power ~30w)
+        switch (rx) {
+            case OrcaModbus::ReceiveState::Ready:
+                // TODO: if getting close to over temp then ramp down the max force register (keep average power ~30w)
+                break;
+            case OrcaModbus::ReceiveState::Timeout:
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position msg timeout");
+                async_init(&_run_state);
+                return ASYNC_CONT;
+                break;
+            case OrcaModbus::ReceiveState::CRCError:
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: actuator position msg crcerror");
+                // async_init(&_run_state);
+                // return ASYNC_CONT;
+                break;
+            case OrcaModbus::ReceiveState::Pending:
+                break;
         }
 
         // send at 10Hz
@@ -321,14 +342,6 @@ void AP_IrisOrca::send_position_controller_params()
     registers[5] = LOWWORD(_f_max);
 
     _modbus.send_write_multiple_registers(orca::Register::PC_PGAIN, 6, registers);
-
-    // TODO: set safty gain
-
-    // TODO: set position filter
-
-    // TODO: set soft start PC_SOFTSTART_PERIOD (3000ms)
-
-    // TODO: set the bit to have the PID values take effect: CTRL_REG_1: 1024 (1 << 10)
 }
 
 void AP_IrisOrca::send_actuator_position_cmd()

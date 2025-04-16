@@ -106,6 +106,14 @@ void OrcaModbus::tick()
         }
     }
 
+    if (_receive_state == ReceiveState::Pending) {
+        if (AP_HAL::millis() - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
+            // timeout waiting for reply
+            _receive_state = ReceiveState::Timeout;
+            _reply_wait_start_ms = 0;
+        }
+    }
+
     if (_uart->available() > 0 && _uart->read(b)) {
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
@@ -118,7 +126,7 @@ void OrcaModbus::tick()
                     _reply_wait_start_ms = 0;
                 } else {
                     // CRC is incorrect
-                    _receive_state = ReceiveState::Error;
+                    _receive_state = ReceiveState::CRCError;
                 }
                 _received_buff_len = 0;
             }
