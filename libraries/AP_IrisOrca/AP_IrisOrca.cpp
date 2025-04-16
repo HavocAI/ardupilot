@@ -81,7 +81,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Values: -1:Disabled,50:AUX1,51:AUX2,52:AUX3,53:AUX4,54:AUX5,55:AUX6
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("DE_PIN", 1, AP_IrisOrca, _pin_de, -1),
+    AP_GROUPINFO("DPIN", 1, AP_IrisOrca, _pin_de, -1),
 
     // @Param: MAX_TRAVEL
     // @DisplayName: Shaft max physical travel distance
@@ -90,14 +90,14 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 300
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("MAX_TRAVEL", 2, AP_IrisOrca, _max_travel_mm, 205),
+    AP_GROUPINFO("MTRVL", 2, AP_IrisOrca, _max_travel_mm, 205),
 
     // @Param: REVERSE_DIR
     // @DisplayName: Reverse direction
     // @Description: Reverse the direction of the actuator
     // @Values: 0:Normal,1:Reverse
     // @User: Standard
-    AP_GROUPINFO("REVERSE_DIR", 3, AP_IrisOrca, _reverse_direction, 0),
+    AP_GROUPINFO("REVDR", 3, AP_IrisOrca, _reverse_direction, 0),
 
     // @Param: PAD_TRAVEL
     // @DisplayName: Pad travel distance
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 100
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("PAD_TRAVEL", 4, AP_IrisOrca, _pad_travel_mm, 10),
+    AP_GROUPINFO("PTRVL", 4, AP_IrisOrca, _pad_travel_mm, 10),
 
     // @Param: F_MAX
     // @DisplayName: Maximum force
@@ -116,7 +116,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 638000),
+    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 638000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -126,7 +126,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_P", 6, AP_IrisOrca, _gain_p, 200),
+    AP_GROUPINFO("GP", 6, AP_IrisOrca, _gain_p, 200),
 
     // @Param: GAIN_I
     // @DisplayName: Position control I gain
@@ -136,7 +136,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 1000),
+    AP_GROUPINFO("GI", 7, AP_IrisOrca, _gain_i, 1000),
 
     // @Param: GAIN_DV
     // @DisplayName: Position control Dv gain
@@ -146,7 +146,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 0),
+    AP_GROUPINFO("GDV", 8, AP_IrisOrca, _gain_dv, 0),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -156,7 +156,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_DE", 9, AP_IrisOrca, _gain_de, 0),
+    AP_GROUPINFO("GDE", 9, AP_IrisOrca, _gain_de, 0),
 
     // @Param: AZ_F_MAX
     // @DisplayName: Auto-zero max force
@@ -166,7 +166,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
+    AP_GROUPINFO("AFMAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
 
     // @Param: SAFE_DGAIN
     // @DisplayName: Safety derivative gain
@@ -176,7 +176,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("SAFE_DGAIN", 11, AP_IrisOrca, _safety_dgain, 0),
+    AP_GROUPINFO("SFEDG", 11, AP_IrisOrca, _safety_dgain, 0),
 
     // @Param: POS_FILT
     // @DisplayName: Position filter
@@ -186,38 +186,38 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("POS_FILT", 12, AP_IrisOrca, _pos_filt, 9950),
+    AP_GROUPINFO("POSFIL", 12, AP_IrisOrca, _pos_filt, 9950),
 
     AP_GROUPEND
 };
 
 AP_IrisOrca::AP_IrisOrca(void)
 {
-    // set defaults from the parmeter table
+    // set defaults from the parameter table
     AP_Param::setup_object_defaults(this, var_info);
 }
 
 void AP_IrisOrca::init(void)
 {
     
-    const AP_SerialManager &serial_manager = AP::serialmanager();
-    _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
-    if (_uart) {
-        _modbus.init(_uart, _pin_de);
-    }
+    // const AP_SerialManager &serial_manager = AP::serialmanager();
+    // _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
+    // if (_uart) {
+    //     _modbus.init(_uart, _pin_de);
+    // }
 
-    async_init(&_run_state);
+    // async_init(&_run_state);
 }
 
 void AP_IrisOrca::update()
 {
-    if (_uart == nullptr) {
-        init();
-        return;
-    }
+    // if (_uart == nullptr) {
+    //     init();
+    //     return;
+    // }
 
-    _modbus.tick();
-    run();
+    // _modbus.tick();
+    // run();
 
 }
 

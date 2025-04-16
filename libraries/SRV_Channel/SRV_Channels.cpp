@@ -196,7 +196,7 @@ const AP_Param::GroupInfo SRV_Channels::var_info[] = {
 #if AP_IRISORCA_ENABLED
     // @Group: _ORCA_
     // @Path: ../AP_IrisOrca/AP_IrisOrca.cpp
-    AP_SUBGROUPINFO(irisorca, "_ORCA_",  45, SRV_Channels, AP_IrisOrca),
+    AP_SUBGROUPINFO(irisorca, "_ORC_",  45, SRV_Channels, AP_IrisOrca),
 #endif
 
 #if AP_FETTEC_ONEWIRE_ENABLED
