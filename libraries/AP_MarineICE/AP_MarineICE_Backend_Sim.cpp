@@ -1,4 +1,4 @@
-#include "AP_MarineICE_Simulator.h"
+#include "AP_MarineICE_Backend_Sim.h"
 
 #if HAL_MARINEICE_ENABLED
 
@@ -15,29 +15,27 @@ extern const AP_HAL::HAL& hal;
 
 using namespace MarineICE::Types;
 
-void AP_MarineICE_Simulator::init()
+void AP_MarineICE_Backend_Sim::init()
 {
     // Create background thread to run the simulation
     // Use the scripting priority
-    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_MarineICE_Simulator::thread_main, void), "marineice_besim", 2048, AP_HAL::Scheduler::PRIORITY_SCRIPTING, 1)) {
+    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_MarineICE_Backend_Sim::thread_main, void), "marineice_besim", 2048, AP_HAL::Scheduler::PRIORITY_SCRIPTING, 1)) {
         return;
     }
 }
 
-bool AP_MarineICE_Simulator::healthy()
+bool AP_MarineICE_Backend_Sim::healthy()
 {
     // Simulated backend is always healthy
     return true;
 }
 
 // thread main function
-void AP_MarineICE_Simulator::thread_main()
+void AP_MarineICE_Backend_Sim::thread_main()
 {
     // Simulate the engine and other components
     while (true) {
         hal.scheduler->delay(1000 / MARINEICE_SIMULATOR_RATE_HZ);
-
-        update_esc_telemetry();
 
         // Simulate engine RPM and temperature
         simulate_motor();
@@ -47,7 +45,7 @@ void AP_MarineICE_Simulator::thread_main()
     }
 }
 
-void AP_MarineICE_Simulator::simulate_motor() {
+void AP_MarineICE_Backend_Sim::simulate_motor() {
     if (SRV_Channels::get_emergency_stop() || !_state.ignition_on) {
         // Simulate engine stopping if e-stop is pressed or ignition is off
         // This simulates an E-stop button that is also wired directly to the engine Ign/Kill circuit
@@ -115,7 +113,7 @@ void AP_MarineICE_Simulator::simulate_motor() {
 
 }
 
-void AP_MarineICE_Simulator::simulate_dometic_shift_throttle() {
+void AP_MarineICE_Backend_Sim::simulate_dometic_shift_throttle() {
     // Simulate shift gear feedback by applying a delay at gear change
     if (_cmd_gear != _state.gear_position) {
         // Simulate delay of 1 sec for gear change (blocking)
@@ -136,7 +134,7 @@ void AP_MarineICE_Simulator::simulate_dometic_shift_throttle() {
 
 }
 
-void AP_MarineICE_Simulator::simulate_maretron_load_center() {
+void AP_MarineICE_Backend_Sim::simulate_maretron_load_center() {
     // Simulate load center feedback responding to trim up/down
     if (_cmd_trim == TrimCommand::TRIM_UP) {
         _state.trim_command = TrimCommand::TRIM_UP;
@@ -161,7 +159,7 @@ void AP_MarineICE_Simulator::simulate_maretron_load_center() {
     }
 }
 
-void AP_MarineICE_Simulator::simulate_water_depth() {
+void AP_MarineICE_Backend_Sim::simulate_water_depth() {
     // Simulate water depth feedback from rangefinder
     _state.water_depth_m = 3.0f; // Simulate a constant water depth of 3 meters
 }

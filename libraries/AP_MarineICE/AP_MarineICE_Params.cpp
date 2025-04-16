@@ -151,7 +151,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @RebootRequired: False
     AP_GROUPINFO("RNG_FNDR", 14, AP_MarineICE_Params, rng_fndr, -1),
 
-    //@Param: MIN_DPTH
+    // @Param: MIN_DPTH
     // @DisplayName: Minimum Water Depth
     // @Description: Minimum water depth (m) to start the engine
     // @Units: meters
@@ -160,6 +160,16 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @User: Standard
     // @RebootRequired: False
     AP_GROUPINFO("MIN_DPTH", 15, AP_MarineICE_Params, water_depth_thres, 1.0f),
+
+    // @Param: CAN_PORT
+    // @DisplayName: CAN Port
+    // @Description: CAN port to use for the CAN backend (0:CAN1, 1:CAN2, -1:disabled)
+    // @Units: port number
+    // @Range: -1 255
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("CAN_PORT", 16, AP_MarineICE_Params, can_port, 0),
 
     AP_GROUPEND
 };

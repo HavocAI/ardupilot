@@ -28,8 +28,7 @@ void State_Init::enter(AP_MarineICE& ctx) {
 void State_Init::run(AP_MarineICE& ctx) {
 
     // Set "safe" commands for the engine
-    ctx.get_backend()->set_cmd_throttle(0.0f);
-    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_NEUTRAL, 0.0f);
     ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
 

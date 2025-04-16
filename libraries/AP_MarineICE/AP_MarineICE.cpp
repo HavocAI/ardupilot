@@ -18,7 +18,8 @@
 #if HAL_MARINEICE_ENABLED
 
 #include "AP_MarineICE_Backend.h"
-#include "AP_MarineICE_Simulator.h"
+#include "AP_MarineICE_Backend_N2k.h"
+#include "AP_MarineICE_Backend_Sim.h"
 
 #include <AP_Vehicle/AP_Vehicle.h>
 #include <AP_Arming/AP_Arming.h>
@@ -58,11 +59,11 @@ void AP_MarineICE::init()
     case BackendType::BACKEND_TYPE_DISABLED:
         return;
     case BackendType::BACKEND_TYPE_SIMULATED:
-        _backend = NEW_NOTHROW AP_MarineICE_Simulator(_params);
+        _backend = NEW_NOTHROW AP_MarineICE_Backend_Sim(_params);
         break;
     case BackendType::BACKEND_TYPE_NMEA2000:
-        // TODO: implement NMEA2000 backend
-        return;
+        _backend = NEW_NOTHROW AP_MarineICE_Backend_N2k(_params);
+        break;
     default:
         return;
     }
@@ -156,9 +157,8 @@ bool AP_MarineICE::get_cmd_neutral_lock() const
     return SRV_Channels::get_output_norm(SRV_Channel::k_scripting1) > 0;
 }
 
-int16_t AP_MarineICE::get_cmd_throttle() const { 
-    return constrain_int16(SRV_Channels::get_output_norm(
-        SRV_Channel::k_throttle) * 100, -100, 100); 
+float AP_MarineICE::get_cmd_throttle() const { 
+    return SRV_Channels::get_output_norm(SRV_Channel::k_throttle) * 100.0f; 
 }
 
 uint16_t AP_MarineICE::get_cmd_trim() const { 

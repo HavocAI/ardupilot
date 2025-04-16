@@ -44,8 +44,7 @@ void State_Start_Wait::run(AP_MarineICE& ctx) {
     }
 
     // Wait to start the engine
-    ctx.get_backend()->set_cmd_throttle(0.0f);
-    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_NEUTRAL, 0.0f);
     ctx.get_backend()->set_cmd_ignition(true);
     ctx.get_backend()->set_cmd_starter(false);
 }

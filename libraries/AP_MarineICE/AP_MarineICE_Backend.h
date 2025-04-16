@@ -39,8 +39,7 @@ public:
     };
 
     //** Virtual command setters, to be overridden by implementation
-    virtual void set_cmd_throttle(uint16_t throttle_pct) = 0;
-    virtual void set_cmd_gear(GearPosition gear) = 0;
+    virtual void set_cmd_shift_throttle(GearPosition gear, float throttle_pct) = 0;
     virtual void set_cmd_trim(TrimCommand trim) = 0;
     virtual void set_cmd_ignition(bool enable) = 0;
     virtual void set_cmd_starter(bool enable) = 0;
@@ -51,7 +50,7 @@ public:
     // Getters for passing the internal state to the frontend / state machine
     const EngineData& get_engine_data() const { return _state.engine_data; }
     const GearPosition& get_gear_position() const { return _state.gear_position; }
-    const uint16_t& get_throttle_pct() const { return _state.throttle_pct; }
+    const float& get_throttle_pct() const { return _state.throttle_pct; }
     const bool& get_starter_on() const { return _state.starter_on; }
     const TrimCommand& get_trim_command() const { return _state.trim_command; }
     const float& get_water_depth_m() const { return _state.water_depth_m; }
@@ -63,7 +62,7 @@ protected:
     struct State {
         EngineData      engine_data;
         GearPosition    gear_position = GearPosition::GEAR_NEUTRAL;
-        uint16_t        throttle_pct = 0;
+        float           throttle_pct = 0.0f;
         bool            starter_on = false;
         bool            ignition_on = false;
         TrimCommand     trim_command = TrimCommand::TRIM_STOP;

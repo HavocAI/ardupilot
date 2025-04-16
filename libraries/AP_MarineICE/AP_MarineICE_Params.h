@@ -28,4 +28,5 @@ public:
     AP_Float temp_max;     // maximum normal temperature (deg C)
     AP_Int8 rng_fndr;      // water depth range finder instance number (-1 if not used, zero indexed)
     AP_Float water_depth_thres; // minimum water depth (m) to start the engine
+    AP_Int8 can_port;      // CAN port to use for the backend (0:CAN1, 1:CAN2, -1:disabled)
 };

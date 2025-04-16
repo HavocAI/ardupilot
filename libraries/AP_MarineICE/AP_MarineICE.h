@@ -38,15 +38,17 @@
 using namespace MarineICE::Types;
 using namespace MarineICE::States;
 
-// declare backend classes
+// fwd declare backend classes
 class AP_MarineICE_Backend;
-class AP_MarineICE_Simulator;
+class AP_MarineICE_Backend_Sim;
+class AP_MarineICE_Backend_N2k;
 
 class AP_MarineICE {
 
     // declare backends as friend
     friend class AP_MarineICE_Backend;
-    friend class AP_MarineICE_Simulator;
+    friend class AP_MarineICE_Backend_Sim;
+    friend class AP_MarineICE_Backend_N2k;
 
 public:
     AP_MarineICE();
@@ -92,8 +94,8 @@ public:
     bool get_cmd_neutral_lock() const;
 
     // Helper function to get the throttle command from k_throttle
-    // Returns a percentage value between -100 and 100
-    int16_t get_cmd_throttle() const;
+    // Returns a percentage value between -100.0 and 100.0
+    float get_cmd_throttle() const;
 
     // Helper function to get the gear command from k_motor_tilt
     uint16_t get_cmd_trim() const;

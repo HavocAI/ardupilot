@@ -54,8 +54,7 @@ void State_Run_Neutral::run(AP_MarineICE& ctx) {
     }
 
     // Set the throttle and gear commands
-    ctx.get_backend()->set_cmd_throttle(0u);
-    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
+    ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_NEUTRAL, 0.0f);
     ctx.get_backend()->set_cmd_ignition(true);
     ctx.get_backend()->set_cmd_starter(false);
 

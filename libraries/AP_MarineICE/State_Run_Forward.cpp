@@ -47,8 +47,7 @@ void State_Run_Forward::run(AP_MarineICE& ctx) {
     }
 
     // Set the throttle and gear commands
-    ctx.get_backend()->set_cmd_throttle(abs(ctx.get_cmd_throttle()));
-    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_FORWARD);
+    ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_FORWARD, abs(ctx.get_cmd_throttle()));
     ctx.get_backend()->set_cmd_ignition(true);
     ctx.get_backend()->set_cmd_starter(false);
 

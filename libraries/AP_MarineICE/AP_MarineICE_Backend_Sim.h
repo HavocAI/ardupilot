@@ -6,13 +6,13 @@
 
 #include "AP_MarineICE_Backend.h"
 
-class AP_MarineICE_Simulator : public AP_MarineICE_Backend {
+class AP_MarineICE_Backend_Sim : public AP_MarineICE_Backend {
 public:
     // inherit constructor
     using AP_MarineICE_Backend::AP_MarineICE_Backend;
 
     // do not allow copies
-    CLASS_NO_COPY(AP_MarineICE_Simulator);
+    CLASS_NO_COPY(AP_MarineICE_Backend_Sim);
 
     // initialise driver
     void init() override;
@@ -20,10 +20,8 @@ public:
     // returns true if communicating with all required interfaces
     bool healthy() override;
 
-    void set_cmd_throttle(uint16_t throttle_pct) override { 
+    void set_cmd_shift_throttle(GearPosition gear, float throttle_pct) override { 
         _cmd_throttle_pct = throttle_pct; 
-    };
-    void set_cmd_gear(GearPosition gear) override {
         _cmd_gear = gear;
     };
     void set_cmd_trim(TrimCommand trim) override {
@@ -58,7 +56,7 @@ private:
     void simulate_water_depth();
 
     // Commands
-    uint16_t _cmd_throttle_pct = 0;
+    float _cmd_throttle_pct = 0.0f;
     GearPosition _cmd_gear = GearPosition::GEAR_NEUTRAL;
     TrimCommand _cmd_trim = TrimCommand::TRIM_STOP;
     bool _cmd_starter = false;
