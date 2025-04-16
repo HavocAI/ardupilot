@@ -89,10 +89,10 @@ void AP_MarineICE_Simulator::simulate_motor() {
     }
 
     // Simulate engine trim based on trim command
-    if ((_cmd_trim == TrimCommand::TRIM_UP) && (_state.engine_data.trim_deg < MARINEICE_SIMULATOR_MAX_TRIM)) {
-        _state.engine_data.trim_deg += 1.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim up
-    } else if ((_cmd_trim == TrimCommand::TRIM_DOWN) && (_state.engine_data.trim_deg > MARINEICE_SIMULATOR_MIN_TRIM)) {
-        _state.engine_data.trim_deg -= 1.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim down
+    if ((_state.trim_command == TrimCommand::TRIM_UP) && (_state.engine_data.trim_deg < MARINEICE_SIMULATOR_MAX_TRIM)) {
+        _state.engine_data.trim_deg += 5.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim up
+    } else if ((_state.trim_command == TrimCommand::TRIM_DOWN) && (_state.engine_data.trim_deg > MARINEICE_SIMULATOR_MIN_TRIM)) {
+        _state.engine_data.trim_deg -= 5.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim down
     }
 
     // Simulate engine fuel rate based on RPM
