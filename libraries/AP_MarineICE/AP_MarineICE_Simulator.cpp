@@ -24,36 +24,10 @@ void AP_MarineICE_Simulator::init()
     }
 }
 
-// returns true if communicating with required interfaces
 bool AP_MarineICE_Simulator::healthy()
 {
     // Simulated backend is always healthy
     return true;
-}
-
-void AP_MarineICE_Simulator::set_cmd_throttle(uint16_t throttle_pct)
-{
-    _cmd_throttle_pct = throttle_pct;
-}
-
-void AP_MarineICE_Simulator::set_cmd_gear(GearPosition gear)
-{
-    _cmd_gear = gear;
-}
-
-void AP_MarineICE_Simulator::set_cmd_trim(TrimCommand trim)
-{
-    _cmd_trim = trim;
-}
-
-void AP_MarineICE_Simulator::set_cmd_starter(bool enable)
-{
-    _cmd_starter = enable;
-}
-
-void AP_MarineICE_Simulator::set_cmd_ignition(bool enable)
-{
-    _cmd_ignition = enable;
 }
 
 // thread main function
@@ -77,17 +51,17 @@ void AP_MarineICE_Simulator::simulate_motor() {
     if (SRV_Channels::get_emergency_stop() || !_state.ignition_on) {
         // Simulate engine stopping if e-stop is pressed or ignition is off
         // This simulates an E-stop button that is also wired directly to the engine Ign/Kill circuit
-        _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 100) / MARINEICE_SIMULATOR_RATE_HZ), 
+        _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 300) / MARINEICE_SIMULATOR_RATE_HZ), 
             0.0f);
     } else if ((_state.engine_data.rpm < (_params.rpm_thres.get() - 100)) && !_state.starter_on) {
         // Simulate engine stalling if below min RPM and starter is off
-        _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 100) / MARINEICE_SIMULATOR_RATE_HZ), 
+        _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 300) / MARINEICE_SIMULATOR_RATE_HZ), 
             0.0f);
     } else if (_state.starter_on && _state.gear_position == GearPosition::GEAR_NEUTRAL) {
         // Simulate starting and enforce the Neutral interlock
         // Increment the engine RPM until it reaches the threshold
         if (_state.engine_data.rpm < _params.rpm_thres.get()) {
-            _state.engine_data.rpm += 100 / MARINEICE_SIMULATOR_RATE_HZ; // Increment RPM
+            _state.engine_data.rpm += 300 / MARINEICE_SIMULATOR_RATE_HZ; // Increment RPM
         }
     } else {
         // Simulate engine running based on throttle percentage, with a minimum idle threshold

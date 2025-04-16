@@ -35,7 +35,7 @@ void State_Run_Reverse::run(AP_MarineICE& ctx) {
 
     // Check for RPM below threshold
     if (ctx.get_backend()->get_engine_data().rpm < ctx.get_params().rpm_thres.get()) {
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] RPM fell below idle in RUN.");
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] RPM fell below idle in RUN_REVERSE.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
         return;
     }

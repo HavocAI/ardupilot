@@ -44,6 +44,8 @@ void State_Start::run(AP_MarineICE& ctx) {
         // Engine started successfully
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine started successfully.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
+        ctx.set_num_start_attempts(0); 
+        // TODO: Should the engine be required to run for some amount of time before resetting the start attempts?
         return;
     }
 
@@ -67,8 +69,6 @@ void State_Start::exit(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START: Exiting...");
 
     // Disable the starter
-    ctx.get_backend()->set_cmd_throttle(0.0f);
-    ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
     ctx.get_backend()->set_cmd_starter(false);
 
 }

@@ -20,11 +20,21 @@ public:
     // returns true if communicating with all required interfaces
     bool healthy() override;
 
-    void set_cmd_throttle(uint16_t throttle_pct) override;
-    void set_cmd_gear(GearPosition gear) override;
-    void set_cmd_trim(TrimCommand trim) override;
-    void set_cmd_ignition(bool enable) override;
-    void set_cmd_starter(bool enable) override;
+    void set_cmd_throttle(uint16_t throttle_pct) override { 
+        _cmd_throttle_pct = throttle_pct; 
+    };
+    void set_cmd_gear(GearPosition gear) override {
+        _cmd_gear = gear;
+    };
+    void set_cmd_trim(TrimCommand trim) override {
+        _cmd_trim = trim;
+    };
+    void set_cmd_ignition(bool enable) override {
+        _cmd_ignition = enable;
+    };
+    void set_cmd_starter(bool enable) override {
+        _cmd_starter = enable;
+    };
 
 private:
 

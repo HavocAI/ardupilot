@@ -136,7 +136,8 @@ void AP_MarineICE::update()
         // If any fault is set, change to the fault state
         _fsm_engine.change_state(EngineState::ENGINE_FAULT, *this);
     } else if (get_active_engine_stop() && 
-            _fsm_engine.current_state_id() != EngineState::ENGINE_INIT) {
+            _fsm_engine.current_state_id() != EngineState::ENGINE_INIT &&
+            _fsm_engine.current_state_id() != EngineState::ENGINE_FAULT) {
         // If there is an engine stop condition, change to the init state
         _fsm_engine.change_state(EngineState::ENGINE_INIT, *this);
     }
@@ -152,9 +153,7 @@ void AP_MarineICE::update()
 
 bool AP_MarineICE::get_cmd_neutral_lock() const
 {
-    static bool neutral_lock = constrain_int16((SRV_Channels::get_output_norm(
-        SRV_Channel::k_engine_run_enable) + 1) * 0.5, 0, 1) != 0;
-    return neutral_lock;
+    return SRV_Channels::get_output_norm(SRV_Channel::k_scripting1) > 0;
 }
 
 int16_t AP_MarineICE::get_cmd_throttle() const { 
@@ -163,15 +162,13 @@ int16_t AP_MarineICE::get_cmd_throttle() const {
 }
 
 uint16_t AP_MarineICE::get_cmd_trim() const { 
-    return constrain_int16(SRV_Channels::get_output_norm(
-        SRV_Channel::k_motor_tilt) * 100, 0, 100); 
+    return constrain_int16((SRV_Channels::get_output_norm(
+        SRV_Channel::k_mount_tilt) + 1) * 50, 0, 100); 
 }
 
 bool AP_MarineICE::get_cmd_manual_engine_start() const
 {
-    static bool neutral_lock = constrain_int16((SRV_Channels::get_output_norm(
-        SRV_Channel::k_starter) + 1) * 0.5, 0, 1) != 0;
-    return neutral_lock;
+    return SRV_Channels::get_output_norm(SRV_Channel::k_scripting2) > 0;
 }
 
 bool AP_MarineICE::get_cmd_e_stop() const
@@ -224,14 +221,7 @@ void AP_MarineICE::monitor_faults()
         set_fault(ENGINE_OVERTEMP, true);
     }
 
-    // Check for throttle actuator failure - backend throttle percent is not within tolerance of commanded
-    // taking into account the slew rate
-    // float throttle_tolerance = _params.thr_slewrate.get() * MARINEICE_UPDATE_INTERVAL_MS / 1000.0f;
-    float throttle_tolerance = 25.0;
-    if (abs(_backend->get_throttle_pct() - get_cmd_throttle()) > throttle_tolerance)
-    {
-        set_fault(THROTTLE_ACTUATOR_FAILURE, true);
-    }
+    // TODO: Check for throttle actuator failure
 
     // TODO: Check for gear actuator failure
 

@@ -25,14 +25,14 @@ void State_Fault::enter(AP_MarineICE& ctx) {
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] FAULT: Entering...");
 
     // Print the active faults
-    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Active Faults:");
-    // for (int i = 0; i < 6; ++i)
-    // {
-    //     if (ctx.get_fault(static_cast<FaultIndex>(i)))
-    //     {
-    //         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, fault_to_string(static_cast<FaultIndex>(i)));
-    //     }
-    // }
+    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Active Faults:");
+    for (int i = 0; i < 6; ++i)
+    {
+        if (ctx.get_fault(static_cast<FaultIndex>(i)))
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "%s", fault_to_string(static_cast<FaultIndex>(i)));
+        }
+    }
 }
 
 void State_Fault::run(AP_MarineICE& ctx) {
@@ -41,6 +41,17 @@ void State_Fault::run(AP_MarineICE& ctx) {
     ctx.get_backend()->set_cmd_gear(GearPosition::GEAR_NEUTRAL);
     ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
+
+    // TODO: Is this the best trigger to clear faults and return to Init?
+    if (!ctx.get_armed()) // Clear faults if not armed
+    {
+        for (int i = 0; i < 6; ++i)
+        {
+            ctx.set_fault(static_cast<FaultIndex>(i), false);
+        }
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: All faults cleared.");
+        ctx.get_fsm_engine().change_state(EngineState::ENGINE_INIT, ctx);
+    }
 
 }
 

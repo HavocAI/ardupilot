@@ -26,26 +26,25 @@ void State_Run_Neutral::enter(AP_MarineICE& ctx) {
 }
 
 void State_Run_Neutral::run(AP_MarineICE& ctx) {
-    // Check for neutral lock - stay in Neutral state
-    if (ctx.get_cmd_neutral_lock()) {
-        return;
-    }
-
     // Check for throttle command exceeding positive deadband
-    if (ctx.get_cmd_throttle() > ctx.get_params().thr_deadband.get()) {
+    // and not in neutral lock
+    if ((ctx.get_cmd_throttle() > ctx.get_params().thr_deadband.get()) &&
+            !ctx.get_cmd_neutral_lock()) {
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_FORWARD, ctx);
         return;
     }
 
     // Check for throttle command exceeding negative deadband
-    if (ctx.get_cmd_throttle() < -1 * ctx.get_params().thr_deadband.get()) {
+    // and not in neutral lock
+    if ((ctx.get_cmd_throttle() < -1 * ctx.get_params().thr_deadband.get()) &&
+            !ctx.get_cmd_neutral_lock()) {
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_REVERSE, ctx);
         return;
     }
 
     // Check for RPM below idle threshold
     if (ctx.get_backend()->get_engine_data().rpm < ctx.get_params().rpm_thres.get()) {
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] RPM fell below idle in RUN.");
+        // GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] RPM below idle in RUN_NEUTRAL.");
         if ((ctx.get_cmd_manual_engine_start() || ctx.get_params().auto_start.get()) &&
             (ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get())) {
             // Attempt to start the engine
