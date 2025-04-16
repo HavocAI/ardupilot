@@ -65,7 +65,7 @@ void AP_MarineICE_Simulator::simulate_motor() {
         }
     } else {
         // Simulate engine running based on throttle percentage, with a minimum idle threshold
-        _state.engine_data.rpm = std::max((_cmd_throttle_pct * MARINEICE_SIMULATOR_MAX_RPM / 100.0f), 
+        _state.engine_data.rpm = std::max((_state.throttle_pct * MARINEICE_SIMULATOR_MAX_RPM / 100.0f), 
             static_cast<float>(_params.rpm_thres.get()));
     }
 
