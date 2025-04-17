@@ -171,6 +171,56 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @RebootRequired: False
     AP_GROUPINFO("CAN_PORT", 16, AP_MarineICE_Params, can_port, 0),
 
+    // @Param: LC_BANK
+    // @DisplayName: Load Center Bank Instance
+    // @Description: Bank instance of the Load Center Binary Device (Maretron)
+    // @Units: instance number
+    // @Range: 0 255
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("LC_BANK", 17, AP_MarineICE_Params, lc_bank_instance, 42),
+
+    // @Param: LC_IGN
+    // @DisplayName: Load Center Ignition Channel
+    // @Description: Load Center Ignition channel
+    // @Units: channel number
+    // @Range: 0 28
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("LC_IGN", 18, AP_MarineICE_Params, lc_ignition, 3),
+
+    // @Param: LC_START
+    // @DisplayName: Load Center Starter Channel
+    // @Description: Load Center Starter channel
+    // @Units: channel number
+    // @Range: 0 28
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("LC_START", 19, AP_MarineICE_Params, lc_starter, 2),
+
+    // @Param: LC_TRIMUP
+    // @DisplayName: Load Center Trim Up Channel
+    // @Description: Load Center Trim Up channel
+    // @Units: channel number
+    // @Range: 0 28
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("LC_TRIMUP", 20, AP_MarineICE_Params, lc_trim_up, 12),
+
+    // @Param: LC_TRIMDN
+    // @DisplayName: Load Center Trim Down Channel
+    // @Description: Load Center Trim Down channel
+    // @Units: channel number
+    // @Range: 0 28
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("LC_TRIMDN", 21, AP_MarineICE_Params, lc_trim_down, 11),
+
     AP_GROUPEND
 };
 

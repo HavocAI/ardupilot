@@ -36,11 +36,10 @@ public:
 
 private:
 
+    // senders for NMEA2000 PGNs
     bool send_pgn_65380_actuator_command_port_engine(const struct n2k_pgn_65380_actuator_command_port_engine_t &msg);
     bool send_pgn_65390_control_head_feedback(const struct n2k_pgn_65390_control_head_feedback_t &msg);
-    
-    // TODO: Create PGN 126208
-    // bool send_maretron_load_center(const struct maretron_load_center_t &msg);
+    bool send_pgn_126208_command_group_function_two_pair_bytes(const struct n2k_pgn_126208_command_group_function_two_pair_bytes_t &msg);
 
     // handler for incoming CAN frames
     void handle_frame(AP_HAL::CANFrame &frame) override;

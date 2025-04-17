@@ -29,4 +29,9 @@ public:
     AP_Int8 rng_fndr;      // water depth range finder instance number (-1 if not used, zero indexed)
     AP_Float water_depth_thres; // minimum water depth (m) to start the engine
     AP_Int8 can_port;      // CAN port to use for the backend (0:CAN1, 1:CAN2, -1:disabled)
+    AP_Int8 lc_bank_instance;// Bank instance of the Load Center Binary Device (Maretron)
+    AP_Int8 lc_ignition;   // Load Center Ignition channel
+    AP_Int8 lc_starter;    // Load Center Starter channel
+    AP_Int8 lc_trim_up;    // Load Center Trim Up channel
+    AP_Int8 lc_trim_down;  // Load Center Trim Down channel
 };

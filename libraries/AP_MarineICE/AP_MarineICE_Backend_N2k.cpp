@@ -12,7 +12,7 @@ extern const AP_HAL::HAL& hal;
 using namespace MarineICE::Types;
 
 #define MARINEICE_DEBUG 0
-#define MARINEICE_SIMULATE_MOTOR 1
+#define MARINEICE_SIMULATE_MOTOR 0
 
 #define MARINEICE_BACKEND_N2K_SOURCE_ADDRESS 0xEE // TODO: This should not be hard coded, but should be set by the NMEA2000 stack
 #define MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS 1000
@@ -96,17 +96,56 @@ void AP_MarineICE_Backend_N2k::set_cmd_shift_throttle(GearPosition gear, float t
 
 void AP_MarineICE_Backend_N2k::set_cmd_trim(TrimCommand trim)
 {
-    // TODO
+    // Set the header and load center bank instance
+    n2k_pgn_126208_command_group_function_two_pair_bytes_t msg;
+    msg.function_code = 1;
+    msg.pgn_number = 127501L;
+    msg.reserved = 0xF;
+    msg.priority_setting = 8;
+    msg.number_of_pairs = 2;
+    msg.field_number_1 = 1;
+    msg.field_value_1 = _params.lc_bank_instance;
+
+    // Set the Trim Up Channel
+    msg.field_number_2 = _params.lc_trim_up + 1;
+    msg.field_value_2 = trim == TrimCommand::TRIM_UP ? 1 : 0;
+    send_pgn_126208_command_group_function_two_pair_bytes(msg);
+
+    // Set the Trim Down Channel
+    msg.field_number_2 = _params.lc_trim_down + 1;
+    msg.field_value_2 = trim == TrimCommand::TRIM_DOWN ? 1 : 0;
+    send_pgn_126208_command_group_function_two_pair_bytes(msg);
+
 }
 
 void AP_MarineICE_Backend_N2k::set_cmd_ignition(bool enable)
 {
-    // TODO
+    n2k_pgn_126208_command_group_function_two_pair_bytes_t msg;
+    msg.function_code = 1;
+    msg.pgn_number = 127501L;
+    msg.reserved = 0xF;
+    msg.priority_setting = 8;
+    msg.number_of_pairs = 2;
+    msg.field_number_1 = 1;
+    msg.field_value_1 = _params.lc_bank_instance;
+    msg.field_number_2 = _params.lc_ignition + 1;
+    msg.field_value_2 = enable ? 1 : 0;
+    send_pgn_126208_command_group_function_two_pair_bytes(msg);
 }
 
 void AP_MarineICE_Backend_N2k::set_cmd_starter(bool enable)
 {
-    // TODO
+    n2k_pgn_126208_command_group_function_two_pair_bytes_t msg;
+    msg.function_code = 1;
+    msg.pgn_number = 127501L;
+    msg.reserved = 0xF;
+    msg.priority_setting = 8;
+    msg.number_of_pairs = 2;
+    msg.field_number_1 = 1;
+    msg.field_value_1 = _params.lc_bank_instance;
+    msg.field_number_2 = _params.lc_starter + 1;
+    msg.field_value_2 = enable ? 1 : 0;
+    send_pgn_126208_command_group_function_two_pair_bytes(msg);
 }
 
 
@@ -140,6 +179,41 @@ bool AP_MarineICE_Backend_N2k::send_pgn_65390_control_head_feedback(const struct
     frame.pgn = J1939::extract_j1939_pgn(N2K_PGN_65390_CONTROL_HEAD_FEEDBACK_FRAME_ID);
     frame.source_address = MARINEICE_BACKEND_N2K_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
+
+    return j1939->send_message(frame);
+}
+
+bool AP_MarineICE_Backend_N2k::send_pgn_126208_command_group_function_two_pair_bytes(const struct n2k_pgn_126208_command_group_function_two_pair_bytes_t &msg)
+{
+    // Prepare the data
+    uint8_t data[N2K_PGN_126208_COMMAND_GROUP_FUNCTION_TWO_PAIR_BYTES_LENGTH];
+    n2k_pgn_126208_command_group_function_two_pair_bytes_pack(data, &msg, sizeof(data));
+
+    // Split the 10-byte message into two frames
+    // TODO: This should be performed by the NMEA2000 stack!
+    uint8_t frame1[6];
+    uint8_t frame2[4];
+    memcpy(frame1, data, 6); // Remaining 6 bytes of the first frame
+    memcpy(frame2, data + 6, 4); // Remaining 4 bytes
+
+    // Send the first frame
+    J1939::J1939Frame frame;
+    frame.priority = 3; // Is this correct?
+    frame.pgn = J1939::extract_j1939_pgn(N2K_PGN_126208_COMMAND_GROUP_FUNCTION_TWO_PAIR_BYTES_FRAME_ID);
+    frame.source_address = MARINEICE_BACKEND_N2K_SOURCE_ADDRESS;
+
+    frame.data[0] = 0x00; // Continuation indicator
+    frame.data[1] = 0x0A; // Reserved for continuation
+    memcpy(frame.data + 2, frame1, sizeof(frame1));
+
+    if (!j1939->send_message(frame)) {
+        return false;
+    }
+
+    // Send the second frame with NMEA2000 control frame prefix
+    memset(frame.data, 0xFF, sizeof(frame.data)); // Clear the frame data
+    frame.data[0] = 0x01; // Control frame prefix for continuation
+    memcpy(frame.data + 1, frame2, sizeof(frame2));
 
     return j1939->send_message(frame);
 }

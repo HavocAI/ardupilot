@@ -26,7 +26,7 @@ namespace J1939 {
     // Get the PGN from an extended CAN ID
     inline constexpr uint32_t extract_j1939_pgn(uint32_t ext_can_id)
     {
-        return (ext_can_id >> 8) & 0xFFFF;
+        return (ext_can_id >> 8) & 0x1FFFF;
     }
 }
 
