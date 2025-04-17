@@ -233,16 +233,19 @@ async AP_IrisOrca::run()
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: starting");
 
     last_send_ms = AP_HAL::millis();
-    await(TIME_PASSED(last_send_ms, 1000));
+    await(TIME_PASSED(last_send_ms, 5000));
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %u", rx);
     if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
         async_init(&_run_state);
         return ASYNC_CONT;
     }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: ZERO_MODE: %u", value);
 
     if (value != 0x0003) {
         // set the auto zero on boot bit

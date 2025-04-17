@@ -2,6 +2,7 @@
 #include "modbus.h"
 #include <AP_Math/crc.h>
 #include <AP_HAL/utility/sparse-endian.h>
+#include <GCS_MAVLink/GCS.h>
 
 #define IRISORCA_SERIAL_BAUD 19200                  // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY 2                    // communication is always even parity
@@ -103,18 +104,21 @@ void OrcaModbus::tick()
             } else {
                 _uart->set_CTS_pin(false);
             }
+
+            _sending_state = SendingState::Idle;
         }
     }
 
     if (_receive_state == ReceiveState::Pending) {
         if (AP_HAL::millis() - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
             // timeout waiting for reply
-            _receive_state = ReceiveState::Timeout;
             _reply_wait_start_ms = 0;
+            _receive_state = ReceiveState::Timeout;
         }
     }
 
     if (_uart->available() > 0 && _uart->read(b)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
             if (_received_buff_len >= _reply_msg_len) {
@@ -179,8 +183,8 @@ void OrcaModbus::send_write_register_cmd(uint16_t reg_addr, uint16_t reg_value)
 
     // build message
     uint16_t i = 0;
-    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
-    send_buff[i++] = static_cast<uint8_t>(FunctionCode::WRITE_REGISTER);
+    send_buff[i++] = MsgAddress::DEVICE;
+    send_buff[i++] = FunctionCode::WRITE_REGISTER;
     send_buff[i++] = HIGHBYTE(reg_addr);
     send_buff[i++] = LOWBYTE(reg_addr);
     send_buff[i++] = HIGHBYTE(reg_value);
@@ -196,8 +200,8 @@ void OrcaModbus::send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_c
 
     // build message
     uint16_t i = 0;
-    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
-    send_buff[i++] = static_cast<uint8_t>(FunctionCode::WRITE_MULTIPLE_REGISTERS);
+    send_buff[i++] = MsgAddress::DEVICE;
+    send_buff[i++] = FunctionCode::WRITE_MULTIPLE_REGISTERS;
     send_buff[i++] = HIGHBYTE(reg_addr);
     send_buff[i++] = LOWBYTE(reg_addr);
     send_buff[i++] = HIGHBYTE(reg_count);
