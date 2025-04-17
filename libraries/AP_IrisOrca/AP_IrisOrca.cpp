@@ -200,24 +200,24 @@ AP_IrisOrca::AP_IrisOrca(void)
 void AP_IrisOrca::init(void)
 {
     
-    // const AP_SerialManager &serial_manager = AP::serialmanager();
-    // _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
-    // if (_uart) {
-    //     _modbus.init(_uart, _pin_de);
-    // }
+    const AP_SerialManager &serial_manager = AP::serialmanager();
+    _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
+    if (_uart) {
+        _modbus.init(_uart, _pin_de);
+    }
 
-    // async_init(&_run_state);
+    async_init(&_run_state);
 }
 
 void AP_IrisOrca::update()
 {
-    // if (_uart == nullptr) {
-    //     init();
-    //     return;
-    // }
+    if (_uart == nullptr) {
+        init();
+        return;
+    }
 
-    // _modbus.tick();
-    // run();
+    _modbus.tick();
+    run();
 
 }
 
@@ -229,6 +229,8 @@ async AP_IrisOrca::run()
 
     OrcaModbus::ReceiveState rx;
     uint16_t value;
+
+    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: starting");
 
     last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(last_send_ms, 1000));
