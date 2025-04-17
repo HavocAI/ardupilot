@@ -192,9 +192,13 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 };
 
 AP_IrisOrca::AP_IrisOrca(void)
+ : _uart(nullptr),
+  _modbus(),
+  last_send_ms(0)
 {
     // set defaults from the parameter table
     AP_Param::setup_object_defaults(this, var_info);
+    async_init(&_run_state);
 }
 
 void AP_IrisOrca::init(void)
