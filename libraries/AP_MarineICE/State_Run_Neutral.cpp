@@ -49,8 +49,8 @@ void State_Run_Neutral::run(AP_MarineICE& ctx) {
             (ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get())) {
             // Attempt to start the engine
             ctx.get_fsm_engine().change_state(EngineState::ENGINE_START, ctx);
+            return;
         }
-        return;
     }
 
     // Set the throttle and gear commands
