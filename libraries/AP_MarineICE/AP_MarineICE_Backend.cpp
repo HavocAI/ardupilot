@@ -26,7 +26,7 @@ void AP_MarineICE_Backend::update_esc_telemetry()
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT);
 
     // Update the trim data to the next ESC telemetry index
-    update_rpm(telem_esc_start_index + 1, float(_state.engine_data.trim_deg));
+    update_rpm(telem_esc_start_index + 1, float(_state.engine_data.trim_pct));
 #endif // HAL_WITH_ESC_TELEM
 }
 

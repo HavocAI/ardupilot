@@ -43,13 +43,13 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
 
     // @Param: SAFE_TRIM
     // @DisplayName: Safe Trim
-    // @Description: Maximum trim level to allow the engine to run (deg)
+    // @Description: Maximum trim level to allow the engine to run (pct)
     // @Units: degrees
     // @Range: 0 90
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("SAFE_TRIM", 4, AP_MarineICE_Params, safe_trim, 45.0f),
+    AP_GROUPINFO("SAFE_TRIM", 4, AP_MarineICE_Params, safe_trim, 50),
 
     // @Param: START_TIME
     // @DisplayName: Start Time
@@ -141,15 +141,13 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @RebootRequired: False
     AP_GROUPINFO("TEMP_MAX", 13, AP_MarineICE_Params, temp_max, 150.0f),
 
-    // @Param: RNG_FNDR
-    // @DisplayName: Water Depth Range Finder
-    // @Description: Water depth range finder instance number (-1 if not used, zero indexed)
-    // @Units: instance number
-    // @Range: -1 255
-    // @Increment: 1
+    // @Param: DP_CHK_EN
+    // @DisplayName: Water Depth Check Enabled
+    // @Description: Whether to check water depth (0:disabled, 1:enabled)
+    // @Values: 0:Disabled, 1:Enabled
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("RNG_FNDR", 14, AP_MarineICE_Params, rng_fndr, -1),
+    AP_GROUPINFO("DP_CHK_EN", 14, AP_MarineICE_Params, water_depth_check_enabled, 0),
 
     // @Param: MIN_DPTH
     // @DisplayName: Minimum Water Depth

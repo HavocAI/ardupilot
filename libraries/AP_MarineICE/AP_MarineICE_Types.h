@@ -4,11 +4,12 @@
 
 namespace MarineICE {
     namespace Types {
-        // Gear Position corresponds to Dometic shift control byte
+        // Gear Position corresponds to Dometic and Suzuki standard,
+        // which appears to be the NMEA2000 gear status enumeration standard
         enum class GearPosition {
-            GEAR_FORWARD,
-            GEAR_NEUTRAL,
-            GEAR_REVERSE
+            GEAR_FORWARD = 0,
+            GEAR_NEUTRAL = 1,
+            GEAR_REVERSE = 2
         };
 
         enum class TrimCommand {
@@ -25,13 +26,15 @@ namespace MarineICE {
         };
 
         // Faults
+        static constexpr size_t NUM_FAULTS = 7;
         enum FaultIndex {
             ENGINE_OVERSPEED,
             ENGINE_OVERTEMP,
             THROTTLE_ACTUATOR_FAILURE,
             GEAR_ACTUATOR_FAILURE,
             ALTERNATOR_VOLTAGE_LOW,
-            ENGINE_START_ATTEMPTS_EXCEEDED
+            ENGINE_START_ATTEMPTS_EXCEEDED,
+            WATER_DEPTH_TOO_LOW
         };
 
         inline const char* fault_to_string(FaultIndex fault) {

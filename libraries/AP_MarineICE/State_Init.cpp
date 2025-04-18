@@ -32,10 +32,11 @@ void State_Init::run(AP_MarineICE& ctx) {
     ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
 
-    // If there is no engine stop condition and the water depth is above the threshold, 
-    // change to ENGINE_RUN_NEUTRAL state
+    // If there is no engine stop condition and the water depth is above the threshold
+    // (if enabled), then change to ENGINE_RUN_NEUTRAL state
     if (!ctx.get_active_engine_stop() && 
-        (ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get())) 
+        ((ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get()) ||
+         (ctx.get_params().water_depth_check_enabled.get() == 0))) 
     {
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
     }

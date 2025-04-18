@@ -30,7 +30,9 @@ void State_Run_Neutral::run(AP_MarineICE& ctx) {
     if (ctx.get_backend()->get_engine_data().rpm < ctx.get_params().rpm_thres.get()) {
         // GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] RPM below idle in RUN_NEUTRAL.");
         if ((ctx.get_cmd_manual_engine_start() || (ctx.get_current_mode() != 0 && ctx.get_params().auto_start.get())) &&
-            (ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get())) {
+            ((ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get()) ||
+            (ctx.get_params().water_depth_check_enabled.get() == 0))) 
+        {
             // Attempt to start the engine
             ctx.get_fsm_engine().change_state(EngineState::ENGINE_START, ctx);
             return;

@@ -55,7 +55,7 @@ void AP_MarineICE_Backend_Sim::simulate_motor() {
         // Simulate engine stalling if below min RPM and starter is off
         _state.engine_data.rpm = std::max(static_cast<float>((_state.engine_data.rpm - 300) / MARINEICE_SIMULATOR_RATE_HZ), 
             0.0f);
-    } else if (_state.starter_on && _state.gear_position == GearPosition::GEAR_NEUTRAL) {
+    } else if (_state.starter_on && _state.actuator_gear_position == GearPosition::GEAR_NEUTRAL) {
         // Simulate starting and enforce the Neutral interlock
         // Increment the engine RPM until it reaches the threshold
         if (_state.engine_data.rpm < _params.rpm_thres.get()) {
@@ -63,7 +63,7 @@ void AP_MarineICE_Backend_Sim::simulate_motor() {
         }
     } else {
         // Simulate engine running based on throttle percentage, with a minimum idle threshold
-        _state.engine_data.rpm = std::max((_state.throttle_pct * MARINEICE_SIMULATOR_MAX_RPM / 100.0f), 
+        _state.engine_data.rpm = std::max((_state.actuator_throttle_pct * MARINEICE_SIMULATOR_MAX_RPM / 100.0f), 
             static_cast<float>(_params.rpm_thres.get()));
     }
 
@@ -87,10 +87,10 @@ void AP_MarineICE_Backend_Sim::simulate_motor() {
     }
 
     // Simulate engine trim based on trim command
-    if ((_state.trim_command == TrimCommand::TRIM_UP) && (_state.engine_data.trim_deg < MARINEICE_SIMULATOR_MAX_TRIM)) {
-        _state.engine_data.trim_deg += 5.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim up
-    } else if ((_state.trim_command == TrimCommand::TRIM_DOWN) && (_state.engine_data.trim_deg > MARINEICE_SIMULATOR_MIN_TRIM)) {
-        _state.engine_data.trim_deg -= 5.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim down
+    if ((_state.trim_command == TrimCommand::TRIM_UP) && (_state.engine_data.trim_pct < MARINEICE_SIMULATOR_MAX_TRIM)) {
+        _state.engine_data.trim_pct += 5.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim up
+    } else if ((_state.trim_command == TrimCommand::TRIM_DOWN) && (_state.engine_data.trim_pct > MARINEICE_SIMULATOR_MIN_TRIM)) {
+        _state.engine_data.trim_pct -= 5.0f / MARINEICE_SIMULATOR_RATE_HZ; // Simulate trim down
     }
 
     // Simulate engine fuel rate based on RPM
@@ -100,25 +100,17 @@ void AP_MarineICE_Backend_Sim::simulate_motor() {
         _state.engine_data.fuel_rate_lpm = 0.0f;
     }
 
-    // Simulate engine fuel used
-    if (_state.engine_data.rpm > 0) {
-        _state.engine_data.fuel_used_l += _state.engine_data.fuel_rate_lpm / (MARINEICE_SIMULATOR_RATE_HZ * 60.0f);
-    }
-
-    // Simulate engine seasonal fuel used
-    _state.engine_data.seasonal_fuel_used_l = _state.engine_data.fuel_used_l;
-
     // Simulate engine trip fuel used
-    _state.engine_data.trip_fuel_used_l = _state.engine_data.fuel_used_l;
+    _state.engine_data.trip_fuel_used_l = _state.engine_data.trip_fuel_used_l;
 
 }
 
 void AP_MarineICE_Backend_Sim::simulate_dometic_shift_throttle() {
     // Simulate shift gear feedback by applying a delay at gear change
-    if (_cmd_gear != _state.gear_position) {
+    if (_cmd_gear != _state.actuator_gear_position) {
         // Simulate delay of 1 sec for gear change (blocking)
         hal.scheduler->delay(1000);
-        _state.gear_position = _cmd_gear;
+        _state.actuator_gear_position = _cmd_gear;
     }
 
     // Simulate throttle percent feedback by applying the slew rate to the command
@@ -126,10 +118,10 @@ void AP_MarineICE_Backend_Sim::simulate_dometic_shift_throttle() {
         _cmd_throttle_pct = 100; // Clamp to 100%
     }
     // Apply slew rate to throttle percentage
-    if (_cmd_throttle_pct > _state.throttle_pct) {
-        _state.throttle_pct += _params.thr_slewrate.get() / MARINEICE_SIMULATOR_RATE_HZ;
-    } else if (_cmd_throttle_pct < _state.throttle_pct) {
-        _state.throttle_pct -= _params.thr_slewrate.get() / MARINEICE_SIMULATOR_RATE_HZ;
+    if (_cmd_throttle_pct > _state.actuator_throttle_pct) {
+        _state.actuator_throttle_pct += _params.thr_slewrate.get() / MARINEICE_SIMULATOR_RATE_HZ;
+    } else if (_cmd_throttle_pct < _state.actuator_throttle_pct) {
+        _state.actuator_throttle_pct -= _params.thr_slewrate.get() / MARINEICE_SIMULATOR_RATE_HZ;
     }
 
 }

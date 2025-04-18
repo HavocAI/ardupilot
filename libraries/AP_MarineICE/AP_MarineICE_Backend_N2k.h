@@ -44,14 +44,25 @@ private:
     // handler for incoming CAN frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
+    // handle Dometic actuator feedback
     void handle_pgn_65385_actuator_feedback(const struct n2k_pgn_65385_actuator_feedback_t &msg);
+
+    // handle Maretron load center feedback
     void handle_pgn_127501_binary_switch_bank_status(const struct n2k_pgn_127501_binary_switch_bank_status_t &msg);
-    // TODO: Additional handlers for Suzuki NMEA2000 engine data    
+
+    // handle Suzuki engine feedback
+    void handle_pgn_127488_engine_parameters_rapid_update(const struct n2k_pgn_127488_engine_parameters_rapid_update_t &msg);
+    void handle_pgn_127489_engine_parameters_dynamic(const struct n2k_pgn_127489_engine_parameters_dynamic_t &msg);
+    void handle_pgn_127493_transmission_parameters_dynamic(const struct n2k_pgn_127493_transmission_parameters_dynamic_t &msg);
+    void handle_pgn_127497_trip_parameters_engine(const struct n2k_pgn_127497_trip_parameters_engine_t &msg);
+
+    // handle depth sensor feedback
     void handle_pgn_128267_water_depth(const struct n2k_pgn_128267_water_depth_t &msg);
 
     // Time last subscribed PGN was received
     uint32_t _last_new_actuator_fb_msg_ms;
     uint32_t _last_new_switch_bank_status_msg_ms;
+    uint32_t _last_new_engine_fb_msg_ms;
     uint32_t _last_new_water_depth_msg_ms;
 
 };

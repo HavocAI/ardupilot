@@ -41,7 +41,7 @@ void State_Fault::run(AP_MarineICE& ctx) {
     ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
 
-    // TODO: Is this the best trigger to clear faults and return to Init?
+    // TODO: Is disarm the best way to clear faults and return to Init?
     if (!ctx.get_armed()) // Clear faults if not armed
     {
         for (int i = 0; i < 6; ++i)

@@ -156,8 +156,7 @@ private:
     // Monitor for faults
     void monitor_faults();
 
-    // Fault array (issues using bitset)
-    static constexpr size_t NUM_FAULTS = 6;
+    // Fault as an array of bools (due to issues using bitset on stm32)
     std::array<bool, NUM_FAULTS> _faults = {false};
 
     // Variables accessed across states of FSM

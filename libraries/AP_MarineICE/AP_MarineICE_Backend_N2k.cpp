@@ -32,7 +32,12 @@ void AP_MarineICE_Backend_N2k::init()
 
     if (!j1939->register_frame_id(N2K_PGN_65385_ACTUATOR_FEEDBACK_FRAME_ID, this) ||
         !j1939->register_frame_id(N2K_PGN_127501_BINARY_SWITCH_BANK_STATUS_FRAME_ID, this) ||
-        !j1939->register_frame_id(N2K_PGN_128267_WATER_DEPTH_FRAME_ID, this)) {
+        !j1939->register_frame_id(N2K_PGN_127488_ENGINE_PARAMETERS_RAPID_UPDATE_FRAME_ID, this) ||
+        !j1939->register_frame_id(N2K_PGN_127489_ENGINE_PARAMETERS_DYNAMIC_FRAME_ID, this) ||
+        !j1939->register_frame_id(N2K_PGN_127493_TRANSMISSION_PARAMETERS_DYNAMIC_FRAME_ID, this) ||
+        !j1939->register_frame_id(N2K_PGN_127497_TRIP_PARAMETERS_ENGINE_FRAME_ID, this) ||
+        !j1939->register_frame_id(N2K_PGN_128267_WATER_DEPTH_FRAME_ID, this))
+        {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "MarineICE: Failed to register with J1939");
         return;
     }
@@ -50,6 +55,7 @@ bool AP_MarineICE_Backend_N2k::healthy()
     const uint32_t now_ms = AP_HAL::millis();
     if ((_last_new_actuator_fb_msg_ms == 0 || now_ms - _last_new_actuator_fb_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
         || (_last_new_switch_bank_status_msg_ms == 0 || now_ms - _last_new_switch_bank_status_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
+        || (_last_new_engine_fb_msg_ms == 0 || now_ms - _last_new_engine_fb_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
         || (_last_new_water_depth_msg_ms == 0 || now_ms - _last_new_water_depth_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)) {
         // One or more messages have not been received in the healthy timeout
         return false;
@@ -252,6 +258,50 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
 #endif
         break;
     }
+    case J1939::extract_j1939_pgn(N2K_PGN_127488_ENGINE_PARAMETERS_RAPID_UPDATE_FRAME_ID):
+    {
+        struct n2k_pgn_127488_engine_parameters_rapid_update_t msg;
+        n2k_pgn_127488_engine_parameters_rapid_update_unpack(&msg, frame.data, frame.dlc);
+        handle_pgn_127488_engine_parameters_rapid_update(msg);
+        _last_new_engine_fb_msg_ms = AP_HAL::millis();
+#if MARINEICE_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received engine parameters rapid update: rpm=%.1f, coolant_temp=%.1f", msg.rpm * 0.125f, msg.coolant_temp * 0.01f);
+#endif
+        break;
+    }
+    case J1939::extract_j1939_pgn(N2K_PGN_127489_ENGINE_PARAMETERS_DYNAMIC_FRAME_ID):
+    {
+        struct n2k_pgn_127489_engine_parameters_dynamic_t msg;
+        n2k_pgn_127489_engine_parameters_dynamic_unpack(&msg, frame.data, frame.dlc);
+        handle_pgn_127489_engine_parameters_dynamic(msg);
+        _last_new_engine_fb_msg_ms = AP_HAL::millis();
+#if MARINEICE_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received engine parameters dynamic: oil_pressure=%.1f, fuel_rate=%.1f", msg.oil_pressure * 0.01f, msg.fuel_rate * 0.01f);
+#endif
+        break;
+    }
+    case J1939::extract_j1939_pgn(N2K_PGN_127493_TRANSMISSION_PARAMETERS_DYNAMIC_FRAME_ID):
+    {
+        struct n2k_pgn_127493_transmission_parameters_dynamic_t msg;
+        n2k_pgn_127493_transmission_parameters_dynamic_unpack(&msg, frame.data, frame.dlc);
+        handle_pgn_127493_transmission_parameters_dynamic(msg);
+        _last_new_engine_fb_msg_ms = AP_HAL::millis();
+#if MARINEICE_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received transmission parameters dynamic: oil_temp=%.1f, oil_pressure=%.1f", msg.oil_temp * 0.01f, msg.oil_pressure * 0.01f);
+#endif
+        break;
+    }
+    case J1939::extract_j1939_pgn(N2K_PGN_127497_TRIP_PARAMETERS_ENGINE_FRAME_ID):
+    {
+        struct n2k_pgn_127497_trip_parameters_engine_t msg;
+        n2k_pgn_127497_trip_parameters_engine_unpack(&msg, frame.data, frame.dlc);
+        handle_pgn_127497_trip_parameters_engine(msg);
+        _last_new_engine_fb_msg_ms = AP_HAL::millis();
+#if MARINEICE_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received trip parameters engine: trip_time=%.1f, trip_distance=%.1f", msg.trip_time * 0.01f, msg.trip_distance * 0.01f);
+#endif
+        break;
+    }
     case J1939::extract_j1939_pgn(N2K_PGN_128267_WATER_DEPTH_FRAME_ID):
     {
         struct n2k_pgn_128267_water_depth_t msg;
@@ -271,8 +321,8 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
 
 void AP_MarineICE_Backend_N2k::handle_pgn_65385_actuator_feedback(const struct n2k_pgn_65385_actuator_feedback_t &msg)
 {
-    _state.gear_position = static_cast<GearPosition>(msg.actual_gear_value);
-    _state.throttle_pct = static_cast<float>(msg.actual_throttle_value) * 0.1f;
+    _state.actuator_gear_position = static_cast<GearPosition>(msg.actual_gear_value);
+    _state.actuator_throttle_pct = static_cast<float>(msg.actual_throttle_value) * 0.1f;
 }
 
 void AP_MarineICE_Backend_N2k::handle_pgn_127501_binary_switch_bank_status(const struct n2k_pgn_127501_binary_switch_bank_status_t &msg)
@@ -295,6 +345,29 @@ void AP_MarineICE_Backend_N2k::handle_pgn_127501_binary_switch_bank_status(const
         // No trim command
         _state.trim_command = TrimCommand::TRIM_STOP;
     }
+}
+
+void AP_MarineICE_Backend_N2k::handle_pgn_127488_engine_parameters_rapid_update(const struct n2k_pgn_127488_engine_parameters_rapid_update_t &msg)
+{
+    _state.engine_data.rpm = static_cast<float>(msg.speed) * 0.25f;
+    _state.engine_data.trim_pct = static_cast<float>(msg.tilt_trim);
+}
+
+void AP_MarineICE_Backend_N2k::handle_pgn_127489_engine_parameters_dynamic(const struct n2k_pgn_127489_engine_parameters_dynamic_t &msg)
+{
+    // TODO: This is NMEA2000 fast packet data
+    // Get temperature, alternator voltage, total engine hours, and fuel rate
+}
+
+void AP_MarineICE_Backend_N2k::handle_pgn_127493_transmission_parameters_dynamic(const struct n2k_pgn_127493_transmission_parameters_dynamic_t &msg)
+{
+    _state.engine_data.transmission_gear = static_cast<GearPosition>(msg.transmission_gear);
+}
+
+void AP_MarineICE_Backend_N2k::handle_pgn_127497_trip_parameters_engine(const struct n2k_pgn_127497_trip_parameters_engine_t &msg)
+{
+    // TODO: This is NMEA2000 fast packet data
+    // Get trip fuel used
 }
 
 void AP_MarineICE_Backend_N2k::handle_pgn_128267_water_depth(const struct n2k_pgn_128267_water_depth_t &msg)

@@ -31,10 +31,10 @@ public:
         float alternator_voltage_v;
         float engine_time_hr;
         float temp_degc;
-        float trim_deg;
+        float trim_pct;                 // trim percentage 0-100 (0 is full down)
+        uint16_t total_engine_hours;
+        GearPosition transmission_gear;
         float fuel_rate_lpm;
-        float fuel_used_l;
-        float seasonal_fuel_used_l;
         float trip_fuel_used_l;
     };
 
@@ -49,8 +49,8 @@ public:
 
     // Getters for passing the internal state to the frontend / state machine
     const EngineData& get_engine_data() const { return _state.engine_data; }
-    const GearPosition& get_gear_position() const { return _state.gear_position; }
-    const float& get_throttle_pct() const { return _state.throttle_pct; }
+    const GearPosition& get_actuator_gear_position() const { return _state.actuator_gear_position; }
+    const float& get_actuator_throttle_pct() const { return _state.actuator_throttle_pct; }
     const bool& get_starter_on() const { return _state.starter_on; }
     const TrimCommand& get_trim_command() const { return _state.trim_command; }
     const float& get_water_depth_m() const { return _state.water_depth_m; }
@@ -61,8 +61,8 @@ protected:
     // Struct to encapsulate internal state variables
     struct State {
         EngineData      engine_data;
-        GearPosition    gear_position = GearPosition::GEAR_NEUTRAL;
-        float           throttle_pct = 0.0f;
+        GearPosition    actuator_gear_position = GearPosition::GEAR_NEUTRAL;
+        float           actuator_throttle_pct = 0.0f;
         bool            starter_on = false;
         bool            ignition_on = false;
         TrimCommand     trim_command = TrimCommand::TRIM_STOP;
