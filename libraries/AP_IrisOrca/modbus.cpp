@@ -9,7 +9,7 @@
 #ifdef DEBUG
 #include <stdio.h>
 
-static void debug_print_buf(uint8_t* buf, int len);
+static void debug_print_buf(uint8_t* buf, int len, const char* tag);
 #endif // DEBUG
 
 #define IRISORCA_SERIAL_BAUD 19200                  // communication is always at 19200
@@ -135,6 +135,9 @@ void OrcaModbus::tick()
                 if (crc_expected == crc_received) {
                     _receive_state = ReceiveState::Ready;
                     _reply_wait_start_ms = 0;
+#ifdef DEBUG
+                    debug_print_buf(_received_buff, _received_buff_len, "<=");
+#endif
                 } else {
                     // CRC is incorrect
                     _receive_state = ReceiveState::CRCError;
@@ -171,9 +174,6 @@ void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
 
 bool OrcaModbus::read_register(uint16_t& reg)
 {
-#ifdef DEBUG
-    debug_print_buf(_received_buff, _received_buff_len);
-#endif
     if (_receive_state == ReceiveState::Ready) {
 
         if (_received_buff[1] != FunctionCode::READ_REGISTER) {
@@ -229,7 +229,7 @@ void OrcaModbus::send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_c
 }
 
 #ifdef DEBUG
-static void debug_print_buf(uint8_t* buf, int len)
+static void debug_print_buf(uint8_t* buf, int len, const char* tag)
 {
     char str[256];
     for (int i = 0; i < len; i++) {
@@ -237,7 +237,7 @@ static void debug_print_buf(uint8_t* buf, int len)
     }
     str[len * 3] = '\0'; // null terminate the string
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s", str);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s %s", tag, str);
 }
 #endif
 
@@ -249,7 +249,7 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     len += 2; // add CRC length
 
 #ifdef DEBUG
-    debug_print_buf(data, len);
+    debug_print_buf(data, len, "=> ");
 #endif // DEBUG
 
     // set send pin

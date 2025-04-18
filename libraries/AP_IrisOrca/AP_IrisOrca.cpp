@@ -248,6 +248,10 @@ async AP_IrisOrca::run()
     last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(last_send_ms, 5000));
 
+    // command sleep
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
@@ -266,6 +270,10 @@ async AP_IrisOrca::run()
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero on boot set");
 
+        // set auto zero max force
+        _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
         // set the auto zero exit mode to 3 (position)
         _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
@@ -274,11 +282,11 @@ async AP_IrisOrca::run()
         _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
-        
-        // send the command to start auto-zero
-        _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
     }
+
+    // send the command to start auto-zero
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
     
     // wait until we see its in the position control mode. This should happen automatically after auto zero is finished.
