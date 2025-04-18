@@ -330,6 +330,8 @@ void AP_IrisOrca::thread_main()
     while (true) {
         run();
         _modbus.tick();
+
+        hal.scheduler->delay_microseconds(1000);
     }
 }
 

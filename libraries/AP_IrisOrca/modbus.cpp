@@ -4,7 +4,7 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <GCS_MAVLink/GCS.h>
 
-#define DEBUG 1
+// #define DEBUG 1
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -53,7 +53,7 @@ static void add_crc_modbus(uint8_t *buff, uint16_t len)
 }
 
 // calculate delay require to allow bytes to be sent
-static uint32_t calc_send_delay_us(uint8_t num_bytes)
+static uint32_t calc_tx_time_us(uint8_t num_bytes)
 {
     // baud rate of 19200 bits/sec
     // total number of bits = 10 x num_bytes (no parity)
@@ -71,7 +71,7 @@ OrcaModbus::OrcaModbus()
       _reply_msg_len(0),
       _received_buff_len(0),
       _send_start_us(0),
-      _send_delay_us(0),
+      _transmit_time_us(0),
       _reply_wait_start_ms(0),
       _sending_state(SendingState::Idle),
       _receive_state(ReceiveState::Pending)
@@ -105,12 +105,13 @@ void OrcaModbus::tick()
     uint32_t now_us = AP_HAL::micros();
 
     if (_sending_state == SendingState::Sending) {
-        if (now_us - _send_start_us > _send_delay_us) {
+        if (now_us - _send_start_us > _transmit_time_us) {
             // unset gpio or serial port's CTS pin
             if (_pin_de > -1) {
                 hal.gpio->write(_pin_de, 0);
             } else {
                 _uart->set_CTS_pin(false);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: set CTS pin low");
             }
 
             _sending_state = SendingState::Idle;
@@ -125,7 +126,8 @@ void OrcaModbus::tick()
         }
     }
 
-    if (_uart->available() > 0 && _uart->read(b)) {
+    while (_uart->available() > 0) {
+        b = _uart->read();
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
@@ -246,6 +248,10 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     add_crc_modbus(data, len);
     len += 2; // add CRC length
 
+#ifdef DEBUG
+    debug_print_buf(data, len);
+#endif // DEBUG
+
 
     // set send pin
     // set gpio pin or serial port's CTS pin
@@ -257,16 +263,12 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
 
     // record start and expected delay to send message
     _send_start_us = AP_HAL::micros();
-    _send_delay_us = calc_send_delay_us(len);
+    _transmit_time_us = calc_tx_time_us(len);
     _receive_state = ReceiveState::Pending;
     _sending_state = SendingState::Sending;
 
     _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
-
-#ifdef DEBUG
-    debug_print_buf(data, len);
-#endif // DEBUG
 
     // write message
     _uart->write(data, len);

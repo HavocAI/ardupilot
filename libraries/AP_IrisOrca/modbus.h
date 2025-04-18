@@ -69,7 +69,7 @@ class OrcaModbus
         uint8_t _received_buff[IRISORCA_MESSAGE_LEN_MAX];
         uint16_t _received_buff_len;
         uint32_t _send_start_us;            // system time (in micros) when last message started being sent (used for timing to unset DE pin)
-        uint32_t _send_delay_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
+        uint32_t _transmit_time_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
         uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
         
         SendingState _sending_state;
