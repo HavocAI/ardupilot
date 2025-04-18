@@ -116,7 +116,10 @@ void OrcaModbus::tick()
     if (num_bytes > 0) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: available bytes: %lu", num_bytes);
     }
-    while (num_bytes-- > 0 && _uart->read(&b, 1) != 1) {
+    while (num_bytes--) {
+
+        ssize_t ret = _uart->read(&b, 1);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r %d b: 0x%x", ret, b);
 
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
