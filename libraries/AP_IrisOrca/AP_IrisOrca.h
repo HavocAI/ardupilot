@@ -26,6 +26,8 @@
 #if HAL_IRISORCA_ENABLED
 
 #include <AP_Param/AP_Param.h>
+#include <AP_Common/async.h>
+#include "modbus.h"
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -57,7 +59,7 @@ namespace orca {
     };
 
     // registers
-    enum class Register : uint16_t {
+    enum Register : uint16_t {
         CTRL_REG_0 = 0,
         CTRL_REG_2 = 2,
         CTRL_REG_3 = 3,
@@ -357,85 +359,10 @@ public:
 
 private:
 
+    async run(); 
+
     orca::ActuatorState _actuator_state;
     orca::MotorControlState _control_state;
-
-    // initialise serial port (run from background thread)
-    // returns true on success
-    bool init_internals();
-
-    // returns true if it is safe to send a message
-    bool safe_to_send() const { return ((_send_delay_us == 0) && (_reply_wait_start_ms == 0)); }
-
-    // set pin to enable sending a message
-    void send_start();
-
-    // check for timeout after sending a message and unset pin if required
-    void check_for_send_end();
-
-    // calculate delay required to allow message to be completely sent
-    uint32_t calc_send_delay_us(uint8_t num_bytes);
-
-    // record msgid of message to wait for and set timer for reply timeout handling
-    void set_expected_reply_msgid(uint8_t msg_id);
-
-    // check for timeout waiting for reply
-    void check_for_reply_timeout();
-
-    // mark reply received. should be called whenever a message is received 
-    // regardless of whether we are actually waiting for a reply
-    void set_reply_received();
-
-    // send a 0x06 Write Register message to the actuator
-    // returns true on success
-    bool write_register(uint16_t reg_addr, uint16_t reg_value);
-
-    // send a 0x10 Multiple Write Registers message to the actuator
-    // starting from the given register address
-    // returns true on success
-    bool write_multiple_registers(uint16_t reg_addr, uint16_t reg_count, uint8_t *data);
-
-    // send a 0x64 Motor Command Stream message to the actuator
-    // returns true on success
-    bool write_motor_command_stream(uint8_t sub_code, uint32_t data);
-
-    // send a 0x68 Motor Read Stream message to the actuator
-    // returns true on success
-    bool write_motor_read_stream(uint16_t reg_addr, uint8_t reg_width);
-
-    // send an auto zero mode command
-    void send_auto_zero_mode_cmd();
-
-    // send an actuator position command as a value from 0 to the maximum travel
-    // value is taken directly from the steering servo channel
-    void send_actuator_position_cmd();
-
-    // send a actuator sleep command
-    void send_actuator_sleep_cmd();
-
-    // send a request for actuator status
-    void send_actuator_status_request();
-
-    // send a write multiple registers message to the actuator to set the 
-    // position controller params
-    void send_position_controller_params();
-
-    void send_safety_dgain();
-
-    void send_position_filter();
-
-    // send a write multiple registers message to the actuator to set the
-    // auto zero params
-    void send_auto_zero_params();
-
-    // process a single byte received on serial port
-    // return true if a complete message has been received (the message will be held in _received_buff)
-    bool parse_byte(uint8_t b);
-
-    // process message held in _received_buff
-    // return true if the message was as expected and there are no actuator errors
-    bool parse_message();
-
 
     // parameters
     AP_Int8 _pin_de;                    // Pin number connected to RS485 to Serial converter's DE pin. -1 to disable sending commands to actuator
@@ -451,29 +378,15 @@ private:
     AP_Int16 _safety_dgain;             // safety derivative gain
     AP_Int16 _pos_filt;                 // position filter
 
-    // members
-    AP_HAL::UARTDriver *_uart;          // serial port to communicate with actuator
-    bool _initialised;                  // true once driver has been initialised
-    uint32_t _actuator_position_desired; // desired actuator position (set from within update method)
-    uint32_t _last_send_actuator_ms;    // system time (in millis) last actuator position command was sent (used for health reporting)
-    uint32_t _send_start_us;            // system time (in micros) when last message started being sent (used for timing to unset DE pin)
-    uint32_t _send_delay_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
-    uint32_t _last_error_report_ms;     // system time (in millis) that last error was reported (used to avoid spamming errors)
+    
+    OrcaModbus _modbus;             // modbus object to handle sending and receiving messages
 
-    // health reporting
-    HAL_Semaphore _last_healthy_sem;// semaphore protecting reading and updating of _last_send_actuator_ms and _last_received_ms
-
-    // message parsing members
-    uint32_t _parse_error_count;    // total number of parsing errors (for reporting)
-    uint32_t _parse_success_count;  // number of messages successfully parsed (for reporting)
-    uint8_t _received_buff[IRISORCA_MESSAGE_LEN_MAX];   // characters received
-    uint8_t _received_buff_len;     // number of characters received
-    uint32_t _last_received_ms;     // system time (in millis) that a message was successfully parsed (for health reporting)
-
-    // reply message handling
-    uint8_t _reply_msgid;           // replies expected msgid (reply often does not specify the msgid so we must record it)
-    uint8_t _reply_msg_len;         // length of reply message expected (total including CRC)
-    uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
+    typedef struct struct_run_state {
+        async_state;
+        uint32_t wait_timer;
+    } run_state_t;
+    
+    run_state_t _run_state;
 
     static AP_IrisOrca *_singleton;     // singleton instance
 
