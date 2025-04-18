@@ -21,6 +21,8 @@ void State_Trim_Manual::run(AP_MarineICE &ctx) {
         ctx.get_fsm_trim().change_state(TrimState::TRIM_AUTO_STOP, ctx);
         return;
     }
+
+    ctx.get_backend()->set_cmd_trim(ctx.get_cmd_manual_trim());
 }
 
 void State_Trim_Manual::exit(AP_MarineICE &ctx) {
@@ -43,12 +45,12 @@ void State_Trim_Auto_Stop::run(AP_MarineICE &ctx) {
     // If not in engine stop condition, check for trim commands exceeding deadband
     if (!ctx.get_active_engine_stop()) {
         // Check for trim command exceeding deadband
-        if (ctx.get_cmd_trim() > 
+        if (ctx.get_cmd_trim_setpoint() > 
             (ctx.get_backend()->get_engine_data().trim_deg + MARINEICE_TRIM_DEADBAND)) {
             ctx.get_fsm_trim().change_state(TrimState::TRIM_AUTO_UP, ctx);
             return;
         }
-        if (ctx.get_cmd_trim() < 
+        if (ctx.get_cmd_trim_setpoint() < 
             (ctx.get_backend()->get_engine_data().trim_deg - MARINEICE_TRIM_DEADBAND)) {
             ctx.get_fsm_trim().change_state(TrimState::TRIM_AUTO_DOWN, ctx);
             return;
@@ -82,7 +84,7 @@ void State_Trim_Auto_Up::run(AP_MarineICE &ctx) {
 
     // Check if the trim position has been reached
     if (ctx.get_backend()->get_engine_data().trim_deg >= 
-            (ctx.get_cmd_trim() - MARINEICE_TRIM_DEADBAND)) {
+            (ctx.get_cmd_trim_setpoint() - MARINEICE_TRIM_DEADBAND)) {
         ctx.get_fsm_trim().change_state(TrimState::TRIM_AUTO_STOP, ctx);
         return;
     }
@@ -114,7 +116,7 @@ void State_Trim_Auto_Down::run(AP_MarineICE &ctx) {
 
     // Check if the trim position has been reached
     if (ctx.get_backend()->get_engine_data().trim_deg <= 
-            (ctx.get_cmd_trim() + MARINEICE_TRIM_DEADBAND)) {
+            (ctx.get_cmd_trim_setpoint() + MARINEICE_TRIM_DEADBAND)) {
         ctx.get_fsm_trim().change_state(TrimState::TRIM_AUTO_STOP, ctx);
         return;
     }

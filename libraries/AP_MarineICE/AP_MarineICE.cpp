@@ -154,21 +154,37 @@ void AP_MarineICE::update()
 
 bool AP_MarineICE::get_cmd_neutral_lock() const
 {
-    return SRV_Channels::get_output_norm(SRV_Channel::k_scripting1) > 0;
+    return (rc().find_channel_for_option(RC_Channel::AUX_FUNC::RELAY2)->
+        norm_input()) > 0.5f;
 }
 
 float AP_MarineICE::get_cmd_throttle() const { 
     return SRV_Channels::get_output_norm(SRV_Channel::k_throttle) * 100.0f; 
 }
 
-uint16_t AP_MarineICE::get_cmd_trim() const { 
-    return constrain_int16((SRV_Channels::get_output_norm(
-        SRV_Channel::k_mount_tilt) + 1) * 50, 0, 100); 
+// Get the auto trim command as a percentage value between 0 and 100
+uint8_t AP_MarineICE::get_cmd_trim_setpoint() const { 
+    return static_cast<uint8_t>((rc().find_channel_for_option(RC_Channel::AUX_FUNC::RELAY3)->
+        norm_input() + 1) * 50);
+}
+
+// Get the manual trim command as either up or down
+TrimCommand AP_MarineICE::get_cmd_manual_trim() const { 
+    float trim = rc().find_channel_for_option(RC_Channel::AUX_FUNC::RELAY4)->
+        norm_input();
+    if (trim < -0.5f) {
+        return TrimCommand::TRIM_DOWN;
+    } else if (trim > 0.5f) {
+        return TrimCommand::TRIM_UP;
+    } else {
+        return TrimCommand::TRIM_STOP;
+    }
 }
 
 bool AP_MarineICE::get_cmd_manual_engine_start() const
 {
-    return SRV_Channels::get_output_norm(SRV_Channel::k_scripting2) > 0;
+    return (rc().find_channel_for_option(RC_Channel::AUX_FUNC::RELAY)->
+        norm_input()) > 0.5f;
 }
 
 bool AP_MarineICE::get_cmd_e_stop() const

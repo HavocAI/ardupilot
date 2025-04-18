@@ -90,23 +90,31 @@ public:
     // Get reference to the frontend parameters
     AP_MarineICE_Params& get_params() { return _params; }
 
-    // Helper function to get the neutral lock state from k_engine_run_enable
+    // Get the neutral lock state from RELAY2
+    // Returns true if the neutral lock is set
     bool get_cmd_neutral_lock() const;
 
-    // Helper function to get the throttle command from k_throttle
+    // Get the throttle command from k_throttle
     // Returns a percentage value between -100.0 and 100.0
     float get_cmd_throttle() const;
 
-    // Helper function to get the gear command from k_motor_tilt
-    uint16_t get_cmd_trim() const;
+    // Get the auto trim setpoint command from RELAY3
+    // Returns a percentage value between 0 and 100
+    uint8_t get_cmd_trim_setpoint() const;
 
-    // Helper function to get the gear command from k_starter
+    // Get the manual trim command
+    // Returns a TrimCommand enum value
+    // TRIM_UP, TRIM_DOWN, or TRIM_STOP
+    TrimCommand get_cmd_manual_trim() const;
+
+    // Get the manual engine start command from RELAY
+    // Returns true if the manual engine start is set
     bool get_cmd_manual_engine_start() const;
 
-    // Helper function to get the state of the e-stop
+    // Get the state of the e-stop
     bool get_cmd_e_stop() const;
 
-    // Helper function to get the current mode
+    // Get the current mode
     uint8_t get_current_mode() const;
 
     // Helper function to get whether the vehicle is armed
