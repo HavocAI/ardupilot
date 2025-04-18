@@ -74,7 +74,7 @@ OrcaModbus::OrcaModbus()
       _send_delay_us(0),
       _reply_wait_start_ms(0),
       _sending_state(SendingState::Idle),
-      _receive_state(ReceiveState::Pending)
+      _receive_state(ReceiveState::Idle)
 {
     // Constructor implementation
 }
@@ -126,7 +126,6 @@ void OrcaModbus::tick()
     }
 
     while (_uart->read(b) == 1) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
             if (_received_buff_len >= _reply_msg_len) {
@@ -172,6 +171,9 @@ void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
 
 bool OrcaModbus::read_register(uint16_t& reg)
 {
+#ifdef DEBUG
+    debug_print_buf(_received_buff, _received_buff_len);
+#endif
     if (_receive_state == ReceiveState::Ready) {
 
         if (_received_buff[1] != FunctionCode::READ_REGISTER) {

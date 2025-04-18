@@ -12,14 +12,15 @@ class OrcaModbus
 {
     public:
 
-        enum ReceiveState {
+        enum class ReceiveState {
+            Idle,
             Pending,
             Ready,
             Timeout,
             CRCError,
         };
 
-        enum SendingState {
+        enum class SendingState {
             Idle,
             Sending,
         };

@@ -251,7 +251,7 @@ async AP_IrisOrca::run()
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %u", rx);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %d", (uint8_t)rx);
     if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
         async_init(&_run_state);
@@ -290,14 +290,23 @@ async AP_IrisOrca::run()
             async_init(&_run_state);
             return ASYNC_CONT;
         }
+
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: CTRL_REG_3: %u", value);
         
         if (value == 0x0003) {
             break;
-        } else {
-            last_send_ms = AP_HAL::millis();
-            await(TIME_PASSED(last_send_ms, 500));
+        } else if(value == 0x0001) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: in sleep mode");
+            // in sleep mode, send the auto-zero command
+            _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
+            await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         }
+
+        last_send_ms = AP_HAL::millis();
+        await(TIME_PASSED(last_send_ms, 500));
     }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: in position mode");
 
     send_position_controller_params();
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
@@ -338,6 +347,8 @@ async AP_IrisOrca::run()
                 // return ASYNC_CONT;
                 break;
             case OrcaModbus::ReceiveState::Pending:
+                break;
+            case OrcaModbus::ReceiveState::Idle:
                 break;
         }
 
