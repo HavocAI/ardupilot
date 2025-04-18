@@ -273,17 +273,7 @@ AP_IrisOrca::AP_IrisOrca()
 
 void AP_IrisOrca::init()
 {
-    // find serial driver and initialise
-    const AP_SerialManager &serial_manager = AP::serialmanager();
-    AP_HAL::UARTDriver* uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
-    if (uart != nullptr) {
-        _modbus.init(uart, _pin_de);
-    } else {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Serial port not found");
-        return;
-    }
-
-    async_init(&_run_state);
+    
 
     // create background thread to process serial input and output
     hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::thread_main, void), "irisorca", 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1);
@@ -332,12 +322,25 @@ void AP_IrisOrca::thread_main()
     
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialized");
 
+    // find serial driver and initialise
+    const AP_SerialManager &serial_manager = AP::serialmanager();
+    AP_HAL::UARTDriver* uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
+    if (uart != nullptr) {
+        _modbus.init(uart, _pin_de);
+    } else {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Serial port not found");
+        return;
+    }
+
+    async_init(&_run_state);
     
     while (true) {
         run();
-        _modbus.tick();
+        
 
-        hal.scheduler->delay_microseconds(1000);
+        hal.scheduler->delay_microseconds(100);
+
+        _modbus.tick();
     }
 }
 

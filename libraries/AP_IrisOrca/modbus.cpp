@@ -62,7 +62,7 @@ static uint32_t calc_tx_time_us(uint8_t num_bytes)
     // plus additional 300us safety margin
     uint8_t parity = IRISORCA_SERIAL_PARITY == 0 ? 0 : 1;
     uint8_t bits_per_data_byte = 10 + parity;
-    const uint32_t delay_us = 1e6 * num_bytes * bits_per_data_byte / IRISORCA_SERIAL_BAUD + 300;
+    const uint32_t delay_us = 1e6 * num_bytes * bits_per_data_byte / IRISORCA_SERIAL_BAUD + 1200;
     return delay_us;
 }
 
@@ -84,12 +84,12 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
     _uart = uart;
     _pin_de = pin_de;
 
-    _uart->lock_port(40, 40);
+    // _uart->lock_port(40, 40);
 
     // Set the serial port parameters
     _uart->configure_parity(IRISORCA_SERIAL_PARITY);
     _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
-    _uart->set_unbuffered_writes(true);
+    // _uart->set_unbuffered_writes(true);
     _uart->begin(IRISORCA_SERIAL_BAUD, 128, 128);
     _uart->discard_input();
 
@@ -109,8 +109,32 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
 
 void OrcaModbus::tick()
 {
-    // uint8_t b;
+    uint8_t b;
     uint32_t now_us = AP_HAL::micros();
+
+    uint32_t num_bytes = _uart->available();
+    if (num_bytes > 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: available bytes: %lu", num_bytes);
+    }
+    while (num_bytes-- > 0 && _uart->read(&b, 1) != 1) {
+
+        if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
+            _received_buff[_received_buff_len++] = b;
+            if (_received_buff_len >= _reply_msg_len) {
+                // check CRC of the message
+                uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
+                uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
+                if (crc_expected == crc_received) {
+                    _receive_state = ReceiveState::Ready;
+                    _reply_wait_start_ms = 0;
+                } else {
+                    // CRC is incorrect
+                    _receive_state = ReceiveState::CRCError;
+                }
+                _received_buff_len = 0;
+            }
+        }
+    }
 
     if (_sending_state == SendingState::Sending) {
         if (now_us - _send_start_us > _transmit_time_us) {
@@ -136,29 +160,6 @@ void OrcaModbus::tick()
             _receive_state = ReceiveState::Timeout;
         }
     }
-
-    if(_uart->available_locked(40)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: available bytes: %lu", _uart->available_locked(40));
-    }
-    // while (_uart->read(b)) {
-    //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
-    //     if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
-    //         _received_buff[_received_buff_len++] = b;
-    //         if (_received_buff_len >= _reply_msg_len) {
-    //             // check CRC of the message
-    //             uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
-    //             uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
-    //             if (crc_expected == crc_received) {
-    //                 _receive_state = ReceiveState::Ready;
-    //                 _reply_wait_start_ms = 0;
-    //             } else {
-    //                 // CRC is incorrect
-    //                 _receive_state = ReceiveState::CRCError;
-    //             }
-    //             _received_buff_len = 0;
-    //         }
-    //     }
-    // }
 }
 
 void OrcaModbus::set_recive_timeout_ms(uint32_t timeout_ms)
@@ -287,8 +288,7 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     _reply_msg_len = expected_reply_len;
 
     // write message
-    // _uart->write_locked(data, len, 5);
-    _uart->write_locked(data, len, 40);
-    // _uart->write(data, len);
+    // _uart->write_locked(data, len, 40);
+    _uart->write(data, len);
 }
 
