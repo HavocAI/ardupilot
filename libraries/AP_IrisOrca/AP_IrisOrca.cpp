@@ -192,7 +192,8 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 };
 
 AP_IrisOrca::AP_IrisOrca(void)
- : _uart(nullptr),
+ : _initialized(false),
+   _uart(nullptr),
   _modbus(),
   last_send_ms(0)
 {
@@ -203,7 +204,6 @@ AP_IrisOrca::AP_IrisOrca(void)
 
 void AP_IrisOrca::init(void)
 {
-    
     const AP_SerialManager &serial_manager = AP::serialmanager();
     _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
     if (_uart) {
@@ -214,6 +214,15 @@ void AP_IrisOrca::init(void)
 }
 
 void AP_IrisOrca::update()
+{
+    if (!_initialized) {
+        hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::run_io, void));
+        _initialized = true;
+    }
+
+}
+
+void AP_IrisOrca::run_io()
 {
     if (_uart == nullptr) {
         init();

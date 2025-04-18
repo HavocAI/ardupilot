@@ -85,10 +85,10 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
     _pin_de = pin_de;
 
     // Set the serial port parameters
-    _uart->begin(IRISORCA_SERIAL_BAUD);
     _uart->configure_parity(IRISORCA_SERIAL_PARITY);
     _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
     _uart->set_unbuffered_writes(true);
+    _uart->begin(IRISORCA_SERIAL_BAUD);
 
     // initialise RS485 DE pin (when high, allows send to actuator)
     if (_pin_de >= 0) {
@@ -125,7 +125,7 @@ void OrcaModbus::tick()
         }
     }
 
-    if (_uart->available() > 0 && _uart->read(b)) {
+    while (_uart->read(b) == 1) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
@@ -246,6 +246,9 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     add_crc_modbus(data, len);
     len += 2; // add CRC length
 
+#ifdef DEBUG
+    debug_print_buf(data, len);
+#endif // DEBUG
 
     // set send pin
     // set gpio pin or serial port's CTS pin
@@ -263,10 +266,6 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
 
     _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
-
-#ifdef DEBUG
-    debug_print_buf(data, len);
-#endif // DEBUG
 
     // write message
     _uart->write(data, len);

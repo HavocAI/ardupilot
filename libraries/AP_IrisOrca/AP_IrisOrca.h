@@ -43,6 +43,7 @@ private:
     AP_Int16 _pos_filt;                 // position filter
 
     // members
+    bool _initialized;
     AP_HAL::UARTDriver *_uart;
 
     typedef struct run_state {
@@ -59,6 +60,7 @@ private:
     // 
     void init(void);
     async run();
+    void run_io();
     void send_position_controller_params();
     void send_actuator_position_cmd();
 
