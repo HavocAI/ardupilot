@@ -4,6 +4,14 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <GCS_MAVLink/GCS.h>
 
+#define DEBUG 1
+
+#ifdef DEBUG
+#include <stdio.h>
+
+static void debug_print_buf(uint8_t* buf, int len);
+#endif // DEBUG
+
 #define IRISORCA_SERIAL_BAUD 19200                  // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY 2                    // communication is always even parity
 #define IRISORCA_LOG_ORCA_INTERVAL_MS 5000          // log ORCA message at this interval in milliseconds
@@ -218,6 +226,19 @@ void OrcaModbus::send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_c
     send_data(send_buff, i, 8);
 }
 
+#ifdef DEBUG
+static void debug_print_buf(uint8_t* buf, int len)
+{
+    char str[256];
+    for (int i = 0; i < len; i++) {
+        snprintf(str + (i * 3), sizeof(str) - (i * 3), "%02X ", buf[i]);
+    }
+    str[len * 3] = '\0'; // null terminate the string
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s", str);
+}
+#endif
+
 void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_len)
 {
 
@@ -242,6 +263,10 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
 
     _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
+
+#ifdef DEBUG
+    debug_print_buf(data, len);
+#endif // DEBUG
 
     // write message
     _uart->write(data, len);
