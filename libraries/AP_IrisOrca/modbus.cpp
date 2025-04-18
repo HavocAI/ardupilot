@@ -84,35 +84,46 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
     _uart = uart;
     _pin_de = pin_de;
 
+    _uart->lock_port(40, 40);
+
     // Set the serial port parameters
-    _uart->begin(IRISORCA_SERIAL_BAUD);
     _uart->configure_parity(IRISORCA_SERIAL_PARITY);
     _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
     _uart->set_unbuffered_writes(true);
+    _uart->begin(IRISORCA_SERIAL_BAUD, 128, 128);
+    _uart->discard_input();
+
+    
 
     // initialise RS485 DE pin (when high, allows send to actuator)
-    if (_pin_de >= 0) {
-        hal.gpio->pinMode(_pin_de, HAL_GPIO_OUTPUT);
-        hal.gpio->write(_pin_de, 0);
-    } else {
-        _uart->set_CTS_pin(false);
-    }
+    // if (_pin_de >= 0) {
+    //     hal.gpio->pinMode(_pin_de, HAL_GPIO_OUTPUT);
+    //     hal.gpio->write(_pin_de, 0);
+    // } else {
+    //     _uart->set_CTS_pin(false);
+    // }
+
+    _uart->set_CTS_pin(false);
+    // _uart->set_RTS_pin(true);
 }
 
 void OrcaModbus::tick()
 {
-    uint8_t b;
+    // uint8_t b;
     uint32_t now_us = AP_HAL::micros();
 
     if (_sending_state == SendingState::Sending) {
         if (now_us - _send_start_us > _transmit_time_us) {
             // unset gpio or serial port's CTS pin
-            if (_pin_de > -1) {
-                hal.gpio->write(_pin_de, 0);
-            } else {
-                _uart->set_CTS_pin(false);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: set CTS pin low");
-            }
+            // if (_pin_de > -1) {
+            //     hal.gpio->write(_pin_de, 0);
+            // } else {
+            //     _uart->set_CTS_pin(false);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: set CTS pin low");
+            // }
+
+            _uart->set_CTS_pin(false);
+            // _uart->set_RTS_pin(true);
 
             _sending_state = SendingState::Idle;
         }
@@ -126,26 +137,28 @@ void OrcaModbus::tick()
         }
     }
 
-    while (_uart->available() > 0) {
-        b = _uart->read();
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
-        if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
-            _received_buff[_received_buff_len++] = b;
-            if (_received_buff_len >= _reply_msg_len) {
-                // check CRC of the message
-                uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
-                uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
-                if (crc_expected == crc_received) {
-                    _receive_state = ReceiveState::Ready;
-                    _reply_wait_start_ms = 0;
-                } else {
-                    // CRC is incorrect
-                    _receive_state = ReceiveState::CRCError;
-                }
-                _received_buff_len = 0;
-            }
-        }
+    if(_uart->available_locked(40)) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: available bytes: %lu", _uart->available_locked(40));
     }
+    // while (_uart->read(b)) {
+    //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %u", b);
+    //     if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
+    //         _received_buff[_received_buff_len++] = b;
+    //         if (_received_buff_len >= _reply_msg_len) {
+    //             // check CRC of the message
+    //             uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
+    //             uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
+    //             if (crc_expected == crc_received) {
+    //                 _receive_state = ReceiveState::Ready;
+    //                 _reply_wait_start_ms = 0;
+    //             } else {
+    //                 // CRC is incorrect
+    //                 _receive_state = ReceiveState::CRCError;
+    //             }
+    //             _received_buff_len = 0;
+    //         }
+    //     }
+    // }
 }
 
 void OrcaModbus::set_recive_timeout_ms(uint32_t timeout_ms)
@@ -255,11 +268,14 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
 
     // set send pin
     // set gpio pin or serial port's CTS pin
-    if (_pin_de > -1) {
-        hal.gpio->write(_pin_de, 1);
-    } else {
-        _uart->set_CTS_pin(true);
-    }
+    // if (_pin_de > -1) {
+    //     hal.gpio->write(_pin_de, 1);
+    // } else {
+    //     _uart->set_CTS_pin(true);
+    // }
+
+    _uart->set_CTS_pin(true);
+    
 
     // record start and expected delay to send message
     _send_start_us = AP_HAL::micros();
@@ -271,6 +287,8 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     _reply_msg_len = expected_reply_len;
 
     // write message
-    _uart->write(data, len);
+    // _uart->write_locked(data, len, 5);
+    _uart->write_locked(data, len, 40);
+    // _uart->write(data, len);
 }
 

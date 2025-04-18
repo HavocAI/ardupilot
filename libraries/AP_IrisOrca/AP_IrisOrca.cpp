@@ -304,6 +304,12 @@ async AP_IrisOrca::run()
     _run_state.wait_timer = AP_HAL::millis();
     await(TIME_PASSED(_run_state.wait_timer, 5000));
 
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, 0x1);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    _run_state.wait_timer = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.wait_timer, 1000));
+
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
