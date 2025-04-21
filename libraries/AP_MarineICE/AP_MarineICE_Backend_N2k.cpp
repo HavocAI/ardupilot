@@ -195,33 +195,59 @@ bool AP_MarineICE_Backend_N2k::send_pgn_126208_command_group_function_two_pair_b
     uint8_t data[N2K_PGN_126208_COMMAND_GROUP_FUNCTION_TWO_PAIR_BYTES_LENGTH];
     n2k_pgn_126208_command_group_function_two_pair_bytes_pack(data, &msg, sizeof(data));
 
-    // Split the 10-byte message into two frames
-    // TODO: This should be performed by the NMEA2000 stack!
-    uint8_t frame1[6];
-    uint8_t frame2[4];
-    memcpy(frame1, data, 6); // Remaining 6 bytes of the first frame
-    memcpy(frame2, data + 6, 4); // Remaining 4 bytes
+    uint32_t pgn = N2K_PGN_126208_COMMAND_GROUP_FUNCTION_TWO_PAIR_BYTES_FRAME_ID;
+    uint8_t priority = 3;
+    // Send the message
+    return send_nmea2000_fastpacket_message(pgn, priority, data, sizeof(data));
 
-    // Send the first frame
-    J1939::J1939Frame frame;
-    frame.priority = 3; // Is this correct?
-    frame.pgn = J1939::extract_j1939_pgn(N2K_PGN_126208_COMMAND_GROUP_FUNCTION_TWO_PAIR_BYTES_FRAME_ID);
-    frame.source_address = MARINEICE_BACKEND_N2K_SOURCE_ADDRESS;
+}
 
-    frame.data[0] = 0x00; // Continuation indicator
-    frame.data[1] = 0x0A; // Reserved for continuation
-    memcpy(frame.data + 2, frame1, sizeof(frame1));
+bool AP_MarineICE_Backend_N2k::send_nmea2000_fastpacket_message(uint32_t pgn, uint8_t priority, const uint8_t *data, size_t length)
+{
+    if (length <= 8) {
+        // Single-frame message
+        J1939::J1939Frame frame;
+        frame.priority = priority;
+        frame.pgn = J1939::extract_j1939_pgn(pgn);
+        frame.source_address = MARINEICE_BACKEND_N2K_SOURCE_ADDRESS;
+        memset(frame.data, 0xFF, sizeof(frame.data)); // Clear the frame data
+        memcpy(frame.data, data, length);
 
-    if (!j1939->send_message(frame)) {
-        return false;
+        return j1939->send_message(frame);
+    } else {
+        // Fast-packet message
+        size_t bytes_sent = 0;
+        uint8_t sequence_id = 0;
+
+        while (bytes_sent < length) {
+            J1939::J1939Frame frame;
+            frame.priority = priority;
+            frame.pgn = J1939::extract_j1939_pgn(pgn);
+            frame.source_address = MARINEICE_BACKEND_N2K_SOURCE_ADDRESS;
+            memset(frame.data, 0xFF, sizeof(frame.data)); // Clear the frame data
+
+            if (bytes_sent == 0) {
+                // First frame (control frame)
+                frame.data[0] = sequence_id++; // Sequence ID
+                frame.data[1] = length;       // Total length of the message
+                size_t chunk_size = std::min(static_cast<size_t>(6), length - bytes_sent);
+                memcpy(frame.data + 2, data + bytes_sent, chunk_size);
+                bytes_sent += chunk_size;
+            } else {
+                // Consecutive frames
+                frame.data[0] = sequence_id++; // Sequence ID
+                size_t chunk_size = std::min(static_cast<size_t>(7), length - bytes_sent);
+                memcpy(frame.data + 1, data + bytes_sent, chunk_size);
+                bytes_sent += chunk_size;
+            }
+
+            if (!j1939->send_message(frame)) {
+                return false;
+            }
+        }
     }
 
-    // Send the second frame with NMEA2000 control frame prefix
-    memset(frame.data, 0xFF, sizeof(frame.data)); // Clear the frame data
-    frame.data[0] = 0x01; // Control frame prefix for continuation
-    memcpy(frame.data + 1, frame2, sizeof(frame2));
-
-    return j1939->send_message(frame);
+    return true;
 }
 
 // bool AP_MarineICE_Backend_N2k::send_maretron_load_center(const struct maretron_load_center_t &msg)

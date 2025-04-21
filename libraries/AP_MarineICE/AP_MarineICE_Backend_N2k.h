@@ -41,6 +41,12 @@ private:
     bool send_pgn_65390_control_head_feedback(const struct n2k_pgn_65390_control_head_feedback_t &msg);
     bool send_pgn_126208_command_group_function_two_pair_bytes(const struct n2k_pgn_126208_command_group_function_two_pair_bytes_t &msg);
 
+    // send NMEA2000 fast packet message
+    // PGN 126208 is a fast packet message, so we need to send it in chunks
+    // of 8 bytes at a time. 
+    // TODO: This should be part of the NMEA2000 stack
+    bool send_nmea2000_fastpacket_message(uint32_t pgn, uint8_t priority, const uint8_t *data, size_t length);
+
     // handler for incoming CAN frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
