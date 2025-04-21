@@ -55,7 +55,7 @@ private:
 
     OrcaModbus _modbus;
 
-    uint32_t last_send_ms;
+    orca::ActuatorState _actuator_state;
     
     // 
     void init(void);
@@ -63,6 +63,8 @@ private:
     void run_io();
     void send_position_controller_params();
     void send_actuator_position_cmd();
+
+    void send_actuator_status_request();
 
 };
 

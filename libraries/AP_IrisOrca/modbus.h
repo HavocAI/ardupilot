@@ -7,6 +7,87 @@
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
+class OrcaModbus;
+
+namespace orca {
+    
+    enum Register : uint16_t {
+        CTRL_REG_0 = 0,
+        CTRL_REG_2 = 2,
+        CTRL_REG_3 = 3,
+        CTRL_REG_4 = 4,
+        POS_CMD = 30,
+        POS_CMD_H = 31,
+        PC_PGAIN = 133,
+        PC_IGAIN = 134,
+        PC_DVGAIN = 135,
+        PC_DEGAIN = 136,
+        PC_FSATU = 137,
+        PC_FSATU_H = 138,
+        SAFETY_DGAIN = 143,
+        PC_SOFTSTART_PERIOD = 150,
+        POS_FILT = 167,
+        ZERO_MODE = 171,
+        AUTO_ZERO_FORCE_N = 172,
+        AUTO_ZERO_EXIT_MODE = 173
+    };
+
+    enum MsgAddress : uint8_t {
+        BUS_MASTER = 0x00,
+        DEVICE = 0x01
+    };
+
+    enum OperatingMode : uint8_t {
+        SLEEP = 1,
+        FORCE = 2,
+        POSITION = 3,
+        HAPTIC = 4,
+        KINEMATIC = 5,
+        AUTO_ZERO = 55,
+    };
+
+    enum FunctionCode : uint8_t {
+        WRITE_REGISTER = 0x06,
+        WRITE_MULTIPLE_REGISTERS = 0x10,
+        MOTOR_COMMAND_STREAM = 0x64,
+        MOTOR_READ_STREAM = 0x68
+    };
+
+    // sub codes for MOTOR_COMMAND_STREAM
+    enum MotorCommandStreamSubCode : uint8_t {
+        FORCE_CONTROL_STREAM = 0x1C,
+        POSITION_CONTROL_STREAM = 0x1E,
+        SLEEP_DATA_STREAM = 0x00 // sleep data stream is everything else
+    };
+
+    struct ActuatorState {
+        OperatingMode mode;
+        uint32_t shaft_position;
+        uint32_t force_realized;
+        uint16_t power_consumed;
+        uint8_t temperature;
+        uint16_t voltage;
+        uint16_t errors;
+    };
+
+    static constexpr uint16_t MOTOR_COMMAND_STREAM_MSG_RSP_LEN = 19;
+    static constexpr uint16_t MOTOR_READ_STREAM_MSG_RSP_LEN = 24;
+
+    void send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus);
+
+    // void write_position_ctl_max_force(uint16_t max_force, OrcaModbus* modbus)
+    // {
+    //     uint16_t registers[2];
+    //     registers[0] = LOWWORD(max_force);
+    //     registers[1] = HIGHWORD(max_force);
+        
+    //     modbus->send_write_multiple_registers(Register::PC_FSATU, 2, registers);
+    // }
+
+    void write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_width, OrcaModbus& modbus);
+    bool parse_motor_read_stream(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value);
+
+}
 
 class OrcaModbus
 {
