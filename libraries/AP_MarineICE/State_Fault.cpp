@@ -48,6 +48,8 @@ void State_Fault::run(AP_MarineICE& ctx) {
         {
             ctx.set_fault(static_cast<FaultIndex>(i), false);
         }
+        // Reset the number of start attempts
+        ctx.set_num_start_attempts(0);
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: All faults cleared.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_INIT, ctx);
     }
