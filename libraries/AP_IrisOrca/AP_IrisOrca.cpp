@@ -223,6 +223,10 @@ async AP_IrisOrca::run()
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
     }
 
+    // set the user comms timeout to be 300ms
+    _modbus.send_write_register_cmd(orca::Register::USER_COMMS_TIMEOUT, 300);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
     while (true) {
 
         // read the state of the motor.
@@ -251,7 +255,7 @@ async AP_IrisOrca::run()
         }
 
         _run_state.last_send_ms = AP_HAL::millis();
-        await(TIME_PASSED(_run_state.last_send_ms, 500));
+        await(TIME_PASSED(_run_state.last_send_ms, 100));
 
     }
 
@@ -346,9 +350,9 @@ void orca::write_motor_command_stream(const MotorCommandStreamSubCode sub_code, 
 
 bool orca::parse_motor_command_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state)
 {
-    if (len != MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
-        return false;
-    }
+    // if (len < MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
+    //     return false;
+    // }
 
     if (data[0] != MsgAddress::DEVICE) {
         return false;
@@ -385,9 +389,9 @@ void orca::write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_wi
 
 bool orca::parse_motor_read_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value)
 {
-    if (len != MOTOR_READ_STREAM_MSG_RSP_LEN) {
-        return false;
-    }
+    // if (len < MOTOR_READ_STREAM_MSG_RSP_LEN) {
+    //     return false;
+    // }
 
     if (data[0] != MsgAddress::DEVICE) {
         return false;

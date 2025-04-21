@@ -26,6 +26,7 @@ namespace orca {
         PC_FSATU_H = 138,
         SAFETY_DGAIN = 143,
         PC_SOFTSTART_PERIOD = 150,
+        USER_COMMS_TIMEOUT = 163,
         POS_FILT = 167,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
