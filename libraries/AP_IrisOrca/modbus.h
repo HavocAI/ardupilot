@@ -57,6 +57,8 @@ namespace orca {
     enum MotorCommandStreamSubCode : uint8_t {
         FORCE_CONTROL_STREAM = 0x1C,
         POSITION_CONTROL_STREAM = 0x1E,
+        KINEMATIC_CONTROL_STREAM = 0x20,
+        HAPTIC_CONTROL_STREAM = 0x22,
         SLEEP_DATA_STREAM = 0x00 // sleep data stream is everything else
     };
 
@@ -73,8 +75,6 @@ namespace orca {
     static constexpr uint16_t MOTOR_COMMAND_STREAM_MSG_RSP_LEN = 19;
     static constexpr uint16_t MOTOR_READ_STREAM_MSG_RSP_LEN = 24;
 
-    void send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus);
-
     // void write_position_ctl_max_force(uint16_t max_force, OrcaModbus* modbus)
     // {
     //     uint16_t registers[2];
@@ -84,8 +84,11 @@ namespace orca {
     //     modbus->send_write_multiple_registers(Register::PC_FSATU, 2, registers);
     // }
 
+    void write_motor_command_stream(const MotorCommandStreamSubCode sub_code, const uint32_t data, OrcaModbus& modbus);
+    bool parse_motor_command_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state);
+
     void write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_width, OrcaModbus& modbus);
-    bool parse_motor_read_stream(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value);
+    bool parse_motor_read_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value);
 
 }
 

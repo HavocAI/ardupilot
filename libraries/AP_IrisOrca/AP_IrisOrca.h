@@ -62,7 +62,11 @@ private:
     async run();
     void run_io();
     void send_position_controller_params();
-    void send_actuator_position_cmd();
+
+    /**
+     * return the desired shaft position in um
+     */
+    uint32_t get_desired_shaft_pos();
 
     void send_actuator_status_request();
 

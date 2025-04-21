@@ -234,7 +234,7 @@ async AP_IrisOrca::run()
             return ASYNC_CONT;
         }
         uint32_t reg_value;
-        if (!orca::parse_motor_read_stream(_modbus._received_buff, _modbus._received_buff_len, _actuator_state, reg_value)) {
+        if (!orca::parse_motor_read_stream_rsp(_modbus._received_buff, _modbus._received_buff_len, _actuator_state, reg_value)) {
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to parse motor state");
             async_init(&_run_state);
             return ASYNC_CONT;
@@ -261,13 +261,24 @@ async AP_IrisOrca::run()
 
     while(true) {
 
-        send_actuator_position_cmd();
         _run_state.last_send_ms = AP_HAL::millis();
 
+        {
+        uint32_t desired_shaft_pos = get_desired_shaft_pos();
+        orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, desired_shaft_pos, _modbus);
+        }
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        
         switch (rx) {
             case OrcaModbus::ReceiveState::Ready:
+                orca::parse_motor_command_stream_rsp(_modbus._received_buff, _modbus._received_buff_len, _actuator_state);
                 // TODO: if getting close to over temp then ramp down the max force register (keep average power ~30w)
+
+                if (_actuator_state.errors != 0) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: actuator error: %u", _actuator_state.errors);
+                    async_init(&_run_state);
+                    return ASYNC_CONT;
+                }
                 break;
             case OrcaModbus::ReceiveState::Timeout:
                 GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position msg timeout");
@@ -306,7 +317,7 @@ void AP_IrisOrca::send_position_controller_params()
     _modbus.send_write_multiple_registers(orca::Register::PC_PGAIN, 6, registers);
 }
 
-void AP_IrisOrca::send_actuator_position_cmd()
+uint32_t AP_IrisOrca::get_desired_shaft_pos()
 {
     float yaw = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering);
 
@@ -315,25 +326,45 @@ void AP_IrisOrca::send_actuator_position_cmd()
     
     const float shaft_position_um = yaw * m + b;
 
-    orca::send_actuator_position_cmd(shaft_position_um, &_modbus);
+    return shaft_position_um;
 }
 
-void orca::send_actuator_position_cmd(uint32_t position_um, OrcaModbus* modbus)
+void orca::write_motor_command_stream(const MotorCommandStreamSubCode sub_code, const uint32_t data, OrcaModbus& modbus)
 {
-    using namespace orca;
-
     uint16_t i = 0;
     uint8_t send_buff[16];
-
     send_buff[i++] = MsgAddress::DEVICE;
     send_buff[i++] = FunctionCode::MOTOR_COMMAND_STREAM;
-    send_buff[i++] = MotorCommandStreamSubCode::POSITION_CONTROL_STREAM;
+    send_buff[i++] = sub_code;
 
     // data is 32 bits - send as 4 bytes
-    put_be32_ptr(&send_buff[i], position_um);
+    put_be32_ptr(&send_buff[i], data);
     i += 4;
 
-    modbus->send_data(send_buff, i, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
+    modbus.send_data(send_buff, i, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
+}
+
+bool orca::parse_motor_command_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state)
+{
+    if (len != MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
+        return false;
+    }
+
+    if (data[0] != MsgAddress::DEVICE) {
+        return false;
+    }
+    if (data[1] != FunctionCode::MOTOR_COMMAND_STREAM) {
+        return false;
+    }
+
+    state.shaft_position = be32toh_ptr(&data[2]);
+    state.force_realized = be32toh_ptr(&data[6]);
+    state.power_consumed = be16toh_ptr(&data[10]);
+    state.temperature = data[12];
+    state.voltage = be16toh_ptr(&data[13]);
+    state.errors = be16toh_ptr(&data[15]);
+
+    return true;
 }
 
 void orca::write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_width, OrcaModbus& modbus)
@@ -352,7 +383,7 @@ void orca::write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_wi
     modbus.send_data(send_buff, i, MOTOR_READ_STREAM_MSG_RSP_LEN);
 }
 
-bool orca::parse_motor_read_stream(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value)
+bool orca::parse_motor_read_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value)
 {
     if (len != MOTOR_READ_STREAM_MSG_RSP_LEN) {
         return false;
