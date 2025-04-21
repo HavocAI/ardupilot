@@ -13,6 +13,7 @@ namespace orca {
     
     enum Register : uint16_t {
         CTRL_REG_0 = 0,
+        CTRL_REG_1 = 1,
         CTRL_REG_2 = 2,
         CTRL_REG_3 = 3,
         CTRL_REG_4 = 4,

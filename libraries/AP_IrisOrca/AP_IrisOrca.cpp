@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 638000),
+    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 30000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -110,7 +110,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("AFMAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
+    AP_GROUPINFO("AFMAX", 10, AP_IrisOrca, _auto_zero_f_max, 30),
 
     // @Param: SAFE_DGAIN
     // @DisplayName: Safety derivative gain
@@ -191,6 +191,51 @@ async AP_IrisOrca::run()
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 5000));
 
+    // // command sleep mode
+    // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP);
+    // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    // if (rx != OrcaModbus::ReceiveState::Ready) {
+    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to set sleep mode");
+    //     async_init(&_run_state);
+    //     return ASYNC_CONT;
+    // }
+
+    // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_4, 0x0007);
+
+    _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    send_position_controller_params();
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+
+    // undocumented write toe CTRL_REG_1 will make the PID value take effect immediately
+    // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_1, 1024);
+    // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    // set the persist bit
+    // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
+    // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
+
+    // // start auto-zero mode
+    // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
+    // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    // if (rx != OrcaModbus::ReceiveState::Ready) {
+    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to set auto-zero mode");
+    //     async_init(&_run_state);
+    //     return ASYNC_CONT;
+    // }
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: auto-zero mode set");
+
+
+    
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
@@ -218,9 +263,9 @@ async AP_IrisOrca::run()
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
         // set the persist bit
-        _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
+        // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
+        // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
     }
 
     // set the user comms timeout to be 300ms
@@ -252,6 +297,10 @@ async AP_IrisOrca::run()
         } else if (_actuator_state.mode == orca::OperatingMode::POSITION) {
             // if it is in position control, then we exit the loop.
             break;
+        } else if (_actuator_state.errors) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: auto-zero error: 0x%x", _actuator_state.errors);
+            async_init(&_run_state);
+            return ASYNC_CONT;
         }
 
         _run_state.last_send_ms = AP_HAL::millis();
@@ -270,10 +319,12 @@ async AP_IrisOrca::run()
         {
         uint32_t desired_shaft_pos = get_desired_shaft_pos();
         
-        // primitive slew rate limiting. We want to constrain the max velocity to 1mm/s
-        int32_t delta_um = desired_shaft_pos - _actuator_state.shaft_position;
-        int32_t delta = constrain_int32(delta_um, -1000, 1000);
-        uint32_t command_shaft_pos = constrain_uint32(_actuator_state.shaft_position + delta, 0, _max_travel_mm * 1000);
+        // // primitive slew rate limiting. We want to constrain the max velocity to 1mm/s
+        // int32_t delta_um = desired_shaft_pos - _actuator_state.shaft_position;
+        // int32_t delta = constrain_int32(delta_um, -1000, 1000);
+        // uint32_t command_shaft_pos = constrain_uint32(_actuator_state.shaft_position + delta, 0, _max_travel_mm * 1000);
+
+        uint32_t command_shaft_pos = constrain_uint32(desired_shaft_pos, 0, _max_travel_mm * 1000);
 
         orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, command_shaft_pos, _modbus);
         }
@@ -316,13 +367,16 @@ async AP_IrisOrca::run()
 
 void AP_IrisOrca::send_position_controller_params()
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: PID params: %d %d %d %d", _gain_p.get(), _gain_i.get(), _gain_dv.get(), _gain_de.get());
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: FMAX: %ld", _f_max.get());
+
     uint16_t registers[6];
-    registers[0] = _gain_p;
-    registers[1] = _gain_i;
-    registers[2] = _gain_dv;
-    registers[3] = _gain_de;
-    registers[4] = HIGHWORD(_f_max);
-    registers[5] = LOWWORD(_f_max);
+    registers[0] = _gain_p.get();
+    registers[1] = _gain_i.get();
+    registers[2] = _gain_dv.get();
+    registers[3] = _gain_de.get();
+    registers[4] = HIGHWORD(_f_max.get());
+    registers[5] = LOWWORD(_f_max.get());
 
     _modbus.send_write_multiple_registers(orca::Register::PC_PGAIN, 6, registers);
 }

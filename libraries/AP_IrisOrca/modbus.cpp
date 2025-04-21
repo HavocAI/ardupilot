@@ -216,7 +216,7 @@ void OrcaModbus::send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_c
     send_buff[i++] = LOWBYTE(reg_addr);
     send_buff[i++] = HIGHBYTE(reg_count);
     send_buff[i++] = LOWBYTE(reg_count);
-    send_buff[i++] = LOWBYTE(reg_count * 2);
+    send_buff[i++] = reg_count * 2;
 
     // copy data into message
     for (uint16_t j = 0; j < reg_count; j++)
