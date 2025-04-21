@@ -269,7 +269,13 @@ async AP_IrisOrca::run()
 
         {
         uint32_t desired_shaft_pos = get_desired_shaft_pos();
-        orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, desired_shaft_pos, _modbus);
+        
+        // primitive slew rate limiting. We want to constrain the max velocity to 1mm/s
+        int32_t delta_um = desired_shaft_pos - _actuator_state.shaft_position;
+        int32_t delta = constrain_int32(delta_um, -1000, 1000);
+        uint32_t command_shaft_pos = constrain_uint32(_actuator_state.shaft_position + delta, 0, _max_travel_mm * 1000);
+
+        orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, command_shaft_pos, _modbus);
         }
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         
