@@ -44,8 +44,9 @@ void State_Fault::run(AP_MarineICE& ctx) {
     // TODO: Is disarm the best way to clear faults and return to Init?
     if (!ctx.get_armed()) // Clear faults if not armed
     {
-        // Clear faults (also resets the number of start attempts)
+        // Clear faults and reset the number of start attempts
         ctx.get_backend()->clear_faults();
+        ctx.get_backend()->set_num_start_attempts(0);
 
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Faults cleared.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_INIT, ctx);

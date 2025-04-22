@@ -71,6 +71,7 @@ public:
     bool pre_arm_checks(char *failure_msg, uint8_t failure_msg_len);
   
     // Update the state machines and the telemetry
+    // Called by the main loop in SRV_Channels
     void update();
 
     // State machine access

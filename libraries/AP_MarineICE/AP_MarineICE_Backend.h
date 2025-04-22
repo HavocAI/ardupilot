@@ -61,11 +61,10 @@ public:
     // Returns true if no faults are set
     bool healthy() const;
 
-    // Clear all active fault conditions and
-    // reset the number of start attempts
+    // Clear all active fault conditions
+    // Note: Does not clear the number of start attempts
     void clear_faults() { 
         _status.faults.fill(false); 
-        _status.num_start_attempts = 0; 
     }
 
     // Get a fault condition in the array
@@ -73,7 +72,7 @@ public:
         return (fault < NUM_FAULTS) ? _status.faults[fault] : false; 
     }
     
-    // Set the number of start attempts (called by the state machine)
+    // Set the number of start attempts
     void set_num_start_attempts(uint8_t attempts) { _status.num_start_attempts = attempts; }
 
     // Get the number of start attempts
