@@ -21,17 +21,21 @@
 using namespace MarineICE::States;
 using namespace MarineICE::Types;
 
-void State_Start_Wait::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START_WAIT: Entering...");
-
+void State_Start_Wait::enter(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START_WAIT: Entering...");
+    }
     // Reset local variables
     _begin_starter_wait_time = AP_HAL::millis();
-
 }
 
-void State_Start_Wait::run(AP_MarineICE& ctx) {
+void State_Start_Wait::run(AP_MarineICE &ctx)
+{
     // Check if the start command has been rescinded (auto or manual)
-    if (!ctx.get_params().auto_start.get() && !ctx.get_cmd_manual_engine_start()) {
+    if (!ctx.get_params().auto_start.get() && !ctx.get_cmd_manual_engine_start())
+    {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine start command rescinded.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
         return;
@@ -39,7 +43,9 @@ void State_Start_Wait::run(AP_MarineICE& ctx) {
 
     // Check if the wait time limit has been reached and RPM == 0
     if (((AP_HAL::millis() - _begin_starter_wait_time) >= (ctx.get_params().start_delay.get() * 1000)) &&
-        (ctx.get_backend()->get_engine_data().rpm == 0)) {
+        (ctx.get_backend()->get_engine_data().rpm == 0))
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine start wait time expired.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_START, ctx);
         return;
     }
@@ -50,6 +56,10 @@ void State_Start_Wait::run(AP_MarineICE& ctx) {
     ctx.get_backend()->set_cmd_starter(false);
 }
 
-void State_Start_Wait::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START_WAIT: Exiting...");
+void State_Start_Wait::exit(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START_WAIT: Exiting...");
+    }
 }

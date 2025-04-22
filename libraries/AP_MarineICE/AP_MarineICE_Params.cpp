@@ -44,8 +44,8 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Param: SAFE_TRIM
     // @DisplayName: Safe Trim
     // @Description: Maximum trim level to allow the engine to run (pct)
-    // @Units: degrees
-    // @Range: 0 90
+    // @Units: pct
+    // @Range: 0 100
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
@@ -89,7 +89,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("RPM_THRES", 8, AP_MarineICE_Params, rpm_thres, 500),
+    AP_GROUPINFO("RPM_THRES", 8, AP_MarineICE_Params, rpm_thres, 300),
 
     // @Param: THR_SLEW
     // @DisplayName: Throttle Slew Rate
@@ -139,7 +139,7 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: False
-    AP_GROUPINFO("TEMP_MAX", 13, AP_MarineICE_Params, temp_max, 150.0f),
+    AP_GROUPINFO("TEMP_MAX", 13, AP_MarineICE_Params, temp_max, 80.0f),
 
     // @Param: DP_CHK_EN
     // @DisplayName: Water Depth Check Enabled
@@ -218,6 +218,14 @@ const AP_Param::GroupInfo AP_MarineICE_Params::var_info[] = {
     // @User: Standard
     // @RebootRequired: False
     AP_GROUPINFO("LC_TRIMDN", 21, AP_MarineICE_Params, lc_trim_down, 11),
+
+    // @Param: DEBUG
+    // @DisplayName: Debug Level
+    // @Description: Debug level (0:disabled, 1:enabled)
+    // @Values: 0:Disabled, 1:Enabled
+    // @User: Standard
+    // @RebootRequired: False
+    AP_GROUPINFO("DEBUG", 22, AP_MarineICE_Params, debug, 0),
 
     AP_GROUPEND
 };

@@ -21,27 +21,35 @@
 using namespace MarineICE::States;
 using namespace MarineICE::Types;
 
-void State_Run_Forward::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_FORWARD: Entering...");
+void State_Run_Forward::enter(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_FORWARD: Entering...");
+    }
 }
 
-void State_Run_Forward::run(AP_MarineICE& ctx) {
+void State_Run_Forward::run(AP_MarineICE &ctx)
+{
     // Check for neutral lock
-    if (ctx.get_cmd_neutral_lock()) {
+    if (ctx.get_cmd_neutral_lock())
+    {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] Neutral lock engaged.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
         return;
     }
 
     // Check for RPM below threshold
-    if (ctx.get_backend()->get_engine_data().rpm < ctx.get_params().rpm_thres.get()) {
+    if (ctx.get_backend()->get_engine_data().rpm < ctx.get_params().rpm_thres.get())
+    {
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] RPM below idle in RUN_FORWARD.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
         return;
     }
 
     // Check for throttle command crossing zero deadband
-    if (ctx.get_cmd_throttle() < ctx.get_params().thr_deadband.get()) {
+    if (ctx.get_cmd_throttle() < ctx.get_params().thr_deadband.get())
+    {
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
         return;
     }
@@ -50,9 +58,12 @@ void State_Run_Forward::run(AP_MarineICE& ctx) {
     ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_FORWARD, abs(ctx.get_cmd_throttle()));
     ctx.get_backend()->set_cmd_ignition(true);
     ctx.get_backend()->set_cmd_starter(false);
-
 }
 
-void State_Run_Forward::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_FORWARD: Exiting...");
+void State_Run_Forward::exit(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] RUN_FORWARD: Exiting...");
+    }
 }

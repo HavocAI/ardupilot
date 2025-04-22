@@ -21,8 +21,12 @@
 using namespace MarineICE::States;
 using namespace MarineICE::Types;
 
-void State_Fault::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] FAULT: Entering...");
+void State_Fault::enter(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Entering...");
+    }
 
     // Print the active faults
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Active Faults:");
@@ -35,7 +39,8 @@ void State_Fault::enter(AP_MarineICE& ctx) {
     }
 }
 
-void State_Fault::run(AP_MarineICE& ctx) {
+void State_Fault::run(AP_MarineICE &ctx)
+{
     // Set "safe" commands for the engine
     ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_NEUTRAL, 0.0f);
     ctx.get_backend()->set_cmd_ignition(false);
@@ -48,12 +53,15 @@ void State_Fault::run(AP_MarineICE& ctx) {
         ctx.get_backend()->clear_faults();
         ctx.get_backend()->set_num_start_attempts(0);
 
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Faults cleared.");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Faults and start attempts cleared");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_INIT, ctx);
     }
-
 }
 
-void State_Fault::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Exiting...");
+void State_Fault::exit(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Exiting...");
+    }
 }

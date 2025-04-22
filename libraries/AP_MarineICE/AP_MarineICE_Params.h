@@ -34,4 +34,5 @@ public:
     AP_Int8 lc_starter;    // Load Center Starter channel
     AP_Int8 lc_trim_up;    // Load Center Trim Up channel
     AP_Int8 lc_trim_down;  // Load Center Trim Down channel
+    AP_Int8 debug;         // debug level (0:disabled, 1:enabled)
 };

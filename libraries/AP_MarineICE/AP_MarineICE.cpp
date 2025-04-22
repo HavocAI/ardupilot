@@ -131,10 +131,10 @@ void AP_MarineICE::update()
         _fsm_engine.current_state_id() != EngineState::ENGINE_FAULT) {
         // If not healthy, change to the fault state
         _fsm_engine.change_state(EngineState::ENGINE_FAULT, *this);
-    } else if (get_active_engine_stop() && 
+    } else if ((get_active_engine_stop() || (_backend->get_engine_data().trim_pct > _params.safe_trim)) && 
             _fsm_engine.current_state_id() != EngineState::ENGINE_INIT &&
             _fsm_engine.current_state_id() != EngineState::ENGINE_FAULT) {
-        // If there is an engine stop condition, change to the init state
+        // If there is an engine stop condition or unsafe trim, change to the init state
         _fsm_engine.change_state(EngineState::ENGINE_INIT, *this);
     }
 
@@ -153,7 +153,7 @@ bool AP_MarineICE::get_cmd_neutral_lock() const
 }
 
 float AP_MarineICE::get_cmd_throttle() const { 
-    return SRV_Channels::get_output_norm(SRV_Channel::k_throttle) * 100.0f; 
+    return SRV_Channels::get_output_norm(SRV_Channel::k_throttle) * _params.thr_max.get(); 
 }
 
 // Get the auto trim command as a percentage value between 0 and 100

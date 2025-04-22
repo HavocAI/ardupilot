@@ -11,7 +11,7 @@ extern const AP_HAL::HAL& hal;
 
 using namespace MarineICE::Types;
 
-#define MARINEICE_DEBUG 0
+#define MARINEICE_BACKEND_N2K_DEBUG 0
 
 #define MARINEICE_BACKEND_N2K_SOURCE_ADDRESS 0xEE // TODO: This should not be hard coded, but should be set by the NMEA2000 stack
 #define MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS 1000
@@ -303,7 +303,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_65385_actuator_feedback_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_65385_actuator_feedback(msg);
         _last_new_actuator_fb_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received actuator feedback: gear=%d, throttle=%.1f", msg.actual_gear_value, msg.actual_throttle_value * 0.1f);
 #endif
         break;
@@ -314,7 +314,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_127501_binary_switch_bank_status_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_127501_binary_switch_bank_status(msg);
         _last_new_switch_bank_status_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received switch bank status: starter=%d, ignition=%d, trim_up=%d, trim_down=%d", msg.indicator2, msg.indicator3, msg.indicator12, msg.indicator11);
 #endif
         break;
@@ -325,7 +325,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_127488_engine_parameters_rapid_update_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_127488_engine_parameters_rapid_update(msg);
         _last_new_engine_fb_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received engine parameters rapid update: rpm=%.1f, coolant_temp=%.1f", msg.rpm * 0.125f, msg.coolant_temp * 0.01f);
 #endif
         break;
@@ -336,7 +336,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_127489_engine_parameters_dynamic_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_127489_engine_parameters_dynamic(msg);
         _last_new_engine_fb_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received engine parameters dynamic: oil_pressure=%.1f, fuel_rate=%.1f", msg.oil_pressure * 0.01f, msg.fuel_rate * 0.01f);
 #endif
         break;
@@ -347,7 +347,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_127493_transmission_parameters_dynamic_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_127493_transmission_parameters_dynamic(msg);
         _last_new_engine_fb_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received transmission parameters dynamic: oil_temp=%.1f, oil_pressure=%.1f", msg.oil_temp * 0.01f, msg.oil_pressure * 0.01f);
 #endif
         break;
@@ -358,7 +358,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_127497_trip_parameters_engine_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_127497_trip_parameters_engine(msg);
         _last_new_engine_fb_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received trip parameters engine: trip_time=%.1f, trip_distance=%.1f", msg.trip_time * 0.01f, msg.trip_distance * 0.01f);
 #endif
         break;
@@ -369,7 +369,7 @@ void AP_MarineICE_Backend_N2k::handle_frame(AP_HAL::CANFrame &frame)
         n2k_pgn_128267_water_depth_unpack(&msg, frame.data, frame.dlc);
         handle_pgn_128267_water_depth(msg);
         _last_new_water_depth_msg_ms = AP_HAL::millis();
-#if MARINEICE_DEBUG
+#if MARINEICE_BACKEND_N2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "MarineICE: Received water depth: %.2f m", msg.depth * 0.01f);
 #endif
         break;

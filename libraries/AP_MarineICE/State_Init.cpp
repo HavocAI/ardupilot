@@ -21,27 +21,36 @@
 using namespace MarineICE::States;
 using namespace MarineICE::Types;
 
-void State_Init::enter(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Entering...");
+void State_Init::enter(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Entering...");
+    }
 }
 
-void State_Init::run(AP_MarineICE& ctx) {
+void State_Init::run(AP_MarineICE &ctx)
+{
 
     // Set "safe" commands for the engine
     ctx.get_backend()->set_cmd_shift_throttle(GearPosition::GEAR_NEUTRAL, 0.0f);
     ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
 
-    // If there is no engine stop condition and the water depth is above the threshold
+    // If there is no engine stop condition, trim is safe, and the water depth is above the threshold
     // (if enabled), then change to ENGINE_RUN_NEUTRAL state
-    if (!ctx.get_active_engine_stop() && 
+    if ((!ctx.get_active_engine_stop() || (ctx.get_backend()->get_engine_data().trim_pct > ctx.get_params().safe_trim)) &&
         ((ctx.get_backend()->get_water_depth_m() >= ctx.get_params().water_depth_thres.get()) ||
-         (ctx.get_params().water_depth_check_enabled.get() == 0))) 
+         (ctx.get_params().water_depth_check_enabled.get() == 0)))
     {
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
     }
 }
 
-void State_Init::exit(AP_MarineICE& ctx) {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Exiting...");
+void State_Init::exit(AP_MarineICE &ctx)
+{
+    if (ctx.get_params().debug.get())
+    {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] INIT: Exiting...");
+    }
 }
