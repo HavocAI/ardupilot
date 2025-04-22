@@ -16,7 +16,7 @@ static void debug_print_buf(uint8_t* buf, int len, const char* tag);
 #define IRISORCA_SERIAL_PARITY 2                    // communication is always even parity
 #define IRISORCA_LOG_ORCA_INTERVAL_MS 5000          // log ORCA message at this interval in milliseconds
 #define IRISORCA_SEND_ACTUATOR_CMD_INTERVAL_MS 100  // actuator commands sent at 10hz if connected to actuator
-#define IRISORCA_REPLY_TIMEOUT_MS 25                // stop waiting for replies after 25ms
+#define IRISORCA_REPLY_TIMEOUT_MS 50                // stop waiting for replies after 25ms
 #define IRISORCA_ERROR_REPORT_INTERVAL_MAX_MS 10000 // errors reported to user at no less than once every 10 seconds
 
 extern const AP_HAL::HAL &hal;
@@ -53,7 +53,7 @@ static void add_crc_modbus(uint8_t *buff, uint16_t len)
 }
 
 // calculate delay require to allow bytes to be sent
-static uint32_t calc_send_delay_us(uint8_t num_bytes)
+static uint32_t calc_transmit_time_us(uint8_t num_bytes)
 {
     // baud rate of 19200 bits/sec
     // total number of bits = 10 x num_bytes (no parity)
@@ -62,8 +62,7 @@ static uint32_t calc_send_delay_us(uint8_t num_bytes)
     // plus additional 300us safety margin
     uint8_t parity = IRISORCA_SERIAL_PARITY == 0 ? 0 : 1;
     uint8_t bits_per_data_byte = 10 + parity;
-    const uint32_t delay_us = 1e6 * num_bytes * bits_per_data_byte / IRISORCA_SERIAL_BAUD + 300;
-    return delay_us;
+    return 1e6 * num_bytes * bits_per_data_byte / IRISORCA_SERIAL_BAUD + 600;
 }
 
 OrcaModbus::OrcaModbus()
@@ -71,10 +70,9 @@ OrcaModbus::OrcaModbus()
       _reply_msg_len(0),
       _received_buff_len(0),
       _send_start_us(0),
-      _send_delay_us(0),
+      _tx_time_us(0),
       _reply_wait_start_ms(0),
-      _sending_state(SendingState::Idle),
-      _receive_state(ReceiveState::Idle)
+      _transceiver_state(TransceiverState::Idle)
 {
     // Constructor implementation
 }
@@ -103,29 +101,36 @@ void OrcaModbus::tick()
 {
     uint8_t b;
     uint32_t now_us = AP_HAL::micros();
+    uint32_t now_ms = AP_HAL::millis();
 
-    if (_sending_state == SendingState::Sending) {
-        if (now_us - _send_start_us > _send_delay_us) {
-            // unset gpio or serial port's CTS pin
-            if (_pin_de > -1) {
-                hal.gpio->write(_pin_de, 0);
-            } else {
-                _uart->set_CTS_pin(false);
+    switch (_transceiver_state) {
+        case TransceiverState::Sending:
+            if (now_us - _send_start_us > _tx_time_us) {
+                // unset gpio or serial port's CTS pin
+                if (_pin_de > -1) {
+                    hal.gpio->write(_pin_de, 0);
+                } else {
+                    _uart->set_CTS_pin(false);
+                }
+
+                _transceiver_state = TransceiverState::Receiving;
+                _reply_wait_start_ms = now_ms;
             }
-
-            _sending_state = SendingState::Idle;
-        }
+            break;
+        
+        case TransceiverState::Receiving:
+            if (now_ms - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
+                // timeout waiting for reply
+                _reply_wait_start_ms = 0;
+                _transceiver_state = TransceiverState::Timeout;
+            }
+            break;
+        
+        default:
+            break;
     }
 
-    if (_receive_state == ReceiveState::Pending) {
-        if (AP_HAL::millis() - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
-            // timeout waiting for reply
-            _reply_wait_start_ms = 0;
-            _receive_state = ReceiveState::Timeout;
-        }
-    }
-
-    while (_uart->read(b) == 1) {
+    while (_uart->read(&b, 1) == 1) {
         if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
             _received_buff[_received_buff_len++] = b;
             if (_received_buff_len >= _reply_msg_len) {
@@ -133,24 +138,19 @@ void OrcaModbus::tick()
                 uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
                 uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
                 if (crc_expected == crc_received) {
-                    _receive_state = ReceiveState::Ready;
+                    _transceiver_state = TransceiverState::Ready;
                     _reply_wait_start_ms = 0;
 #ifdef DEBUG
                     debug_print_buf(_received_buff, _received_buff_len, "<=");
 #endif
                 } else {
                     // CRC is incorrect
-                    _receive_state = ReceiveState::CRCError;
+                    _transceiver_state = TransceiverState::CRCError;
                 }
                 _received_buff_len = 0;
             }
         }
     }
-}
-
-void OrcaModbus::set_recive_timeout_ms(uint32_t timeout_ms)
-{
-
 }
 
 void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
@@ -174,7 +174,7 @@ void OrcaModbus::send_read_register_cmd(uint16_t reg_addr)
 
 bool OrcaModbus::read_register(uint16_t& reg)
 {
-    if (_receive_state == ReceiveState::Ready) {
+    if (_transceiver_state == TransceiverState::Ready) {
 
         if (_received_buff[1] != FunctionCode::READ_REGISTER) {
             return false;
@@ -248,7 +248,10 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     add_crc_modbus(data, len);
     len += 2; // add CRC length
 
+    _tx_time_us = calc_transmit_time_us(len);
+
 #ifdef DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: send delay: %u %lu", len, _tx_time_us);    
     debug_print_buf(data, len, "=> ");
 #endif // DEBUG
 
@@ -260,13 +263,10 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
         _uart->set_CTS_pin(true);
     }
 
+    _transceiver_state = TransceiverState::Sending;
+
     // record start and expected delay to send message
     _send_start_us = AP_HAL::micros();
-    _send_delay_us = calc_send_delay_us(len);
-    _receive_state = ReceiveState::Pending;
-    _sending_state = SendingState::Sending;
-
-    _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
 
     // write message

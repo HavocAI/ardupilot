@@ -98,17 +98,13 @@ class OrcaModbus
 {
     public:
 
-        enum class ReceiveState {
+        enum class TransceiverState {
             Idle,
-            Pending,
+            Sending,
+            Receiving,
             Ready,
             Timeout,
             CRCError,
-        };
-
-        enum class SendingState {
-            Idle,
-            Sending,
         };
 
         friend class AP_IrisOrca;
@@ -136,9 +132,15 @@ class OrcaModbus
          */
         bool read_register(uint16_t& reg);
 
-        ReceiveState receive_state() { return _receive_state; };
+        TransceiverState transceiver_state() { return _transceiver_state; };
 
-        void set_recive_timeout_ms(uint32_t timeout_ms);
+        inline bool tx_rx_finished() {
+            return _transceiver_state == TransceiverState::Ready ||
+                    _transceiver_state == TransceiverState::Timeout ||
+                    _transceiver_state == TransceiverState::CRCError;
+        }
+
+        // void set_recive_timeout_ms(uint32_t timeout_ms);
 
         /**
          * @brief perform various tasks such as reading from the serial port
@@ -156,11 +158,11 @@ class OrcaModbus
         uint8_t _received_buff[IRISORCA_MESSAGE_LEN_MAX];
         uint16_t _received_buff_len;
         uint32_t _send_start_us;            // system time (in micros) when last message started being sent (used for timing to unset DE pin)
-        uint32_t _send_delay_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
+        uint32_t _tx_time_us;               // time to transmit the message
         uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
         
-        SendingState _sending_state;
-        ReceiveState _receive_state;
+        TransceiverState _transceiver_state;
+        
 
 
 };

@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 30000),
+    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 60000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -70,7 +70,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GP", 6, AP_IrisOrca, _gain_p, 200),
+    AP_GROUPINFO("GP", 6, AP_IrisOrca, _gain_p, 40),
 
     // @Param: GAIN_I
     // @DisplayName: Position control I gain
@@ -80,7 +80,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GI", 7, AP_IrisOrca, _gain_i, 1000),
+    AP_GROUPINFO("GI", 7, AP_IrisOrca, _gain_i, 50),
 
     // @Param: GAIN_DV
     // @DisplayName: Position control Dv gain
@@ -90,7 +90,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GDV", 8, AP_IrisOrca, _gain_dv, 0),
+    AP_GROUPINFO("GDV", 8, AP_IrisOrca, _gain_dv, 230),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -159,8 +159,8 @@ void AP_IrisOrca::init(void)
 void AP_IrisOrca::update()
 {
     if (!_initialized) {
-        hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::run_io, void));
         _initialized = true;
+        hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::run_io, void));
     }
 
 }
@@ -183,7 +183,7 @@ async AP_IrisOrca::run()
 {
     async_begin(&_run_state)
 
-    OrcaModbus::ReceiveState rx;
+    OrcaModbus::TransceiverState rx;
     uint16_t value;
 
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: starting");
@@ -203,16 +203,21 @@ async AP_IrisOrca::run()
     // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_4, 0x0007);
 
     _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    await( _modbus.tx_rx_finished() );
+    if ( (rx = _modbus.transceiver_state()) != OrcaModbus::TransceiverState::Ready) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
+        async_init(&_run_state);
+        return ASYNC_CONT;
+    }
 
     send_position_controller_params();
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    await( _modbus.tx_rx_finished() );
 
     _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    await( _modbus.tx_rx_finished() );
 
     _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    await( _modbus.tx_rx_finished() );
 
 
     // undocumented write toe CTRL_REG_1 will make the PID value take effect immediately
@@ -238,9 +243,8 @@ async AP_IrisOrca::run()
     
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %d", (uint8_t)rx);
-    if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
+    await( _modbus.tx_rx_finished() );
+    if ( !_modbus.read_register(value) ) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
         async_init(&_run_state);
         return ASYNC_CONT;
@@ -251,16 +255,16 @@ async AP_IrisOrca::run()
     if (value != 0x0003) {
         // set the auto zero on boot bit
         _modbus.send_write_register_cmd(orca::Register::ZERO_MODE, 0x0003);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        await( _modbus.tx_rx_finished() );
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero on boot set");
 
         // set auto zero max force
         _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        await( _modbus.tx_rx_finished() );
 
         // set the auto zero exit mode to 3 (position)
         _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        await( _modbus.tx_rx_finished() );
 
         // set the persist bit
         // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
@@ -268,16 +272,23 @@ async AP_IrisOrca::run()
         // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
     }
 
+    // start the auto-zero mode
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
+    await( _modbus.tx_rx_finished() );
+
     // set the user comms timeout to be 300ms
     _modbus.send_write_register_cmd(orca::Register::USER_COMMS_TIMEOUT, 300);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    await( _modbus.tx_rx_finished() );
 
     while (true) {
 
+        _run_state.last_send_ms = AP_HAL::millis();
+
         // read the state of the motor.
         orca::write_motor_read_stream(orca::Register::CTRL_REG_3, 1, _modbus);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-        if (rx != OrcaModbus::ReceiveState::Ready) {
+        await( _modbus.tx_rx_finished() );
+        rx = _modbus.transceiver_state();
+        if (rx != OrcaModbus::TransceiverState::Ready) {
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read motor state");
             async_init(&_run_state);
             return ASYNC_CONT;
@@ -292,7 +303,7 @@ async AP_IrisOrca::run()
         // if it is sleeping, then we need to send the auto-zero command.
         if (_actuator_state.mode == orca::OperatingMode::SLEEP) {
             _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO);
-            await((rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending);
+            await( _modbus.tx_rx_finished() );
 
         } else if (_actuator_state.mode == orca::OperatingMode::POSITION) {
             // if it is in position control, then we exit the loop.
@@ -303,14 +314,13 @@ async AP_IrisOrca::run()
             return ASYNC_CONT;
         }
 
-        _run_state.last_send_ms = AP_HAL::millis();
         await(TIME_PASSED(_run_state.last_send_ms, 100));
 
     }
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: in position mode");
 
-    _modbus.set_recive_timeout_ms(75);
+    // _modbus.set_recive_timeout_ms(75);
 
     while(true) {
 
@@ -328,10 +338,11 @@ async AP_IrisOrca::run()
 
         orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, command_shaft_pos, _modbus);
         }
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        await( _modbus.tx_rx_finished() );
+        rx = _modbus.transceiver_state();
         
         switch (rx) {
-            case OrcaModbus::ReceiveState::Ready:
+            case OrcaModbus::TransceiverState::Ready:
                 orca::parse_motor_command_stream_rsp(_modbus._received_buff, _modbus._received_buff_len, _actuator_state);
                 // TODO: if getting close to over temp then ramp down the max force register (keep average power ~30w)
 
@@ -341,19 +352,17 @@ async AP_IrisOrca::run()
                     return ASYNC_CONT;
                 }
                 break;
-            case OrcaModbus::ReceiveState::Timeout:
+            case OrcaModbus::TransceiverState::Timeout:
                 GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position msg timeout");
                 async_init(&_run_state);
                 return ASYNC_CONT;
                 break;
-            case OrcaModbus::ReceiveState::CRCError:
+            case OrcaModbus::TransceiverState::CRCError:
                 GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: actuator position msg crcerror");
                 // async_init(&_run_state);
                 // return ASYNC_CONT;
                 break;
-            case OrcaModbus::ReceiveState::Pending:
-                break;
-            case OrcaModbus::ReceiveState::Idle:
+            default:
                 break;
         }
 
