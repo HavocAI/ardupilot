@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 638000),
+    AP_GROUPINFO("FMAX", 5, AP_IrisOrca, _f_max, 60000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -70,7 +70,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GP", 6, AP_IrisOrca, _gain_p, 200),
+    AP_GROUPINFO("GP", 6, AP_IrisOrca, _gain_p, 40),
 
     // @Param: GAIN_I
     // @DisplayName: Position control I gain
@@ -80,7 +80,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GI", 7, AP_IrisOrca, _gain_i, 1000),
+    AP_GROUPINFO("GI", 7, AP_IrisOrca, _gain_i, 50),
 
     // @Param: GAIN_DV
     // @DisplayName: Position control Dv gain
@@ -90,7 +90,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GDV", 8, AP_IrisOrca, _gain_dv, 0),
+    AP_GROUPINFO("GDV", 8, AP_IrisOrca, _gain_dv, 230),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -110,7 +110,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("AFMAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
+    AP_GROUPINFO("AFMAX", 10, AP_IrisOrca, _auto_zero_f_max, 30),
 
     // @Param: SAFE_DGAIN
     // @DisplayName: Safety derivative gain
@@ -190,6 +190,16 @@ async AP_IrisOrca::run()
 
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 5000));
+
+    // send the PID parameters
+    send_position_controller_params();
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
