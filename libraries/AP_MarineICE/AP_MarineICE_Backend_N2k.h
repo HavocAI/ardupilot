@@ -23,8 +23,8 @@ public:
     // initialise driver
     void init() override;
 
-    // returns true if communicating with all required interfaces
-    bool healthy() override;
+    // check for fault conditions and set _status.faults
+    void monitor_faults() override;
 
     void set_cmd_shift_throttle(GearPosition gear, float throttle_pct) override;
     void set_cmd_trim(TrimCommand trim) override;

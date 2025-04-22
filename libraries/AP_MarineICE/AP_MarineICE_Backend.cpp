@@ -9,6 +9,14 @@ AP_MarineICE_Backend::AP_MarineICE_Backend(AP_MarineICE_Params &params) :
     _params(params)
 {}
 
+bool AP_MarineICE_Backend::healthy() const { 
+    for (bool fault : _status.faults) {
+        if (fault) {
+            return false;
+        }
+    }
+    return true; 
+}
 
 void AP_MarineICE_Backend::update_esc_telemetry()
 {
@@ -29,5 +37,11 @@ void AP_MarineICE_Backend::update_esc_telemetry()
     update_rpm(telem_esc_start_index + 1, float(_state.engine_data.trim_pct));
 #endif // HAL_WITH_ESC_TELEM
 }
+
+void AP_MarineICE_Backend::set_fault(FaultIndex fault, bool state) { 
+    if (fault < NUM_FAULTS) {
+        _status.faults[fault] = state; 
+    }
+};
 
 #endif // HAL_MARINEICE_ENABLED

@@ -37,8 +37,9 @@ void State_Start_Wait::run(AP_MarineICE& ctx) {
         return;
     }
 
-    // Check if the wait time limit has been reached
-    if ((AP_HAL::millis() - _begin_starter_wait_time) >= (ctx.get_params().start_delay.get() * 1000)) {
+    // Check if the wait time limit has been reached and RPM == 0
+    if (((AP_HAL::millis() - _begin_starter_wait_time) >= (ctx.get_params().start_delay.get() * 1000)) &&
+        (ctx.get_backend()->get_engine_data().rpm == 0)) {
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_START, ctx);
         return;
     }

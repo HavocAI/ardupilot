@@ -24,10 +24,15 @@ void AP_MarineICE_Backend_Sim::init()
     }
 }
 
-bool AP_MarineICE_Backend_Sim::healthy()
+void AP_MarineICE_Backend_Sim::monitor_faults()
 {
-    // Simulated backend is always healthy
-    return true;
+    // Check for engine start attempts exceeded
+    if (get_num_start_attempts() > _params.start_retries.get())
+    {
+        set_fault(ENGINE_START_ATTEMPTS_EXCEEDED, true);
+    }
+
+    // Everything else is simulated always healthy
 }
 
 // thread main function

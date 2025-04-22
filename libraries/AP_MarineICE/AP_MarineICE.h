@@ -33,7 +33,6 @@
 #include "State_Start_Wait.h"
 #include "State_Fault.h"
 #include "State_Trim.h"
-#include <array>
 
 using namespace MarineICE::Types;
 using namespace MarineICE::States;
@@ -123,22 +122,6 @@ public:
     // Roll-up: Get whether there is an active engine stop condition
     bool get_active_engine_stop() const;
 
-    // Set a fault condition in the array
-    void set_fault(FaultIndex fault, bool state) { 
-        if (fault < NUM_FAULTS) {
-            _faults[fault] = state; 
-        }
-    }
-    // Get a fault condition in the array
-    bool get_fault(FaultIndex fault) const { 
-        return (fault < NUM_FAULTS) ? _faults[fault] : false; 
-    }
-    
-    // Set the number of start attempts
-    void set_num_start_attempts(uint8_t attempts) { _num_start_attempts = attempts; }
-    // Get the number of start attempts
-    uint8_t get_num_start_attempts() const { return _num_start_attempts; }
-
 private:
     static AP_MarineICE* _singleton;
 
@@ -152,15 +135,6 @@ private:
 
     // Set up a state machine
     void setup_states();
-
-    // Monitor for faults
-    void monitor_faults();
-
-    // Fault as an array of bools (due to issues using bitset on stm32)
-    std::array<bool, NUM_FAULTS> _faults = {false};
-
-    // Variables accessed across states of FSM
-    uint8_t _num_start_attempts;
 
 };
 

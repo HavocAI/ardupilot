@@ -12,7 +12,6 @@ extern const AP_HAL::HAL& hal;
 using namespace MarineICE::Types;
 
 #define MARINEICE_DEBUG 0
-#define MARINEICE_SIMULATE_MOTOR 0
 
 #define MARINEICE_BACKEND_N2K_SOURCE_ADDRESS 0xEE // TODO: This should not be hard coded, but should be set by the NMEA2000 stack
 #define MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS 1000
@@ -44,23 +43,59 @@ void AP_MarineICE_Backend_N2k::init()
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "MarineICE: Registered with J1939 on CAN%d", _params.can_port.get());
 
-#if MARINEICE_SIMULATE_MOTOR
-    _state.engine_data.rpm = 1000.0; // Set a default RPM for w/o engine present
-#endif
 }
 
-bool AP_MarineICE_Backend_N2k::healthy()
+void AP_MarineICE_Backend_N2k::monitor_faults()
 {
+    // Check for engine overspeed
+    if (_state.engine_data.rpm > _params.rpm_max.get())
+    {
+        set_fault(ENGINE_OVERSPEED, true);
+    }
+
+    // Check for engine overtemp
+    if (_state.engine_data.temp_degc > _params.temp_max.get())
+    {
+        set_fault(ENGINE_OVERTEMP, true);
+    }
+
+    // TODO: Check for throttle actuator failure
+
+    // TODO: Check for gear actuator failure
+
+    // TODO: Check for alternator voltage low
+
+    // Check for engine start attempts exceeded
+    if (get_num_start_attempts() > _params.start_retries.get())
+    {
+        set_fault(ENGINE_START_ATTEMPTS_EXCEEDED, true);
+    }
+
     // Check if we have received all messages in the healthy timeout
     const uint32_t now_ms = AP_HAL::millis();
-    if ((_last_new_actuator_fb_msg_ms == 0 || now_ms - _last_new_actuator_fb_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
-        || (_last_new_switch_bank_status_msg_ms == 0 || now_ms - _last_new_switch_bank_status_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
-        || (_last_new_engine_fb_msg_ms == 0 || now_ms - _last_new_engine_fb_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
-        || (_last_new_water_depth_msg_ms == 0 || now_ms - _last_new_water_depth_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)) {
-        // One or more messages have not been received in the healthy timeout
-        return false;
+    if (_last_new_actuator_fb_msg_ms == 0 || 
+        now_ms - _last_new_actuator_fb_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
+    {
+        set_fault(NO_COMM_SHIFT_THROTTLE_ACTUATOR, true);
     }
-    return true;
+    
+    if (_last_new_switch_bank_status_msg_ms == 0 || 
+        now_ms - _last_new_switch_bank_status_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
+    {
+        set_fault(NO_COMM_LOAD_CONTROLLER, true);
+    }
+    if (_last_new_engine_fb_msg_ms == 0 || 
+        now_ms - _last_new_engine_fb_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
+    {
+        set_fault(NO_COMM_MOTOR, true);
+    }
+
+    if (_last_new_water_depth_msg_ms == 0 || 
+        now_ms - _last_new_water_depth_msg_ms > MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS)
+    {
+        set_fault(NO_COMM_DEPTH_SENSOR, true);
+    }
+
 }
 
 void AP_MarineICE_Backend_N2k::set_cmd_shift_throttle(GearPosition gear, float throttle_pct)

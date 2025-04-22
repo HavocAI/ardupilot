@@ -27,8 +27,8 @@ void State_Start::enter(AP_MarineICE& ctx) {
     // Reset local variables
     _begin_starter_run_time = AP_HAL::millis();
 
-    // Increment the number of start attempts
-    ctx.set_num_start_attempts(ctx.get_num_start_attempts() + 1);
+    // Increment the number of start attempts stored by the backend
+    ctx.get_backend()->set_num_start_attempts(ctx.get_backend()->get_num_start_attempts() + 1);
 }
 
 void State_Start::run(AP_MarineICE& ctx) {
@@ -44,7 +44,7 @@ void State_Start::run(AP_MarineICE& ctx) {
         // Engine started successfully
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] Engine started successfully.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_RUN_NEUTRAL, ctx);
-        ctx.set_num_start_attempts(0); 
+        ctx.get_backend()->set_num_start_attempts(0); 
         // TODO: Should the engine be required to run for some amount of time before resetting the start attempts?
         return;
     }

@@ -7,6 +7,7 @@
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 #include "AP_MarineICE_Params.h"
 #include "AP_MarineICE_Types.h"
+#include <array>
 
 using namespace MarineICE::Types;
 
@@ -22,8 +23,9 @@ public:
     // initialize driver
     virtual void init() = 0;
 
-    // returns true if communicating with all required interfaces
-    virtual bool healthy() = 0;
+    // Check for fault conditions and set _status.faults
+    // This function should be called in the main loop
+    virtual void monitor_faults() = 0;
 
     // Struct for engine data
     struct EngineData {
@@ -55,6 +57,28 @@ public:
     const TrimCommand& get_trim_command() const { return _state.trim_command; }
     const float& get_water_depth_m() const { return _state.water_depth_m; }
 
+    // Get the current health status of the backend
+    // Returns true if no faults are set
+    bool healthy() const;
+
+    // Clear all active fault conditions and
+    // reset the number of start attempts
+    void clear_faults() { 
+        _status.faults.fill(false); 
+        _status.num_start_attempts = 0; 
+    }
+
+    // Get a fault condition in the array
+    bool get_fault(FaultIndex fault) const { 
+        return (fault < NUM_FAULTS) ? _status.faults[fault] : false; 
+    }
+    
+    // Set the number of start attempts (called by the state machine)
+    void set_num_start_attempts(uint8_t attempts) { _status.num_start_attempts = attempts; }
+
+    // Get the number of start attempts
+    uint8_t get_num_start_attempts() const { return _status.num_start_attempts; }
+
 protected:
     AP_MarineICE_Params &_params; // parameters for this backend
 
@@ -71,6 +95,19 @@ protected:
 
     // Current state (feedback)
     State _state;
+
+    struct Status {
+        // Fault as an array of bools (due to issues using bitset on stm32)
+        std::array<bool, NUM_FAULTS> faults = {false};
+        uint8_t num_start_attempts;
+    };
+
+    // Current status (faults)
+    Status _status;
+
+    // Set a fault condition in the array
+    void set_fault(FaultIndex fault, bool state);
+
 };
 
 #endif // HAL_MARINEICE_ENABLED

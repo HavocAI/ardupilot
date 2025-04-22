@@ -120,21 +120,16 @@ bool AP_MarineICE::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 
 void AP_MarineICE::update()
 {
-    // Check for faults
-    monitor_faults();
-
-    // Check if any fault is set
-    bool any_fault = false;
-    for (bool fault : _faults) {
-        if (fault) {
-            any_fault = true;
-            break;
-        }
+    if (_backend == nullptr)
+    {
+        return;
     }
+    // Check for faults
+    _backend->monitor_faults();
 
-    if (any_fault &&
+    if (!healthy() &&
         _fsm_engine.current_state_id() != EngineState::ENGINE_FAULT) {
-        // If any fault is set, change to the fault state
+        // If not healthy, change to the fault state
         _fsm_engine.change_state(EngineState::ENGINE_FAULT, *this);
     } else if (get_active_engine_stop() && 
             _fsm_engine.current_state_id() != EngineState::ENGINE_INIT &&
@@ -143,13 +138,12 @@ void AP_MarineICE::update()
         _fsm_engine.change_state(EngineState::ENGINE_INIT, *this);
     }
 
+    // Update the state machines
     _fsm_engine.update(*this);
     _fsm_trim.update(*this);
 
-    if (healthy())
-    {
-        _backend->update_esc_telemetry();
-    }
+    // Update the telemetry (published from backend to GCS)
+    _backend->update_esc_telemetry();
 }
 
 bool AP_MarineICE::get_cmd_neutral_lock() const
@@ -221,33 +215,6 @@ void AP_MarineICE::setup_states()
     _fsm_trim.register_state(TrimState::TRIM_AUTO_STOP, new State_Trim_Auto_Stop());
     _fsm_trim.register_state(TrimState::TRIM_AUTO_UP, new State_Trim_Auto_Up());
     _fsm_trim.register_state(TrimState::TRIM_AUTO_DOWN, new State_Trim_Auto_Down());
-}
-
-void AP_MarineICE::monitor_faults()
-{
-    // Check for engine overspeed
-    if (_backend->get_engine_data().rpm > _params.rpm_max.get())
-    {
-        set_fault(ENGINE_OVERSPEED, true);
-    }
-
-    // Check for engine overtemp
-    if (_backend->get_engine_data().temp_degc > _params.temp_max.get())
-    {
-        set_fault(ENGINE_OVERTEMP, true);
-    }
-
-    // TODO: Check for throttle actuator failure
-
-    // TODO: Check for gear actuator failure
-
-    // TODO: Check for alternator voltage low
-
-    // Check for engine start attempts exceeded
-    if (get_num_start_attempts() > _params.start_retries.get())
-    {
-        set_fault(ENGINE_START_ATTEMPTS_EXCEEDED, true);
-    }
 }
 
 // Get the AP_MarineICE singleton

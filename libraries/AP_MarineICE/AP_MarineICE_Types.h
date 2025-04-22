@@ -26,8 +26,12 @@ namespace MarineICE {
         };
 
         // Faults
-        static constexpr size_t NUM_FAULTS = 7;
+        static constexpr size_t NUM_FAULTS = 11;
         enum FaultIndex {
+            NO_COMM_MOTOR,
+            NO_COMM_SHIFT_THROTTLE_ACTUATOR,
+            NO_COMM_LOAD_CONTROLLER,
+            NO_COMM_DEPTH_SENSOR,
             ENGINE_OVERSPEED,
             ENGINE_OVERTEMP,
             THROTTLE_ACTUATOR_FAILURE,
