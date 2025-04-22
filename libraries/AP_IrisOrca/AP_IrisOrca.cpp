@@ -392,7 +392,7 @@ async AP_IrisOrca::run()
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %d", (uint8_t)rx);
     if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Failed to read ZERO_MODE register");
         async_init(&_run_state);
         return ASYNC_CONT;
     }
@@ -450,6 +450,12 @@ async AP_IrisOrca::run()
             break;
         }
 
+        if (_actuator_state.errors != 0) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: actuator error: %u", _actuator_state.errors);
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
+
         _run_state.last_send_ms = AP_HAL::millis();
         await(TIME_PASSED(_run_state.last_send_ms, 100));
 
@@ -492,9 +498,7 @@ async AP_IrisOrca::run()
                 // async_init(&_run_state);
                 // return ASYNC_CONT;
                 break;
-            case OrcaModbus::ReceiveState::Pending:
-                break;
-            case OrcaModbus::ReceiveState::Idle:
+            default:
                 break;
         }
 
