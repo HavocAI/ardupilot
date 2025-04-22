@@ -43,12 +43,17 @@ namespace MarineICE {
 
         inline const char* fault_to_string(FaultIndex fault) {
             switch (fault) {
+                case NO_COMM_MOTOR: return "NO_COMM_MOTOR";
+                case NO_COMM_SHIFT_THROTTLE_ACTUATOR: return "NO_COMM_SHIFT_THROTTLE_ACTUATOR";
+                case NO_COMM_LOAD_CONTROLLER: return "NO_COMM_LOAD_CONTROLLER";
+                case NO_COMM_DEPTH_SENSOR: return "NO_COMM_DEPTH_SENSOR";
                 case ENGINE_OVERSPEED: return "ENGINE_OVERSPEED";
                 case ENGINE_OVERTEMP: return "ENGINE_OVERTEMP";
                 case THROTTLE_ACTUATOR_FAILURE: return "THROTTLE_ACTUATOR_FAILURE";
                 case GEAR_ACTUATOR_FAILURE: return "GEAR_ACTUATOR_FAILURE";
                 case ALTERNATOR_VOLTAGE_LOW: return "ALTERNATOR_VOLTAGE_LOW";
                 case ENGINE_START_ATTEMPTS_EXCEEDED: return "ENGINE_START_ATTEMPTS_EXCEEDED";
+                case WATER_DEPTH_TOO_LOW: return "WATER_DEPTH_TOO_LOW";
                 default: return "UNKNOWN_FAULT";
             }
         }

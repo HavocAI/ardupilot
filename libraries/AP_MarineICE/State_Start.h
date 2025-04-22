@@ -27,5 +27,5 @@ public:
     void exit(AP_MarineICE& ctx) override;
 
 private:
-    uint32_t _begin_starter_run_time;
+    uint32_t _entry_time_ms;
 };

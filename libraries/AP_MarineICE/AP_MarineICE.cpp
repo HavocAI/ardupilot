@@ -148,8 +148,19 @@ void AP_MarineICE::update()
 
 bool AP_MarineICE::get_cmd_neutral_lock() const
 {
-    return (rc().find_channel_for_option(RC_Channel::AUX_FUNC::RELAY2)->
-        norm_input()) > 0.5f;
+    // Neutral Lock is set by RELAY2
+    // We get the value of RELAY2 instead of RC channel so that the neutral lock
+    // can be set by RC, GCS, or physical switch
+    AP_Relay *relay = AP::relay();
+    if (relay == nullptr) {
+        return false;
+    }
+
+    if (!relay->enabled(1)) {
+        return false;
+    }
+
+    return relay->get(1);
 }
 
 float AP_MarineICE::get_cmd_throttle() const { 

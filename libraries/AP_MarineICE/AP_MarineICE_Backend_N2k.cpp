@@ -14,7 +14,7 @@ using namespace MarineICE::Types;
 #define MARINEICE_BACKEND_N2K_DEBUG 0
 
 #define MARINEICE_BACKEND_N2K_SOURCE_ADDRESS 0xEE // TODO: This should not be hard coded, but should be set by the NMEA2000 stack
-#define MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS 1000
+#define MARINEICE_BACKEND_N2K_HEALTHY_TIMEOUT_MS 2000
 
 void AP_MarineICE_Backend_N2k::init()
 {

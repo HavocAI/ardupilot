@@ -27,16 +27,7 @@ void State_Fault::enter(AP_MarineICE &ctx)
     {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] FAULT: Entering...");
     }
-
-    // Print the active faults
-    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Active Faults:");
-    for (int i = 0; i < 6; ++i)
-    {
-        if (ctx.get_backend()->get_fault(static_cast<FaultIndex>(i)))
-        {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "%s", fault_to_string(static_cast<FaultIndex>(i)));
-        }
-    }
+    _entry_time_ms = AP_HAL::millis();
 }
 
 void State_Fault::run(AP_MarineICE &ctx)
@@ -46,9 +37,23 @@ void State_Fault::run(AP_MarineICE &ctx)
     ctx.get_backend()->set_cmd_ignition(false);
     ctx.get_backend()->set_cmd_starter(false);
 
-    // TODO: Is disarm the best way to clear faults and return to Init?
-    if (!ctx.get_armed()) // Clear faults if not armed
+    if (AP_HAL::millis() - _last_printout_ms > 1000)
     {
+        // Print the active faults every second
+        for (int i = 0; i < 6; ++i)
+        {
+            if (ctx.get_backend()->get_fault(static_cast<FaultIndex>(i)))
+            {
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] %s", fault_to_string(static_cast<FaultIndex>(i)));
+            }
+        }
+        _last_printout_ms = AP_HAL::millis();
+    }
+
+    if (!ctx.get_armed() &&
+        (AP_HAL::millis() > (_entry_time_ms + 1000))) // Clear faults if not armed for 1 sec
+    {
+        // TODO: Is disarm the best way to clear faults and return to Init?
         // Clear faults and reset the number of start attempts
         ctx.get_backend()->clear_faults();
         ctx.get_backend()->set_num_start_attempts(0);

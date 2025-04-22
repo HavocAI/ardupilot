@@ -28,7 +28,7 @@ void State_Start::enter(AP_MarineICE &ctx)
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "[MarineICE] START: Entering...");
     }
     // Reset local variables
-    _begin_starter_run_time = AP_HAL::millis();
+    _entry_time_ms = AP_HAL::millis();
 
     // Increment the number of start attempts stored by the backend
     ctx.get_backend()->set_num_start_attempts(ctx.get_backend()->get_num_start_attempts() + 1);
@@ -56,10 +56,10 @@ void State_Start::run(AP_MarineICE &ctx)
     }
 
     // Check if start time limit has been reached
-    if ((AP_HAL::millis() - _begin_starter_run_time) > (ctx.get_params().start_time.get() * 1000))
+    if ((AP_HAL::millis() - _entry_time_ms) > (ctx.get_params().start_time.get() * 1000))
     {
         // Engine start failed
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "[MarineICE] Engine start failed.");
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "[MarineICE] Engine start failed.");
         ctx.get_fsm_engine().change_state(EngineState::ENGINE_START_WAIT, ctx);
         return;
     }

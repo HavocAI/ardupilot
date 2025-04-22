@@ -16,6 +16,7 @@
 #pragma once
 
 #include "BaseState.h"
+#include <cstdint>
 
 class AP_MarineICE;
 
@@ -24,4 +25,8 @@ public:
     void enter(AP_MarineICE& ctx) override;
     void run(AP_MarineICE& ctx) override;
     void exit(AP_MarineICE& ctx) override;
+
+private:
+    uint32_t _entry_time_ms;
+    uint32_t _last_printout_ms;
 };
