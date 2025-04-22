@@ -73,6 +73,7 @@ namespace orca {
         PC_FSATU = 137,
         PC_FSATU_H = 138,
         SAFETY_DGAIN = 143,
+        USER_COMMS_TIMEOUT = 163,
         POS_FILT = 167,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
@@ -335,6 +336,12 @@ namespace orca {
      * Lengthstruc must be > 2 since the CRC itself is two bytes.
      */
     void add_crc_modbus(uint8_t *buff, uint8_t len);
+
+    void write_motor_command_stream(const MotorCommandStreamSubCode sub_code, const uint32_t data, OrcaModbus& modbus);
+    bool parse_motor_command_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state);
+
+    void write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_width, OrcaModbus& modbus);
+    bool parse_motor_read_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value);
 }
 
 class AP_IrisOrca {
@@ -383,12 +390,15 @@ private:
 
     typedef struct struct_run_state {
         async_state;
-        uint32_t wait_timer;
+        uint32_t last_send_ms;
     } run_state_t;
     
     run_state_t _run_state;
 
     static AP_IrisOrca *_singleton;     // singleton instance
+
+    void send_position_controller_params();
+    uint32_t get_desired_shaft_pos();
 
 };
 

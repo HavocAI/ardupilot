@@ -74,7 +74,7 @@ OrcaModbus::OrcaModbus()
       _transmit_time_us(0),
       _reply_wait_start_ms(0),
       _sending_state(SendingState::Idle),
-      _receive_state(ReceiveState::Pending)
+      _receive_state(ReceiveState::Idle)
 {
     // Constructor implementation
 }

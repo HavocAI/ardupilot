@@ -23,6 +23,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+#include <AP_HAL/utility/sparse-endian.h>
 
 #define IRISORCA_SERIAL_BAUD                    19200   // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY                  2       // communication is always even parity
@@ -142,6 +143,86 @@ void add_crc_modbus(uint8_t *buff, uint8_t len) {
   buff[len + 1] = (uint8_t)((crc >> 8) & 0xFF);
 }
 
+void write_motor_command_stream(const MotorCommandStreamSubCode sub_code, const uint32_t data, OrcaModbus& modbus)
+{
+    uint16_t i = 0;
+    uint8_t send_buff[16];
+    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[i++] = static_cast<uint8_t>(FunctionCode::MOTOR_COMMAND_STREAM);
+    send_buff[i++] = static_cast<uint8_t>(sub_code);
+
+    // data is 32 bits - send as 4 bytes
+    put_be32_ptr(&send_buff[i], data);
+    i += 4;
+
+    modbus.send_data(send_buff, i, MOTOR_COMMAND_STREAM_MSG_RSP_LEN);
+}
+
+bool parse_motor_command_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state)
+{
+    // if (len < MOTOR_COMMAND_STREAM_MSG_RSP_LEN) {
+    //     return false;
+    // }
+
+    if (data[0] != static_cast<uint8_t>(MsgAddress::DEVICE)) {
+        return false;
+    }
+    if (data[1] != static_cast<uint8_t>(FunctionCode::MOTOR_COMMAND_STREAM)) {
+        return false;
+    }
+
+    state.shaft_position = be32toh_ptr(&data[2]);
+    state.force_realized = be32toh_ptr(&data[6]);
+    state.power_consumed = be16toh_ptr(&data[10]);
+    state.temperature = data[12];
+    state.voltage = be16toh_ptr(&data[13]);
+    state.errors = be16toh_ptr(&data[15]);
+
+    return true;
+}
+
+void write_motor_read_stream(const uint16_t reg_addr, const uint8_t reg_width, OrcaModbus& modbus)
+{
+    // assert reg_width is 1 or 2
+    // assert(reg_width == 1 || reg_width == 2);
+
+    uint16_t i = 0;
+    uint8_t send_buff[16];
+    send_buff[i++] = static_cast<uint8_t>(MsgAddress::DEVICE);
+    send_buff[i++] = static_cast<uint8_t>(FunctionCode::MOTOR_READ_STREAM);
+    send_buff[i++] = HIGHBYTE(reg_addr);
+    send_buff[i++] = LOWBYTE(reg_addr);
+    send_buff[i++] = reg_width;
+
+    modbus.send_data(send_buff, i, MOTOR_READ_STREAM_MSG_RSP_LEN);
+}
+
+bool parse_motor_read_stream_rsp(const uint8_t* data, const uint16_t len, ActuatorState& state, uint32_t& reg_value)
+{
+    // if (len < MOTOR_READ_STREAM_MSG_RSP_LEN) {
+    //     return false;
+    // }
+
+    if (data[0] != static_cast<uint8_t>(MsgAddress::DEVICE)) {
+        return false;
+    }
+    if (data[1] != static_cast<uint8_t>(FunctionCode::MOTOR_READ_STREAM)) {
+        return false;
+    }
+
+    reg_value = be32toh_ptr(&data[2]);
+
+    state.mode = static_cast<OperatingMode>(data[6]);
+    state.shaft_position = be32toh_ptr(&data[7]);
+    state.force_realized = be32toh_ptr(&data[11]);
+    state.power_consumed = be16toh_ptr(&data[15]);
+    state.temperature = data[17];
+    state.voltage = be16toh_ptr(&data[18]);
+    state.errors = be16toh_ptr(&data[20]);
+
+    return true;
+}
+
 }  // namespace orca
 
 extern const AP_HAL::HAL& hal;
@@ -190,7 +271,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 638000),
+    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 60000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -200,7 +281,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_P", 6, AP_IrisOrca, _gain_p, 200),
+    AP_GROUPINFO("GAIN_P", 6, AP_IrisOrca, _gain_p, 40),
 
     // @Param: GAIN_I
     // @DisplayName: Position control I gain
@@ -210,7 +291,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 1000),
+    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 50),
 
     // @Param: GAIN_DV
     // @DisplayName: Position control Dv gain
@@ -220,7 +301,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 800),
+    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 230),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -240,7 +321,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
+    AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 30),
 
     // @Param: SAFE_DGAIN
     // @DisplayName: Safety derivative gain
@@ -291,23 +372,130 @@ async AP_IrisOrca::run()
 
     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: starting");
 
-    _run_state.wait_timer = AP_HAL::millis();
-    await(TIME_PASSED(_run_state.wait_timer, 5000));
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 5000));
 
-    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, 0x1);
+    // send the PID parameters
+    send_position_controller_params();
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
-    _run_state.wait_timer = AP_HAL::millis();
-    await(TIME_PASSED(_run_state.wait_timer, 1000));
+    _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
 
     // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
     _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
     await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %u", rx);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %d", (uint8_t)rx);
     if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read ZERO_MODE register");
         async_init(&_run_state);
         return ASYNC_CONT;
+    }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: ZERO_MODE: %u", value);
+
+    if (value != 0x0003) {
+        // set the auto zero on boot bit
+        _modbus.send_write_register_cmd(orca::Register::ZERO_MODE, 0x0003);
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero on boot set");
+
+        // set auto zero max force
+        _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+        // set the auto zero exit mode to 3 (position)
+        _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+        // // set the persist bit
+        // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
+        // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
+    }
+
+    // set the user comms timeout to be 300ms
+    _modbus.send_write_register_cmd(orca::Register::USER_COMMS_TIMEOUT, 300);
+    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+
+    while (true) {
+
+        // read the state of the motor.
+        orca::write_motor_read_stream(orca::Register::CTRL_REG_3, 1, _modbus);
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        if (rx != OrcaModbus::ReceiveState::Ready) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read motor state");
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
+        uint32_t reg_value;
+        if (!orca::parse_motor_read_stream_rsp(_modbus._received_buff, _modbus._received_buff_len, _actuator_state, reg_value)) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to parse motor state");
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
+
+        // if it is sleeping, then we need to send the auto-zero command.
+        if (_actuator_state.mode == orca::OperatingMode::SLEEP) {
+            _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, static_cast<uint16_t>(orca::OperatingMode::AUTO_ZERO));
+            await((rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending);
+
+        } else if (_actuator_state.mode == orca::OperatingMode::POSITION) {
+            // if it is in position control, then we exit the loop.
+            break;
+        }
+
+        _run_state.last_send_ms = AP_HAL::millis();
+        await(TIME_PASSED(_run_state.last_send_ms, 100));
+
+    }
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: in position mode");
+
+    _modbus.set_recive_timeout_ms(75);
+
+    while(true) {
+
+        _run_state.last_send_ms = AP_HAL::millis();
+
+        {
+        uint32_t desired_shaft_pos = get_desired_shaft_pos();
+        orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, desired_shaft_pos, _modbus);
+        }
+        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+        
+        switch (rx) {
+            case OrcaModbus::ReceiveState::Ready:
+                orca::parse_motor_command_stream_rsp(_modbus._received_buff, _modbus._received_buff_len, _actuator_state);
+                // TODO: if getting close to over temp then ramp down the max force register (keep average power ~30w)
+
+                if (_actuator_state.errors != 0) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: actuator error: %u", _actuator_state.errors);
+                    async_init(&_run_state);
+                    return ASYNC_CONT;
+                }
+                break;
+            case OrcaModbus::ReceiveState::Timeout:
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: actuator position msg timeout");
+                async_init(&_run_state);
+                return ASYNC_CONT;
+                break;
+            case OrcaModbus::ReceiveState::CRCError:
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: actuator position msg crcerror");
+                // async_init(&_run_state);
+                // return ASYNC_CONT;
+                break;
+            case OrcaModbus::ReceiveState::Pending:
+                break;
+            case OrcaModbus::ReceiveState::Idle:
+                break;
+        }
+
+        // send at 10Hz
+        await(TIME_PASSED(_run_state.last_send_ms, 100));
     }
 
 
@@ -342,6 +530,31 @@ void AP_IrisOrca::thread_main()
 
         _modbus.tick();
     }
+}
+
+void AP_IrisOrca::send_position_controller_params()
+{
+    uint16_t registers[6];
+    registers[0] = _gain_p;
+    registers[1] = _gain_i;
+    registers[2] = _gain_dv;
+    registers[3] = _gain_de;
+    registers[4] = HIGHWORD(_f_max);
+    registers[5] = LOWWORD(_f_max);
+
+    _modbus.send_write_multiple_registers(orca::Register::PC_PGAIN, 6, registers);
+}
+
+uint32_t AP_IrisOrca::get_desired_shaft_pos()
+{
+    float yaw = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering);
+
+    const float m = (_reverse_direction ? -1.0 : 1.0) * 0.5 * 1000 * (_max_travel_mm - (2.0 * _pad_travel_mm));
+    const float b = 0.5 * 1000 * _max_travel_mm;
+    
+    const float shaft_position_um = yaw * m + b;
+
+    return shaft_position_um;
 }
 
 // returns true if communicating with the actuator
