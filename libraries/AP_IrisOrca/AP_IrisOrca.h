@@ -400,6 +400,8 @@ private:
     void send_position_controller_params();
     uint32_t get_desired_shaft_pos();
 
+    bool _healthy;
+
 };
 
 namespace AP {

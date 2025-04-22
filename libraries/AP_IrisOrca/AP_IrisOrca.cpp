@@ -15,7 +15,7 @@
 
 #include "AP_IrisOrca.h"
 
-// #if HAL_IRISORCA_ENABLED
+#if HAL_IRISORCA_ENABLED
 
 #include <AP_Common/AP_Common.h>
 #include <AP_Math/AP_Math.h>
@@ -347,6 +347,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 };
 
 AP_IrisOrca::AP_IrisOrca()
+ : _healthy(false)
 {
     _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
@@ -370,7 +371,8 @@ async AP_IrisOrca::run()
     OrcaModbus::ReceiveState rx;
     uint16_t value;
 
-    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: starting");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: starting");
+    _healthy = false;
 
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 5000));
@@ -458,6 +460,8 @@ async AP_IrisOrca::run()
     _modbus.set_recive_timeout_ms(75);
 
     while(true) {
+
+        _healthy = true;
 
         _run_state.last_send_ms = AP_HAL::millis();
 
@@ -560,7 +564,7 @@ uint32_t AP_IrisOrca::get_desired_shaft_pos()
 // returns true if communicating with the actuator
 bool AP_IrisOrca::healthy()
 {
-    return true;
+    return _healthy;
 }
 
 
@@ -581,4 +585,4 @@ AP_IrisOrca *irisorca()
 }
 };
 
-// #endif // HAL_IRISORCA_ENABLED
+#endif // HAL_IRISORCA_ENABLED
