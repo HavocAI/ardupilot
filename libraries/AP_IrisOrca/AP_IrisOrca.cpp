@@ -384,6 +384,13 @@ async AP_IrisOrca::run()
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 5000));
 
+    // command sleep mode
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, static_cast<uint16_t>(orca::OperatingMode::SLEEP));
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set sleep mode");
+    
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
+
     // send the PID parameters
     send_position_controller_params();
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set PID params");
