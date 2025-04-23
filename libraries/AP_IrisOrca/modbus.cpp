@@ -286,6 +286,7 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     _transmit_time_us = calc_tx_time_us(len);
     _receive_state = ReceiveState::Pending;
     _sending_state = SendingState::Sending;
+    _received_buff_len = 0;
 
     _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;

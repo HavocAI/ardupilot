@@ -361,6 +361,14 @@ void AP_IrisOrca::init()
     hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::thread_main, void), "irisorca", 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1);
 }
 
+#define WAIT_FOR_POSITIVE(msg) \
+await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending ); \
+if (rx != OrcaModbus::ReceiveState::Ready) {    \
+    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, msg);     \
+    async_init(&_run_state);                    \
+    return ASYNC_CONT;                          \
+}                                               \
+
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
@@ -369,7 +377,6 @@ async AP_IrisOrca::run()
     async_begin(&_run_state)
 
     OrcaModbus::ReceiveState rx;
-    uint16_t value;
 
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: starting");
     _healthy = false;
@@ -379,49 +386,51 @@ async AP_IrisOrca::run()
 
     // send the PID parameters
     send_position_controller_params();
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set PID params");
+
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set position filter");
+
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set safety derivative gain");
 
-    // read ZERO_MODE register and if the "Auto Zero on Boot (3)" is not set, set it now
-    _modbus.send_read_register_cmd(orca::Register::ZERO_MODE);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: rx: %d", (uint8_t)rx);
-    if (rx != OrcaModbus::ReceiveState::Ready || !_modbus.read_register(value)) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Failed to read ZERO_MODE register");
-        async_init(&_run_state);
-        return ASYNC_CONT;
-    }
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: ZERO_MODE: %u", value);
+    // set manual auto zero
+    _modbus.send_write_register_cmd(orca::Register::ZERO_MODE, 0x0002);
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set zero mode");
+    
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
 
-    if (value != 0x0003) {
-        // set the auto zero on boot bit
-        _modbus.send_write_register_cmd(orca::Register::ZERO_MODE, 0x0003);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero on boot set");
+    // set auto zero max force
+    _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set auto zero max force");
 
-        // set auto zero max force
-        _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
 
-        // set the auto zero exit mode to 3 (position)
-        _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
-        await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    // set the auto zero exit mode to 3 (position)
+    _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set auto zero exit mode");
 
-        // // set the persist bit
-        // _modbus.send_write_register_cmd(orca::Register::CTRL_REG_2, 0x0001);
-        // await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
-        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Persist bit set");
-    }
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     // set the user comms timeout to be 300ms
     _modbus.send_write_register_cmd(orca::Register::USER_COMMS_TIMEOUT, 300);
-    await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to set user comms timeout");
+
+    // start auto zero
+    _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, static_cast<uint16_t>(orca::OperatingMode::AUTO_ZERO));
+    WAIT_FOR_POSITIVE("IrisOrca: Failed to start auto zero");
 
     while (true) {
 
