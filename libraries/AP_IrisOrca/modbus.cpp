@@ -4,12 +4,12 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <GCS_MAVLink/GCS.h>
 
-// #define DEBUG 1
+#define DEBUG 1
 
 #ifdef DEBUG
 #include <stdio.h>
 
-static void debug_print_buf(uint8_t* buf, int len);
+static void debug_print_buf(uint8_t* buf, int len, const char* prefix);
 #endif // DEBUG
 
 #define IRISORCA_SERIAL_BAUD 19200                  // communication is always at 19200
@@ -73,8 +73,8 @@ OrcaModbus::OrcaModbus()
       _send_start_us(0),
       _transmit_time_us(0),
       _reply_wait_start_ms(0),
-      _sending_state(SendingState::Idle),
-      _receive_state(ReceiveState::Idle)
+      _transceiver_state(TransceiverState::Idle),
+      _receive_state(ReceiveState::Pending)
 {
     // Constructor implementation
 }
@@ -111,22 +111,53 @@ void OrcaModbus::tick()
 {
     uint8_t b;
     uint32_t now_us = AP_HAL::micros();
+    uint32_t now_ms = AP_HAL::millis();
 
-    uint32_t num_bytes = _uart->available();
-    if (num_bytes > 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: available bytes: %lu", num_bytes);
+    switch (_transceiver_state) {
+        case TransceiverState::Sending:
+            if (now_us - _send_start_us > _transmit_time_us) {
+                _uart->set_CTS_pin(false);
+                _reply_wait_start_ms = now_ms;
+                _transceiver_state = TransceiverState::Receiving;
+            }
+            break;
+        
+        case TransceiverState::Receiving:
+            if (now_ms - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
+                // timeout waiting for reply
+                _reply_wait_start_ms = 0;
+                _receive_state = ReceiveState::Timeout;
+                _transceiver_state = TransceiverState::Idle;
+#ifdef DEBUG
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: timeout waiting for reply");
+#endif // DEBUG
+            }
+            break;
+
+        case TransceiverState::Idle:
+            break;
     }
-    while (num_bytes--) {
 
-        ssize_t ret = _uart->read(&b, 1);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r %d b: 0x%x", ret, b);
+    while (_uart->read(&b, 1) == 1) {
 
-        if (_received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
+#ifdef DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %02X", b);
+#endif // DEBUG
+
+        if (_transceiver_state == TransceiverState::Receiving &&
+             _received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
+
+            _reply_wait_start_ms = now_ms;
+
             _received_buff[_received_buff_len++] = b;
             if (_received_buff_len >= _reply_msg_len) {
                 // check CRC of the message
                 uint16_t crc_expected = calc_crc_modbus(_received_buff, _received_buff_len - 2);
                 uint16_t crc_received = (_received_buff[_received_buff_len - 2]) | (_received_buff[_received_buff_len - 1] << 8);
+#ifdef DEBUG
+                debug_print_buf(_received_buff, _received_buff_len, "<= ");
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: CRC expected: %04X, received: %04X", crc_expected, crc_received);
+#endif // DEBUG
                 if (crc_expected == crc_received) {
                     _receive_state = ReceiveState::Ready;
                     _reply_wait_start_ms = 0;
@@ -135,34 +166,12 @@ void OrcaModbus::tick()
                     _receive_state = ReceiveState::CRCError;
                 }
                 _received_buff_len = 0;
+                _transceiver_state = TransceiverState::Idle;
             }
         }
+
     }
 
-    if (_sending_state == SendingState::Sending) {
-        if (now_us - _send_start_us > _transmit_time_us) {
-            // unset gpio or serial port's CTS pin
-            // if (_pin_de > -1) {
-            //     hal.gpio->write(_pin_de, 0);
-            // } else {
-            //     _uart->set_CTS_pin(false);
-            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: set CTS pin low");
-            // }
-
-            _uart->set_CTS_pin(false);
-            // _uart->set_RTS_pin(true);
-
-            _sending_state = SendingState::Idle;
-        }
-    }
-
-    if (_receive_state == ReceiveState::Pending) {
-        if (AP_HAL::millis() - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
-            // timeout waiting for reply
-            _reply_wait_start_ms = 0;
-            _receive_state = ReceiveState::Timeout;
-        }
-    }
 }
 
 void OrcaModbus::set_recive_timeout_ms(uint32_t timeout_ms)
@@ -246,7 +255,7 @@ void OrcaModbus::send_write_multiple_registers(uint16_t reg_addr, uint16_t reg_c
 }
 
 #ifdef DEBUG
-static void debug_print_buf(uint8_t* buf, int len)
+static void debug_print_buf(uint8_t* buf, int len, const char* prefix)
 {
     char str[256];
     for (int i = 0; i < len; i++) {
@@ -254,7 +263,7 @@ static void debug_print_buf(uint8_t* buf, int len)
     }
     str[len * 3] = '\0'; // null terminate the string
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s", str);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s %s", prefix, str);
 }
 #endif
 
@@ -266,7 +275,7 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     len += 2; // add CRC length
 
 #ifdef DEBUG
-    debug_print_buf(data, len);
+    debug_print_buf(data, len, "=> ");
 #endif // DEBUG
 
 
@@ -285,10 +294,9 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     _send_start_us = AP_HAL::micros();
     _transmit_time_us = calc_tx_time_us(len);
     _receive_state = ReceiveState::Pending;
-    _sending_state = SendingState::Sending;
+    _transceiver_state = TransceiverState::Sending;
     _received_buff_len = 0;
 
-    _reply_wait_start_ms = AP_HAL::millis();
     _reply_msg_len = expected_reply_len;
 
     // write message

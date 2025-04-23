@@ -385,25 +385,29 @@ async AP_IrisOrca::run()
     await(TIME_PASSED(_run_state.last_send_ms, 5000));
 
     // command sleep mode
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, static_cast<uint16_t>(orca::OperatingMode::SLEEP));
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set sleep mode");
-    
+
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     // send the PID parameters
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     send_position_controller_params();
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set PID params");
 
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::POS_FILT, _pos_filt);
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set position filter");
 
     _run_state.last_send_ms = AP_HAL::millis();
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::SAFETY_DGAIN, _safety_dgain);
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set safety derivative gain");
 
@@ -411,6 +415,7 @@ async AP_IrisOrca::run()
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     // set manual auto zero
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::ZERO_MODE, 0x0002);
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set zero mode");
     
@@ -418,6 +423,7 @@ async AP_IrisOrca::run()
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     // set auto zero max force
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max);
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set auto zero max force");
 
@@ -425,6 +431,7 @@ async AP_IrisOrca::run()
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     // set the auto zero exit mode to 3 (position)
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::AUTO_ZERO_EXIT_MODE, 0x003);
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set auto zero exit mode");
 
@@ -432,16 +439,19 @@ async AP_IrisOrca::run()
     await(TIME_PASSED(_run_state.last_send_ms, 10));
 
     // set the user comms timeout to be 300ms
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::USER_COMMS_TIMEOUT, 300);
     WAIT_FOR_POSITIVE("IrisOrca: Failed to set user comms timeout");
 
     // start auto zero
+    await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
     _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, static_cast<uint16_t>(orca::OperatingMode::AUTO_ZERO));
     WAIT_FOR_POSITIVE("IrisOrca: Failed to start auto zero");
 
     while (true) {
 
         // read the state of the motor.
+        await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
         orca::write_motor_read_stream(orca::Register::CTRL_REG_3, 1, _modbus);
         await( (rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending );
         if (rx != OrcaModbus::ReceiveState::Ready) {
@@ -458,6 +468,7 @@ async AP_IrisOrca::run()
 
         // if it is sleeping, then we need to send the auto-zero command.
         if (_actuator_state.mode == orca::OperatingMode::SLEEP) {
+            await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
             _modbus.send_write_register_cmd(orca::Register::CTRL_REG_3, static_cast<uint16_t>(orca::OperatingMode::AUTO_ZERO));
             await((rx = _modbus.receive_state()) != OrcaModbus::ReceiveState::Pending);
 
@@ -488,6 +499,7 @@ async AP_IrisOrca::run()
         _run_state.last_send_ms = AP_HAL::millis();
 
         {
+        await( _modbus.transceiver_state() == OrcaModbus::TransceiverState::Idle );
         uint32_t desired_shaft_pos = get_desired_shaft_pos();
         orca::write_motor_command_stream(orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, desired_shaft_pos, _modbus);
         }
