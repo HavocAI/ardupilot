@@ -16,7 +16,7 @@ static void debug_print_buf(uint8_t* buf, int len, const char* prefix);
 #define IRISORCA_SERIAL_PARITY 2                    // communication is always even parity
 #define IRISORCA_LOG_ORCA_INTERVAL_MS 5000          // log ORCA message at this interval in milliseconds
 #define IRISORCA_SEND_ACTUATOR_CMD_INTERVAL_MS 100  // actuator commands sent at 10hz if connected to actuator
-#define IRISORCA_REPLY_TIMEOUT_MS 25                // stop waiting for replies after 25ms
+#define IRISORCA_REPLY_TIMEOUT_MS 300                // stop waiting for replies after 25ms
 #define IRISORCA_ERROR_REPORT_INTERVAL_MAX_MS 10000 // errors reported to user at no less than once every 10 seconds
 
 extern const AP_HAL::HAL &hal;
@@ -88,7 +88,7 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
 
     // Set the serial port parameters
     _uart->configure_parity(IRISORCA_SERIAL_PARITY);
-    _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
+    _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
     // _uart->set_unbuffered_writes(true);
     _uart->begin(IRISORCA_SERIAL_BAUD, 128, 128);
     _uart->discard_input();
@@ -103,51 +103,71 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
     //     _uart->set_CTS_pin(false);
     // }
 
-    _uart->set_CTS_pin(false);
+    // _uart->set_CTS_pin(false);
     // _uart->set_RTS_pin(true);
 }
 
 void OrcaModbus::tick()
 {
     uint8_t b;
-    uint32_t now_us = AP_HAL::micros();
+    // uint32_t now_us = AP_HAL::micros();
     uint32_t now_ms = AP_HAL::millis();
 
-    switch (_transceiver_state) {
-        case TransceiverState::Sending:
-            if (now_us - _send_start_us > _transmit_time_us) {
-                _uart->set_CTS_pin(false);
-                _reply_wait_start_ms = now_ms;
-                _transceiver_state = TransceiverState::Receiving;
-            }
-            break;
-        
-        case TransceiverState::Receiving:
-            if (now_ms - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
-                // timeout waiting for reply
-                _reply_wait_start_ms = 0;
-                _receive_state = ReceiveState::Timeout;
-                _transceiver_state = TransceiverState::Idle;
+    if (_transceiver_state == TransceiverState::Sending) {
+        if (now_ms - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
+            // timeout waiting for reply
+            _receive_state = ReceiveState::Timeout;
+            _transceiver_state = TransceiverState::Idle;
+            // _uart->set_CTS_pin(false);
 #ifdef DEBUG
-                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: timeout waiting for reply");
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: timeout waiting for reply");
 #endif // DEBUG
-            }
-            break;
-
-        case TransceiverState::Idle:
-            break;
+        }
     }
 
-    while (_uart->read(&b, 1) == 1) {
+//     switch (_transceiver_state) {
+//         case TransceiverState::Sending:
+//             if (now_us - _send_start_us > _transmit_time_us) {
+//                 // _uart->set_CTS_pin(false);
+//                 _reply_wait_start_ms = now_ms;
+//                 _transceiver_state = TransceiverState::Receiving;
+// #ifdef DEBUG
+//                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: sending done");
+// #endif // DEBUG
+//             }
+//             break;
+        
+//         case TransceiverState::Receiving:
+//             if (now_ms - _reply_wait_start_ms > IRISORCA_REPLY_TIMEOUT_MS) {
+//                 // timeout waiting for reply
+//                 _reply_wait_start_ms = 0;
+//                 _receive_state = ReceiveState::Timeout;
+//                 _transceiver_state = TransceiverState::Idle;
+//                 // _uart->set_CTS_pin(false);
+// #ifdef DEBUG
+//                 GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: timeout waiting for reply");
+// #endif // DEBUG
+//             }
+//             break;
 
-#ifdef DEBUG
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %02X", b);
-#endif // DEBUG
+//         case TransceiverState::Idle:
+//             break;
+//     }
 
-        if (_transceiver_state == TransceiverState::Receiving &&
+    while (_uart->available() > 0 && _uart->read(&b, 1) == 1) {
+
+#ifdef DEBUG_TRACE
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: received byte: %02X state: %d", b, (uint8_t)_transceiver_state);
+#endif // DEBUG_TRACE
+
+        if (
              _received_buff_len < IRISORCA_MESSAGE_LEN_MAX) {
 
             _reply_wait_start_ms = now_ms;
+
+    #ifdef DEBUG_TRACE
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: here: %d, %d", _received_buff_len, _reply_msg_len);
+    #endif // DEBUG_TRACE
 
             _received_buff[_received_buff_len++] = b;
             if (_received_buff_len >= _reply_msg_len) {
@@ -158,14 +178,14 @@ void OrcaModbus::tick()
                 debug_print_buf(_received_buff, _received_buff_len, "<= ");
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: CRC expected: %04X, received: %04X", crc_expected, crc_received);
 #endif // DEBUG
+                _received_buff_len = 0;
                 if (crc_expected == crc_received) {
                     _receive_state = ReceiveState::Ready;
-                    _reply_wait_start_ms = 0;
                 } else {
                     // CRC is incorrect
                     _receive_state = ReceiveState::CRCError;
                 }
-                _received_buff_len = 0;
+                
                 _transceiver_state = TransceiverState::Idle;
             }
         }
@@ -287,7 +307,7 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     //     _uart->set_CTS_pin(true);
     // }
 
-    _uart->set_CTS_pin(true);
+    // _uart->set_CTS_pin(true);
     
 
     // record start and expected delay to send message
@@ -296,11 +316,22 @@ void OrcaModbus::send_data(uint8_t *data, uint16_t len, uint16_t expected_reply_
     _receive_state = ReceiveState::Pending;
     _transceiver_state = TransceiverState::Sending;
     _received_buff_len = 0;
+    _reply_wait_start_ms = AP_HAL::millis();;
 
     _reply_msg_len = expected_reply_len;
 
     // write message
     // _uart->write_locked(data, len, 40);
     _uart->write(data, len);
+}
+
+OrcaModbus::TransceiverState OrcaModbus::transceiver_state()
+{
+    return _transceiver_state;
+}
+
+OrcaModbus::ReceiveState OrcaModbus::receive_state()
+{
+    return _receive_state;
 }
 

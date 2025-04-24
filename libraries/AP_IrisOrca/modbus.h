@@ -50,9 +50,9 @@ class OrcaModbus
          */
         bool read_register(uint16_t& reg);
 
-        TransceiverState transceiver_state() { return _transceiver_state; };
+        TransceiverState transceiver_state();
 
-        ReceiveState receive_state() { return _receive_state; };
+        ReceiveState receive_state();
 
         void set_recive_timeout_ms(uint32_t timeout_ms);
 
@@ -75,8 +75,8 @@ class OrcaModbus
         uint32_t _transmit_time_us;            // delay (in micros) to allow bytes to be sent after which pin can be unset.  0 if not delaying
         uint32_t _reply_wait_start_ms;  // system time that we started waiting for a reply message
         
-        TransceiverState _transceiver_state;
-        ReceiveState _receive_state;
+        volatile TransceiverState _transceiver_state;
+        volatile ReceiveState _receive_state;
 
 
 };
