@@ -81,6 +81,11 @@ bool parse_multiple_write_registers(uint8_t *rcvd_buff, uint8_t buff_len,
       GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Zero mode params set");
       state.auto_zero_params_set = true;
       break;
+    case static_cast<uint16_t>(Register::USER_COMMS_TIMEOUT):
+      // User comms timeout was set
+      GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: User comms timeout set");
+      state.comms_timeout_set = true;
+      break;
     default:
       GCS_SEND_TEXT(MAV_SEVERITY_WARNING,
                     "IrisOrca: Unsupported multiple write registers");
@@ -376,6 +381,11 @@ void AP_IrisOrca::thread_main()
                             if (safe_to_send()) {
                                 send_auto_zero_params();
                                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring zero params");
+                            }
+                        } else if (!_actuator_state.comms_timeout_set) {
+                            if (safe_to_send()) {
+                                send_comms_timeout();
+                                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Configuring comms timeout");
                             }
                         }
                         else {
@@ -832,6 +842,15 @@ void AP_IrisOrca::send_auto_zero_params()
 
     // send message
     if (write_multiple_registers((uint16_t)orca::Register::ZERO_MODE, 3, (uint8_t *)data)){
+        // record time of send for health reporting
+        WITH_SEMAPHORE(_last_healthy_sem);
+        _last_send_actuator_ms = AP_HAL::millis();
+    }
+}
+
+void AP_IrisOrca::send_comms_timeout()
+{
+    if (write_register((uint16_t) orca::Register::USER_COMMS_TIMEOUT, 700)) {
         // record time of send for health reporting
         WITH_SEMAPHORE(_last_healthy_sem);
         _last_send_actuator_ms = AP_HAL::millis();

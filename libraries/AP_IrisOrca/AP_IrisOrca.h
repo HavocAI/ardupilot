@@ -71,6 +71,7 @@ namespace orca {
         PC_FSATU = 137,
         PC_FSATU_H = 138,
         SAFETY_DGAIN = 143,
+        USER_COMMS_TIMEOUT = 163,
         POS_FILT = 167,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
@@ -266,6 +267,7 @@ namespace orca {
         bool safety_dgain_set{false};
         bool pos_filter_set{false};
         bool auto_zero_params_set{false};
+        bool comms_timeout_set{false};
     };
 
     inline uint16_t u16_from_be(uint8_t *bytes, uint8_t start_idx) {
@@ -423,6 +425,8 @@ private:
     void send_safety_dgain();
 
     void send_position_filter();
+
+    void send_comms_timeout();
 
     // send a write multiple registers message to the actuator to set the
     // auto zero params
