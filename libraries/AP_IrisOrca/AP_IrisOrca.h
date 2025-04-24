@@ -28,6 +28,7 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_Common/async.h>
 #include "modbus.h"
+#include "AP_IrisOrcaModbus.h"
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -401,6 +402,10 @@ private:
     uint32_t get_desired_shaft_pos();
 
     bool _healthy;
+
+    static WriteRegisterTransaction write_tx;
+    static ReadRegisterTransaction read_tx;
+        
 
 };
 

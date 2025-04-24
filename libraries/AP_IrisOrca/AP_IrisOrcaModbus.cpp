@@ -2,10 +2,29 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_HAL/utility/sparse-endian.h>
 
+#define DEBUG
+
+#ifdef DEBUG
+#include <stdio.h>
+#include <GCS_MAVLink/GCS.h>
+
+static void debug_print_buf(uint8_t* buf, int len, const char* prefix)
+{
+    char str[256];
+    for (int i = 0; i < len; i++) {
+        snprintf(str + (i * 3), sizeof(str) - (i * 3), "%02X ", buf[i]);
+    }
+    str[len * 3] = '\0'; // null terminate the string
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s %s", prefix, str);
+}
+#endif
+
 AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial, ParseResponseCallback callback, void* cb_arg)
- :  uart(uart_serial),
+ :  
     parse_response_callback(callback),
     callback_arg(cb_arg),
+    uart(uart_serial),
     state(Init)
 {
 }
@@ -17,7 +36,7 @@ void AP_ModbusTransaction::set_tx_data(uint8_t* data, uint8_t len)
     memcpy(buffer.data, data, len);
 }
 
-void AP_ModbusTransaction::run()
+bool AP_ModbusTransaction::run()
 {
     switch (state) {
         case Init:
@@ -28,6 +47,9 @@ void AP_ModbusTransaction::run()
         FALLTHROUGH;
 
         case Send:
+#ifdef DEBUG
+            debug_print_buf(buffer.data, buffer.len, "=> ");
+#endif // DEBUG
             uart->write(buffer.data, buffer.len);
             last_received_ms = AP_HAL::millis();
             state = WaitingForResponse;    
@@ -38,6 +60,9 @@ void AP_ModbusTransaction::run()
             if (bytes_read > 0) {
                 last_received_ms = AP_HAL::millis();
                 read_len += bytes_read;
+#ifdef DEBUG
+                debug_print_buf(buffer.data, read_len, "<= ");
+#endif // DEBUG
                 if (parse_response_callback(callback_arg, buffer.data, read_len)) {
                     state = Finished;
                 }
@@ -54,12 +79,14 @@ void AP_ModbusTransaction::run()
             // transaction timed out
             break;
     }
+
+    return is_finished();
     
 }
 
 bool AP_ModbusTransaction::is_finished() const
 {
-    return state == Finished;
+    return state == Finished || state == Timeout;
 }
 
 bool AP_ModbusTransaction::is_timeout() const
@@ -99,9 +126,26 @@ WriteRegisterTransaction::WriteRegisterTransaction(AP_HAL::UARTDriver *uart_seri
     add_crc(buffer);
 }
 
+WriteRegisterTransaction& WriteRegisterTransaction::operator=(const WriteRegisterTransaction&& obj) noexcept
+{
+
+    // Call base class move assignment
+    AP_ModbusTransaction::operator=(std::move(obj));
+    this->callback_arg = this;
+    this->_reg_addr = obj._reg_addr;
+    this->_reg_value = obj._reg_value;
+
+    return *this;
+}
+
 bool WriteRegisterTransaction::parse_fn(void* self, uint8_t *rcvd_buff, uint8_t buff_len)
 {
     const WriteRegisterTransaction* tx = static_cast<WriteRegisterTransaction*>(self);
+
+    #ifdef DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: parse_fn %d", buff_len);
+    debug_print_buf(rcvd_buff, buff_len, "p ");
+    #endif // DEBUG
 
     if (buff_len != 8) {
         return false;
@@ -114,11 +158,19 @@ bool WriteRegisterTransaction::parse_fn(void* self, uint8_t *rcvd_buff, uint8_t 
         return false;
     }
 
-    if (tx->_reg_addr != be16toh_ptr(&rcvd_buff[2])) {
+    uint16_t reg_addr = be16toh_ptr(&rcvd_buff[2]);
+    uint16_t reg_value = be16toh_ptr(&rcvd_buff[4]);
+
+    #ifdef DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", tx->_reg_addr, tx->_reg_value);
+    #endif // DEBUG
+
+    if (tx->_reg_addr != reg_addr) {
         return false;
     }
 
-    if (tx->_reg_value != be16toh_ptr(&rcvd_buff[4])) {
+    if (tx->_reg_value != reg_value) {
         return false;
     }
 

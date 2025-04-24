@@ -22,22 +22,28 @@ public:
         uint8_t len;
     } Buffer;
 
+    AP_ModbusTransaction() = default;
     AP_ModbusTransaction(AP_HAL::UARTDriver *uart, ParseResponseCallback callback, void* cb_arg = nullptr);
+    // CLASS_NO_COPY(AP_ModbusTransaction);
 
     void set_tx_data(uint8_t* data, uint8_t len);
     
-    void run();
+    /**
+     * run the transaction state machine
+     * @return true if the transaction is finished
+     */
+    bool run();
 
     bool is_finished() const;
     bool is_timeout() const;
 
 protected:
     Buffer buffer;
+    ParseResponseCallback parse_response_callback;
+    void* callback_arg;
 
 private:
     AP_HAL::UARTDriver *uart;
-    ParseResponseCallback parse_response_callback;
-    void* callback_arg;
     size_t read_len;
     uint32_t sent_ts_ms;
     uint32_t last_received_ms;
@@ -55,9 +61,13 @@ private:
 
 };
 
-class WriteRegisterTransaction : AP_ModbusTransaction {
+class WriteRegisterTransaction : public AP_ModbusTransaction {
     public:
+        WriteRegisterTransaction() = default;
         WriteRegisterTransaction(AP_HAL::UARTDriver *uart, uint16_t reg_addr, uint16_t reg_value);
+        CLASS_NO_COPY(WriteRegisterTransaction);
+
+        WriteRegisterTransaction& operator=(const WriteRegisterTransaction&&) noexcept;
     
     private:
         uint16_t _reg_addr;
@@ -67,9 +77,11 @@ class WriteRegisterTransaction : AP_ModbusTransaction {
         
 };
 
-class ReadRegisterTransaction : AP_ModbusTransaction {
+class ReadRegisterTransaction : public AP_ModbusTransaction {
     public:
+        ReadRegisterTransaction() = default;
         ReadRegisterTransaction(AP_HAL::UARTDriver *uart, uint16_t reg_addr);
+        CLASS_NO_COPY(ReadRegisterTransaction);
     
         uint16_t reg_value() const { return _reg_value; }
     

@@ -89,10 +89,8 @@ void OrcaModbus::init(AP_HAL::UARTDriver *uart, int pin_de)
     // Set the serial port parameters
     _uart->configure_parity(IRISORCA_SERIAL_PARITY);
     _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
-    // _uart->set_unbuffered_writes(true);
+    _uart->set_unbuffered_writes(true);
     _uart->begin(IRISORCA_SERIAL_BAUD, 128, 128);
-    _uart->discard_input();
-
     
 
     // initialise RS485 DE pin (when high, allows send to actuator)
