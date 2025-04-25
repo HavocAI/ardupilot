@@ -269,29 +269,18 @@ bool AP_IrisOrca::init_internals()
         return false;
     }
 
-    _uart->end();
+    init_uart_for_modbus(_uart);
 
-    _uart->set_options(0);
-    
-    _uart->configure_parity(IRISORCA_SERIAL_PARITY);
-    // _uart->set_unbuffered_writes(false);
-    _uart->set_options(AP_HAL::UARTDriver::OPTION_NODMA_RX |
-                    AP_HAL::UARTDriver::OPTION_NOFIFO);
-    _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
-    // _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
-    
-    // _uart->set_unbuffered_writes(true);
-    _uart->begin(IRISORCA_SERIAL_BAUD);
     
     // _uart->write("hello world");
 
     // initialise RS485 DE pin (when high, allows send to actuator)
-    if (_pin_de > -1) {
-        hal.gpio->pinMode(_pin_de, HAL_GPIO_OUTPUT);
-        hal.gpio->write(_pin_de, 0);
-    } else {
-        _uart->set_CTS_pin(false);
-    }
+    // if (_pin_de > -1) {
+    //     hal.gpio->pinMode(_pin_de, HAL_GPIO_OUTPUT);
+    //     hal.gpio->write(_pin_de, 0);
+    // } else {
+    //     _uart->set_CTS_pin(false);
+    // }
 
     return true;
 }

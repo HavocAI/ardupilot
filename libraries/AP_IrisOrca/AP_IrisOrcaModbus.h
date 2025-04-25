@@ -10,6 +10,8 @@
 
 #define MODBUS_MAX_MSG_LEN 64
 
+void init_uart_for_modbus(AP_HAL::UARTDriver *uart);
+
 class AP_ModbusTransaction
 {
 public:
@@ -52,6 +54,7 @@ private:
     enum ModbusState {
         Init = 0,
         Send,
+        WaitingToFinshSend,
         WaitingForResponse,
         Finished,
         Timeout,

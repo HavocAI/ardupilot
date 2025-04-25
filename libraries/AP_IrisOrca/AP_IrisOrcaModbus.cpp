@@ -2,7 +2,12 @@
 #include <AP_Math/AP_Math.h>
 #include <AP_HAL/utility/sparse-endian.h>
 
+#define IRISORCA_SERIAL_BAUD                    19200   // communication is always at 19200
+#define IRISORCA_SERIAL_PARITY                  2       // communication is always even parity
+
+
 #define DEBUG
+// #define SOFTWARE_FLOWCONTROL
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -19,6 +24,44 @@ static void debug_print_buf(uint8_t* buf, int len, const char* prefix)
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: %s %s", prefix, str);
 }
 #endif
+
+
+#ifdef SOFTWARE_FLOWCONTROL
+static uint32_t calc_transmit_time_us(uint8_t num_bytes)
+{
+    // baud rate of 19200 bits/sec
+    // total number of bits = 10 x num_bytes (no parity)
+    // or 11 x num_bytes (with parity)
+    // convert from seconds to micros by multiplying by 1,000,000
+    // plus additional 300us safety margin
+    uint8_t parity = IRISORCA_SERIAL_PARITY == 0 ? 0 : 1;
+    uint8_t bits_per_data_byte = 10 + parity;
+    const uint32_t delay_us = 1e6 * num_bytes * bits_per_data_byte / IRISORCA_SERIAL_BAUD + 300;
+    return delay_us;
+}
+#endif
+
+void init_uart_for_modbus(AP_HAL::UARTDriver *uart)
+{
+    uart->end();
+
+    uart->set_options(0);
+    
+    uart->configure_parity(IRISORCA_SERIAL_PARITY);
+    // _uart->set_unbuffered_writes(false);
+    uart->set_options(AP_HAL::UARTDriver::OPTION_NODMA_RX |
+                    AP_HAL::UARTDriver::OPTION_NOFIFO);
+
+#ifdef SOFTWARE_FLOWCONTROL
+    uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
+#else
+    uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
+#endif // SOFTWARE_FLOWCONTROL
+    
+    // _uart->set_unbuffered_writes(true);
+    uart->begin(IRISORCA_SERIAL_BAUD);
+
+}
 
 AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial, ParseResponseCallback callback, void* cb_arg)
  :  
@@ -50,13 +93,22 @@ bool AP_ModbusTransaction::run()
 #ifdef DEBUG
             debug_print_buf(buffer.data, buffer.len, "=> ");
 #endif // DEBUG
+
+#ifdef SOFTWARE_FLOWCONTROL
             uart->set_RTS_pin(true);
+#endif
             uart->write(buffer.data, buffer.len);
             uart->flush();
             last_received_ms = AP_HAL::millis();
-            AP_HAL::get_HAL().scheduler->delay_microseconds(5000);
+            state = WaitingToFinshSend;    
+        FALLTHROUGH;
+
+        case WaitingToFinshSend:
+#ifdef SOFTWARE_FLOWCONTROL
+            AP_HAL::get_HAL().scheduler->delay_microseconds(calc_transmit_time_us(buffer.len));
             uart->set_RTS_pin(false);
-            state = WaitingForResponse;    
+#endif
+            state = WaitingForResponse;
         FALLTHROUGH;
 
         case WaitingForResponse: {
