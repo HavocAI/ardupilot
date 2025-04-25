@@ -72,7 +72,8 @@ namespace orca {
         PC_FSATU_H = 138,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
-        AUTO_ZERO_EXIT_MODE = 173
+        AUTO_ZERO_EXIT_MODE = 173,
+        MAJOR_VERSION = 408,
     };
 
     enum class OperatingMode : uint8_t {

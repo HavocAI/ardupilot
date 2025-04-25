@@ -23,6 +23,7 @@
 #include <AP_Logger/AP_Logger.h>
 #include <GCS_MAVLink/GCS.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+#include "AP_IrisOrcaModbus.h"
 
 #define IRISORCA_SERIAL_BAUD                    19200   // communication is always at 19200
 #define IRISORCA_SERIAL_PARITY                  2       // communication is always even parity
@@ -267,10 +268,22 @@ bool AP_IrisOrca::init_internals()
     if (_uart == nullptr) {
         return false;
     }
-    _uart->begin(IRISORCA_SERIAL_BAUD);
+
+    _uart->end();
+
+    _uart->set_options(0);
+    
     _uart->configure_parity(IRISORCA_SERIAL_PARITY);
+    // _uart->set_unbuffered_writes(false);
+    _uart->set_options(AP_HAL::UARTDriver::OPTION_NODMA_RX |
+                    AP_HAL::UARTDriver::OPTION_NOFIFO);
     _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
-    _uart->set_unbuffered_writes(true);
+    // _uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
+    
+    // _uart->set_unbuffered_writes(true);
+    _uart->begin(IRISORCA_SERIAL_BAUD);
+    
+    // _uart->write("hello world");
 
     // initialise RS485 DE pin (when high, allows send to actuator)
     if (_pin_de > -1) {
@@ -281,6 +294,73 @@ bool AP_IrisOrca::init_internals()
     }
 
     return true;
+}
+
+static void set_sleep(AP_HAL::UARTDriver *uart)
+{
+    while(true) {
+
+        hal.scheduler->delay(1000);
+
+        WriteRegisterTransaction tx(uart, static_cast<uint16_t>(orca::Register::CTRL_REG_3), 
+                                        static_cast<uint16_t>(orca::OperatingMode::SLEEP));
+            
+        while (!tx.run()) {
+            // wait for the transaction to finish
+            hal.scheduler->delay_microseconds(1000);
+        }
+
+        if (tx.is_timeout()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to set actuator to sleep mode");
+        } else {
+            return;
+        }
+    }
+
+}
+
+static void set_zero(AP_HAL::UARTDriver *uart)
+{
+    while(true) {
+
+        hal.scheduler->delay(1000);
+
+        WriteRegisterTransaction tx(uart, static_cast<uint16_t>(orca::Register::AUTO_ZERO_EXIT_MODE), 
+                                        0x03);
+            
+        while (!tx.run()) {
+            // wait for the transaction to finish
+            hal.scheduler->delay_microseconds(1000);
+        }
+
+        if (tx.is_timeout()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to set actuator to zero mode");
+        } else {
+            return;
+        }
+    }
+}
+
+static void read_fw_version(AP_HAL::UARTDriver *uart)
+{
+    while(true) {
+
+        hal.scheduler->delay(1000);
+
+        ReadRegisterTransaction tx(uart, static_cast<uint16_t>(orca::Register::MAJOR_VERSION));
+            
+        while (!tx.run()) {
+            // wait for the transaction to finish
+            hal.scheduler->delay_microseconds(1000);
+        }
+
+        if (tx.is_timeout()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read actuator firmware version");
+        } else {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Actuator firmware version %i", tx.reg_value());
+            return;
+        }
+    }
 }
 
 // consume incoming messages from actuator, reply with latest actuator speed
@@ -298,6 +378,12 @@ void AP_IrisOrca::thread_main()
     _control_state = orca::MotorControlState::CONFIGURING;
     bool auto_zero_commanded = false;
     bool auto_zero_in_progress = false;
+
+    read_fw_version(_uart);
+    set_sleep(_uart);
+    set_zero(_uart);
+
+    return;
 
     while (true)
     {
