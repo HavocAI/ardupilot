@@ -46,7 +46,7 @@ protected:
 
 private:
     AP_HAL::UARTDriver *uart;
-    size_t read_len;
+    uint8_t read_len;
     uint32_t sent_ts_ms;
     uint32_t last_received_ms;
     

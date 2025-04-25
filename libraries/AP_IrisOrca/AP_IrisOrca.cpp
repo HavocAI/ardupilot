@@ -254,7 +254,7 @@ void AP_IrisOrca::init()
     }
 
     // create background thread to process serial input and output
-    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::thread_main, void), "irisorca", 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1)) {
+    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::thread_main, void), "irisorca", 2048, AP_HAL::Scheduler::PRIORITY_IO, 0)) {
         return;
     }
 }
@@ -332,23 +332,34 @@ static void set_zero(AP_HAL::UARTDriver *uart)
 
 static void read_fw_version(AP_HAL::UARTDriver *uart)
 {
-    while(true) {
+    {
+    ReadRegisterTransaction tx(uart, static_cast<uint16_t>(orca::Register::MAJOR_VERSION));        
+    while (!tx.run()) {
+        // wait for the transaction to finish
+        // hal.scheduler->delay_microseconds(1000);
+    }
 
-        hal.scheduler->delay(1000);
+    if (tx.is_timeout()) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read actuator firmware version");
+    } else {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: firmware MAJOR version %i", tx.reg_value());
+    }
+    }
 
-        ReadRegisterTransaction tx(uart, static_cast<uint16_t>(orca::Register::MAJOR_VERSION));
-            
-        while (!tx.run()) {
-            // wait for the transaction to finish
-            hal.scheduler->delay_microseconds(1000);
-        }
+    hal.scheduler->delay(10000);
 
-        if (tx.is_timeout()) {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read actuator firmware version");
-        } else {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Actuator firmware version %i", tx.reg_value());
-            return;
-        }
+    {
+    ReadRegisterTransaction tx(uart, static_cast<uint16_t>(orca::Register::RELEASE_STATE));        
+    while (!tx.run()) {
+        // wait for the transaction to finish
+        // hal.scheduler->delay_microseconds(1000);
+    }
+
+    if (tx.is_timeout()) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read actuator firmware version");
+    } else {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: firmware MINOR version %i", tx.reg_value());
+    }
     }
 }
 
@@ -363,6 +374,8 @@ void AP_IrisOrca::thread_main()
     _initialised = true;
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialized");
+
+    hal.scheduler->delay(10000);
 
     _control_state = orca::MotorControlState::CONFIGURING;
     bool auto_zero_commanded = false;

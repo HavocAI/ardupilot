@@ -73,7 +73,11 @@ namespace orca {
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
         AUTO_ZERO_EXIT_MODE = 173,
+        SERIAL_NUMBER_LOW = 406,
+        SERIAL_NUMBER_HIGH = 407,
         MAJOR_VERSION = 408,
+        RELEASE_STATE = 409,
+        REVISION_NUMBER = 410,
     };
 
     enum class OperatingMode : uint8_t {

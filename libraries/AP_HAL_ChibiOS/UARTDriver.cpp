@@ -324,6 +324,8 @@ void UARTDriver::_begin(uint32_t b, uint16_t rxS, uint16_t txS)
             rx_bounce_buf[1] = (uint8_t *)hal.util->malloc_type(RX_BOUNCE_BUFSIZE, AP_HAL::Util::MEM_DMA_SAFE);
         }
     }
+    rx_bounce_buf[0] = nullptr;
+    rx_bounce_buf[1] = nullptr;
     if (tx_bounce_buf == nullptr && sdef.dma_tx && !(_last_options & OPTION_NODMA_TX)) {
         tx_bounce_buf = (uint8_t *)hal.util->malloc_type(TX_BOUNCE_BUFSIZE, AP_HAL::Util::MEM_DMA_SAFE);
     }
@@ -614,6 +616,11 @@ __RAMFUNC__ void UARTDriver::rxbuff_full_irq(void* self, uint32_t flags)
     uart_drv->dma_rx_enable();
     
     if (len > 0) {
+        // TODO: set rts line hi for debugging
+        
+        palSetLineMode(uart_drv->arts_line, 1);
+        palWriteLine(uart_drv->arts_line, 1);
+
         /*
           we have data to copy out
          */

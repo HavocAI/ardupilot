@@ -7,7 +7,7 @@
 
 
 #define DEBUG
-// #define SOFTWARE_FLOWCONTROL
+#define SOFTWARE_FLOWCONTROL
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -44,23 +44,28 @@ static uint32_t calc_transmit_time_us(uint8_t num_bytes)
 void init_uart_for_modbus(AP_HAL::UARTDriver *uart)
 {
     uart->end();
-
-    uart->set_options(0);
     
-    uart->configure_parity(IRISORCA_SERIAL_PARITY);
-    // _uart->set_unbuffered_writes(false);
-    uart->set_options(AP_HAL::UARTDriver::OPTION_NODMA_RX |
-                    AP_HAL::UARTDriver::OPTION_NOFIFO);
+    uart->configure_parity(2); // even parity
+    uart->set_stop_bits(1);
 
 #ifdef SOFTWARE_FLOWCONTROL
     uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
+    uart->set_unbuffered_writes(true);
+    uart->set_CTS_pin(false);
 #else
     uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
 #endif // SOFTWARE_FLOWCONTROL
-    
-    // _uart->set_unbuffered_writes(true);
-    uart->begin(IRISORCA_SERIAL_BAUD);
 
+    // uart->set_unbuffered_writes(true);
+    
+
+    uart->begin(IRISORCA_SERIAL_BAUD, 1, 16);
+    uart->discard_input();
+
+    uart->set_options(uart->get_options() |
+                    AP_HAL::UARTDriver::OPTION_NODMA_RX
+                    // AP_HAL::UARTDriver::OPTION_NOFIFO
+                );
 }
 
 AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial, ParseResponseCallback callback, void* cb_arg)
@@ -68,7 +73,7 @@ AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial, Pars
     parse_response_callback(callback),
     callback_arg(cb_arg),
     uart(uart_serial),
-    state(Init)
+    state(ModbusState::Init)
 {
 }
 
@@ -95,25 +100,34 @@ bool AP_ModbusTransaction::run()
 #endif // DEBUG
 
 #ifdef SOFTWARE_FLOWCONTROL
-            uart->set_RTS_pin(true);
+            uart->set_CTS_pin(true);
 #endif
-            uart->write(buffer.data, buffer.len);
+            {
+                size_t i = 0;
+                size_t bytes_written;
+                while (i < buffer.len) {
+                    // write the data to the UART
+                    bytes_written = uart->write(&buffer.data[i], buffer.len - i);
+                    i += bytes_written;
+                }
+            }
             uart->flush();
             last_received_ms = AP_HAL::millis();
-            state = WaitingToFinshSend;    
+            state = WaitingToFinshSend;
         FALLTHROUGH;
 
         case WaitingToFinshSend:
 #ifdef SOFTWARE_FLOWCONTROL
             AP_HAL::get_HAL().scheduler->delay_microseconds(calc_transmit_time_us(buffer.len));
-            uart->set_RTS_pin(false);
+            uart->set_CTS_pin(false);
 #endif
             state = WaitingForResponse;
         FALLTHROUGH;
 
-        case WaitingForResponse: {
-            uart->wait_timeout(6, 500);
-            ssize_t bytes_read = uart->read(&buffer.data[read_len], buffer.len - read_len);
+        case WaitingForResponse: 
+        {
+            // uart->wait_timeout(6, 500);
+            ssize_t bytes_read = uart->read(&buffer.data[read_len], MODBUS_MAX_MSG_LEN - read_len);
             if (bytes_read > 0) {
                 last_received_ms = AP_HAL::millis();
                 read_len += bytes_read;
@@ -123,7 +137,7 @@ bool AP_ModbusTransaction::run()
                 if (parse_response_callback(callback_arg, buffer.data, read_len)) {
                     state = Finished;
                 }
-            } else if (AP_HAL::millis() - last_received_ms > 1000) {
+            } else if (AP_HAL::millis() - last_received_ms > 2000) {
                 // timeout waiting for response
                 state = Timeout;
             }
