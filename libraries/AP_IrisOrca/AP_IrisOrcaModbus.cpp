@@ -56,16 +56,22 @@ void init_uart_for_modbus(AP_HAL::UARTDriver *uart)
     uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
 #endif // SOFTWARE_FLOWCONTROL
 
+    uart->set_options(
+                    uart->get_options()
+                     | AP_HAL::UARTDriver::OPTION_NODMA_RX
+                    // | AP_HAL::UARTDriver::OPTION_NOFIFO
+                );
+
     // uart->set_unbuffered_writes(true);
     
 
-    uart->begin(IRISORCA_SERIAL_BAUD, 1, 16);
+    uart->begin(IRISORCA_SERIAL_BAUD, 16, 16);
     uart->discard_input();
 
-    uart->set_options(uart->get_options() |
-                    AP_HAL::UARTDriver::OPTION_NODMA_RX
-                    // AP_HAL::UARTDriver::OPTION_NOFIFO
-                );
+    // uart->set_options(uart->get_options() |
+    //                 AP_HAL::UARTDriver::OPTION_NODMA_RX
+    //                 // AP_HAL::UARTDriver::OPTION_NOFIFO
+    //             );
 }
 
 AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial, ParseResponseCallback callback, void* cb_arg)
@@ -126,7 +132,7 @@ bool AP_ModbusTransaction::run()
 
         case WaitingForResponse: 
         {
-            // uart->wait_timeout(6, 500);
+            uart->wait_timeout(6, 500);
             ssize_t bytes_read = uart->read(&buffer.data[read_len], MODBUS_MAX_MSG_LEN - read_len);
             if (bytes_read > 0) {
                 last_received_ms = AP_HAL::millis();
