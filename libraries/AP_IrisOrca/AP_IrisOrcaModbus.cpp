@@ -8,6 +8,7 @@
 
 #define DEBUG
 #define SOFTWARE_FLOWCONTROL
+#define IO_ASYNC_WAIT
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -87,6 +88,18 @@ void AP_ModbusTransaction::set_tx_data(uint8_t* data, uint8_t len)
     memcpy(buffer.data, data, len);
 }
 
+void AP_ModbusTransaction::wait_us(uint32_t us)
+{
+#ifdef IO_ASYNC_WAIT
+    if (AP_HAL::micros() - start_wait_us > us) {
+        // timeout waiting for send to finish
+        state = Timeout;
+    }
+#else
+    AP_HAL::get_HAL().scheduler->delay_microseconds(us);
+#endif
+}
+
 bool AP_ModbusTransaction::run()
 {
     switch (state) {
@@ -117,11 +130,14 @@ bool AP_ModbusTransaction::run()
             uart->flush();
             last_received_ms = AP_HAL::millis();
             state = WaitingToFinshSend;
+#ifdef IO_ASYNC_WAIT
+            start_wait_us = AP_HAL::micros();
+#endif
         FALLTHROUGH;
 
         case WaitingToFinshSend:
 #ifdef SOFTWARE_FLOWCONTROL
-            AP_HAL::get_HAL().scheduler->delay_microseconds(calc_transmit_time_us(buffer.len));
+            wait_us(calc_transmit_time_us(buffer.len));
             uart->set_CTS_pin(false);
 #endif
             state = WaitingForResponse;

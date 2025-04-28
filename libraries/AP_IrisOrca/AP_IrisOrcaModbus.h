@@ -42,8 +42,10 @@ protected:
 private:
     AP_HAL::UARTDriver *uart;
     uint8_t read_len;
-    uint32_t sent_ts_ms;
+    uint32_t start_wait_us;
     uint32_t last_received_ms;
+
+    void wait_us(uint32_t us);
     
 
     enum ModbusState {
