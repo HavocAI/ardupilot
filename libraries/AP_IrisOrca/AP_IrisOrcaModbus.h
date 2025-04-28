@@ -15,17 +15,13 @@ void init_uart_for_modbus(AP_HAL::UARTDriver *uart);
 class AP_ModbusTransaction
 {
 public:
-
-    // callback function type to try to parse the response
-    typedef bool (*ParseResponseCallback)(void*, uint8_t *rcvd_buff, uint8_t buff_len);
-
     typedef struct Buffer {
         uint8_t data[MODBUS_MAX_MSG_LEN];
         uint8_t len;
     } Buffer;
 
     AP_ModbusTransaction() = default;
-    AP_ModbusTransaction(AP_HAL::UARTDriver *uart, ParseResponseCallback callback, void* cb_arg = nullptr);
+    AP_ModbusTransaction(AP_HAL::UARTDriver *uart);
     // CLASS_NO_COPY(AP_ModbusTransaction);
 
     void set_tx_data(uint8_t* data, uint8_t len);
@@ -40,9 +36,8 @@ public:
     bool is_timeout() const;
 
 protected:
+    virtual bool parse_response(uint8_t byte) = 0;
     Buffer buffer;
-    ParseResponseCallback parse_response_callback;
-    void* callback_arg;
 
 private:
     AP_HAL::UARTDriver *uart;
@@ -69,14 +64,20 @@ class WriteRegisterTransaction : public AP_ModbusTransaction {
         WriteRegisterTransaction() = default;
         WriteRegisterTransaction(AP_HAL::UARTDriver *uart, uint16_t reg_addr, uint16_t reg_value);
         CLASS_NO_COPY(WriteRegisterTransaction);
-
-        WriteRegisterTransaction& operator=(const WriteRegisterTransaction&&) noexcept;
     
+    protected:
+        virtual bool parse_response(uint8_t byte) override;
     private:
         uint16_t _reg_addr;
         uint16_t _reg_value;
 
-        static bool parse_fn(void* context, uint8_t *rcvd_buff, uint8_t buff_len);
+        enum class ParseState {
+            Init = 0,
+            Start,
+            Finished
+        };
+
+        ParseState _parse_state;
         
 };
 
@@ -87,11 +88,11 @@ class ReadRegisterTransaction : public AP_ModbusTransaction {
         CLASS_NO_COPY(ReadRegisterTransaction);
     
         uint16_t reg_value() const { return _reg_value; }
-    
+
+    protected:
+        virtual bool parse_response(uint8_t byte) override;
     private:
         uint16_t _reg_value;
-
-        static bool parse_fn(void* context, uint8_t *rcvd_buff, uint8_t buff_len);
 };
 
 

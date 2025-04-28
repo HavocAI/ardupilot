@@ -74,11 +74,8 @@ void init_uart_for_modbus(AP_HAL::UARTDriver *uart)
     //             );
 }
 
-AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial, ParseResponseCallback callback, void* cb_arg)
- :  
-    parse_response_callback(callback),
-    callback_arg(cb_arg),
-    uart(uart_serial),
+AP_ModbusTransaction::AP_ModbusTransaction(AP_HAL::UARTDriver *uart_serial)
+ :  uart(uart_serial),
     state(ModbusState::Init)
 {
 }
@@ -132,15 +129,10 @@ bool AP_ModbusTransaction::run()
 
         case WaitingForResponse: 
         {
-            uart->wait_timeout(6, 500);
-            ssize_t bytes_read = uart->read(&buffer.data[read_len], MODBUS_MAX_MSG_LEN - read_len);
-            if (bytes_read > 0) {
+            uint8_t b;
+            if (uart->read(&b, 1) == 1) {
                 last_received_ms = AP_HAL::millis();
-                read_len += bytes_read;
-#ifdef DEBUG
-                debug_print_buf(buffer.data, read_len, "<= ");
-#endif // DEBUG
-                if (parse_response_callback(callback_arg, buffer.data, read_len)) {
+                if (parse_response(b) ) {
                     state = Finished;
                 }
             } else if (AP_HAL::millis() - last_received_ms > 2000) {
@@ -186,9 +178,10 @@ static bool eval_crc(const uint8_t* buf, uint8_t len)
 }
 
 WriteRegisterTransaction::WriteRegisterTransaction(AP_HAL::UARTDriver *uart_serial, uint16_t reg_addr, uint16_t reg_value)
- : AP_ModbusTransaction(uart_serial, parse_fn, this),
+ : AP_ModbusTransaction(uart_serial),
    _reg_addr(reg_addr),
-   _reg_value(reg_value)
+   _reg_value(reg_value),
+   _parse_state(ParseState::Init)
 {
     
     // prepare the write buffer
@@ -203,59 +196,57 @@ WriteRegisterTransaction::WriteRegisterTransaction(AP_HAL::UARTDriver *uart_seri
     add_crc(buffer);
 }
 
-WriteRegisterTransaction& WriteRegisterTransaction::operator=(const WriteRegisterTransaction&& obj) noexcept
+bool WriteRegisterTransaction::parse_response(uint8_t byte)
 {
+    switch (_parse_state) {
+        case ParseState::Init:
+            // check for start of message
+            if (byte == 0x01) {
+                buffer.len = 0;
+                buffer.data[buffer.len++] = byte;
+                _parse_state = ParseState::Start;
+            }
+            return false;
 
-    // Call base class move assignment
-    AP_ModbusTransaction::operator=(std::move(obj));
-    this->callback_arg = this;
-    this->_reg_addr = obj._reg_addr;
-    this->_reg_value = obj._reg_value;
-
-    return *this;
-}
-
-bool WriteRegisterTransaction::parse_fn(void* self, uint8_t *rcvd_buff, uint8_t buff_len)
-{
-    const WriteRegisterTransaction* tx = static_cast<WriteRegisterTransaction*>(self);
-
-    #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: parse_fn %d", buff_len);
-    debug_print_buf(rcvd_buff, buff_len, "p ");
-    #endif // DEBUG
-
-    if (buff_len != 8) {
-        return false;
+        case ParseState::Start:
+            // check for end of message
+            if (buffer.len < 8) {
+                buffer.data[buffer.len++] = byte;
+                return false;
+            }
+            _parse_state = ParseState::Finished;
+            FALLTHROUGH;
+            
+        case ParseState::Finished:
+            if (buffer.data[0] != 0x01) {
+                return false;
+            }
+            if (buffer.data[1] != 0x06) {
+                return false;
+            }
+        
+            uint16_t reg_addr = be16toh_ptr(&buffer.data[2]);
+            uint16_t reg_value = be16toh_ptr(&buffer.data[4]);
+        
+            #ifdef DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", _reg_addr, _reg_value);
+            #endif // DEBUG
+        
+            if (_reg_addr != reg_addr) {
+                return false;
+            }
+        
+            if (_reg_value != reg_value) {
+                return false;
+            }
+        
+            return eval_crc(buffer.data, 8);
     }
-
-    if (rcvd_buff[0] != 0x01) {
-        return false;
-    }
-    if (rcvd_buff[1] != 0x06) {
-        return false;
-    }
-
-    uint16_t reg_addr = be16toh_ptr(&rcvd_buff[2]);
-    uint16_t reg_value = be16toh_ptr(&rcvd_buff[4]);
-
-    #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", tx->_reg_addr, tx->_reg_value);
-    #endif // DEBUG
-
-    if (tx->_reg_addr != reg_addr) {
-        return false;
-    }
-
-    if (tx->_reg_value != reg_value) {
-        return false;
-    }
-
-    return eval_crc(rcvd_buff, buff_len);
 }
 
 ReadRegisterTransaction::ReadRegisterTransaction(AP_HAL::UARTDriver *uart_serial, uint16_t reg_addr)
- : AP_ModbusTransaction(uart_serial, parse_fn, this)
+ : AP_ModbusTransaction(uart_serial)
 {
     // prepare the write buffer
     buffer.len = 0;
