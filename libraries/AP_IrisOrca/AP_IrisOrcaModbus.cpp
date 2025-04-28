@@ -218,31 +218,43 @@ bool WriteRegisterTransaction::parse_response(uint8_t byte)
             FALLTHROUGH;
             
         case ParseState::Finished:
-            if (buffer.data[0] != 0x01) {
-                return false;
-            }
-            if (buffer.data[1] != 0x06) {
-                return false;
-            }
-        
-            uint16_t reg_addr = be16toh_ptr(&buffer.data[2]);
-            uint16_t reg_value = be16toh_ptr(&buffer.data[4]);
-        
-            #ifdef DEBUG
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", _reg_addr, _reg_value);
-            #endif // DEBUG
-        
-            if (_reg_addr != reg_addr) {
-                return false;
-            }
-        
-            if (_reg_value != reg_value) {
-                return false;
-            }
-        
-            return eval_crc(buffer.data, 8);
+            return parse_msg(buffer.data, buffer.len);
     }
+
+    return false;
+}
+
+bool WriteRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
+{
+
+    if (buff_len != 8) {
+        return false;
+    }
+
+    if (rcvd_buff[0] != 0x01) {
+        return false;
+    }
+    if (rcvd_buff[1] != 0x06) {
+        return false;
+    }
+
+    uint16_t reg_addr = be16toh_ptr(&rcvd_buff[2]);
+    uint16_t reg_value = be16toh_ptr(&rcvd_buff[4]);
+
+    #ifdef DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", _reg_addr, _reg_value);
+    #endif // DEBUG
+
+    if (_reg_addr != reg_addr) {
+        return false;
+    }
+
+    if (_reg_value != reg_value) {
+        return false;
+    }
+
+    return eval_crc(rcvd_buff, buff_len);
 }
 
 ReadRegisterTransaction::ReadRegisterTransaction(AP_HAL::UARTDriver *uart_serial, uint16_t reg_addr)
@@ -260,10 +272,36 @@ ReadRegisterTransaction::ReadRegisterTransaction(AP_HAL::UARTDriver *uart_serial
     add_crc(buffer);
 }
 
-bool ReadRegisterTransaction::parse_fn(void* self, uint8_t *rcvd_buff, uint8_t buff_len)
+bool ReadRegisterTransaction::parse_response(uint8_t byte)
 {
-    ReadRegisterTransaction* tx = static_cast<ReadRegisterTransaction*>(self);
+    switch (_parse_state) {
+        case ParseState::Init:
+            // check for start of message
+            if (byte == 0x01) {
+                buffer.len = 0;
+                buffer.data[buffer.len++] = byte;
+                _parse_state = ParseState::Start;
+            }
+            return false;
 
+        case ParseState::Start:
+            // check for end of message
+            if (buffer.len < 7) {
+                buffer.data[buffer.len++] = byte;
+                return false;
+            }
+            _parse_state = ParseState::Finished;
+            FALLTHROUGH;
+
+        case ParseState::Finished:
+            return parse_msg(buffer.data, buffer.len);
+    }
+
+    return false;
+}
+
+bool ReadRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
+{
     if (buff_len != 7) {
         return false;
     }
@@ -275,7 +313,7 @@ bool ReadRegisterTransaction::parse_fn(void* self, uint8_t *rcvd_buff, uint8_t b
         return false;
     }
 
-    tx->_reg_value = be16toh_ptr(&rcvd_buff[3]);
+    _reg_value = be16toh_ptr(&rcvd_buff[3]);
 
     return eval_crc(rcvd_buff, buff_len);
 }

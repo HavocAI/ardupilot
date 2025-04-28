@@ -174,7 +174,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 100
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("PAD_TRAVEL", 4, AP_IrisOrca, _pad_travel_mm, 10),
+    AP_GROUPINFO("PAD_TRAVEL", 4, AP_IrisOrca, _pad_travel_mm, 30),
 
     // @Param: F_MAX
     // @DisplayName: Maximum force

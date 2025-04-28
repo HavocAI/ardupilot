@@ -78,6 +78,8 @@ class WriteRegisterTransaction : public AP_ModbusTransaction {
         };
 
         ParseState _parse_state;
+
+        bool parse_msg(uint8_t *rcvd_buff, uint8_t buff_len);
         
 };
 
@@ -93,6 +95,16 @@ class ReadRegisterTransaction : public AP_ModbusTransaction {
         virtual bool parse_response(uint8_t byte) override;
     private:
         uint16_t _reg_value;
+
+        enum class ParseState {
+            Init = 0,
+            Start,
+            Finished
+        };
+
+        ParseState _parse_state;
+
+        bool parse_msg(uint8_t *rcvd_buff, uint8_t buff_len);
 };
 
 
