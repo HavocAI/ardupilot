@@ -110,6 +110,8 @@ private:
     
     ReadRegisterTransaction read_register_tx;
     WriteRegisterTransaction write_register_tx;
+    WriteMotorCmdStreamTransaction write_motor_cmd_stream_tx;
+    ReadMotorStreamTransaction read_motor_stream_tx;
     
 
 };

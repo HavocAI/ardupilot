@@ -76,7 +76,6 @@ namespace orca {
     };
 
     struct ActuatorState {
-        OperatingMode mode;
         uint32_t shaft_position;
         uint32_t force_realized;
         uint16_t power_consumed;
@@ -187,6 +186,56 @@ class ReadRegisterTransaction : public AP_ModbusTransaction {
         };
 
         ParseState _parse_state;
+
+        bool parse_msg(uint8_t *rcvd_buff, uint8_t buff_len);
+};
+
+class WriteMotorCmdStreamTransaction : public AP_ModbusTransaction {
+    public:
+        WriteMotorCmdStreamTransaction() {};
+        WriteMotorCmdStreamTransaction(AP_HAL::UARTDriver *uart, uint8_t sub_code, uint32_t data);
+
+        orca::ActuatorState actuator_state() const { return _actuator_state; }
+    
+    private:
+        orca::ActuatorState _actuator_state;
+
+        enum class ParseState {
+            Init = 0,
+            Shift,
+            Finished
+        };
+
+        ParseState _parse_state;
+
+        bool parse_response(uint8_t byte) override;
+
+        bool parse_msg(uint8_t *rcvd_buff, uint8_t buff_len);
+};
+
+class ReadMotorStreamTransaction : public AP_ModbusTransaction {
+    public:
+        ReadMotorStreamTransaction() {};
+        ReadMotorStreamTransaction(AP_HAL::UARTDriver *uart, uint16_t regaddr, uint8_t reg_width);
+
+        orca::ActuatorState actuator_state() const { return _actuator_state; }
+        orca::OperatingMode operating_mode() const { return _operating_mode; }
+        uint32_t reg_value() const { return _reg_value; }
+    
+    private:
+        orca::OperatingMode _operating_mode;
+        orca::ActuatorState _actuator_state;
+        uint32_t _reg_value;
+
+        enum class ParseState {
+            Init = 0,
+            Shift,
+            Finished
+        };
+
+        ParseState _parse_state;
+
+        bool parse_response(uint8_t byte) override;
 
         bool parse_msg(uint8_t *rcvd_buff, uint8_t buff_len);
 };

@@ -209,6 +209,8 @@ async AP_IrisOrca::run()
 {
     async_begin(&_run_state)
 
+    _healthy = false;
+
     if (_uart == nullptr) {
         _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
         init_uart_for_modbus(_uart);
@@ -242,11 +244,52 @@ async AP_IrisOrca::run()
     // WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
     // WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
 
-    
+    // set motor to auto zero
+    WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO, "IrisOrca: Failed to set auto zero mode");
+
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10000));
+
+
+    // read the motor stream and wait to see the operating mode goto position
+    while (true) {
+        _run_state.last_send_ms = AP_HAL::millis();
+
+        read_motor_stream_tx = ReadMotorStreamTransaction(_uart, orca::Register::CTRL_REG_3, 1);
+        await( read_motor_stream_tx.run() );
+        if (read_motor_stream_tx.is_timeout()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read motor stream");
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
+
+        {
+        orca::ActuatorState actuator_state = read_motor_stream_tx.actuator_state();
+        if (actuator_state.errors) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error %04X", actuator_state.errors);
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
+        }
+
+        if (read_motor_stream_tx.operating_mode() == orca::OperatingMode::POSITION) {
+            break;
+        }
+
+        await(TIME_PASSED(_run_state.last_send_ms, 100));
+    }
 
 	while (true) {
-
         _run_state.last_send_ms = AP_HAL::millis();
+
+        // write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, 0);
+        // await( write_motor_cmd_stream_tx.run() );
+        // if (write_motor_cmd_stream_tx.is_timeout()) {
+        //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to set position control mode");
+        //     async_init(&_run_state);
+        //     return ASYNC_CONT;
+        // }
+        _healthy = true;
 
 	    // send at 10Hz
 	    await(TIME_PASSED(_run_state.last_send_ms, 100));
