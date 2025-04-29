@@ -224,7 +224,7 @@ WriteRegisterTransaction::WriteRegisterTransaction(AP_HAL::UARTDriver *uart_seri
 bool WriteRegisterTransaction::parse_response(uint8_t byte)
 {
 #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: w parse_response %02X %d", byte, (uint8_t)_parse_state);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: w parse_response %02X %d", byte, (uint8_t)_parse_state);
 #endif // DEBUG
 
     switch (_parse_state) {
@@ -255,6 +255,9 @@ bool WriteRegisterTransaction::parse_response(uint8_t byte)
 
 bool WriteRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
 {
+#ifdef DEBUG
+    debug_print_buf(rcvd_buff, buff_len, "<=");
+#endif // DEBUG
 
     if (buff_len != 8) {
         return false;
@@ -271,8 +274,8 @@ bool WriteRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
     uint16_t reg_value = be16toh_ptr(&rcvd_buff[4]);
 
 #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", _reg_addr, _reg_value);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", _reg_addr, _reg_value);
 #endif // DEBUG
 
     if (_reg_addr != reg_addr) {
@@ -306,7 +309,7 @@ ReadRegisterTransaction::ReadRegisterTransaction(AP_HAL::UARTDriver *uart_serial
 bool ReadRegisterTransaction::parse_response(uint8_t byte)
 {
 #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r parse_response %02X %d", byte, (uint8_t)_parse_state);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r parse_response %02X %d", byte, (uint8_t)_parse_state);
 #endif // DEBUG
 
     switch (_parse_state) {
@@ -337,6 +340,10 @@ bool ReadRegisterTransaction::parse_response(uint8_t byte)
 
 bool ReadRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
 {
+#ifdef DEBUG
+    debug_print_buf(rcvd_buff, buff_len, "<=");
+#endif // DEBUG
+
     if (buff_len != 7) {
         return false;
     }
@@ -371,7 +378,7 @@ WriteMotorCmdStreamTransaction::WriteMotorCmdStreamTransaction(AP_HAL::UARTDrive
 bool WriteMotorCmdStreamTransaction::parse_response(uint8_t byte)
 {
 #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: m parse_response %02X %d", byte, (uint8_t)_parse_state);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: m parse_response %02X %d", byte, (uint8_t)_parse_state);
 #endif // DEBUG
 
     switch (_parse_state) {
@@ -402,6 +409,10 @@ bool WriteMotorCmdStreamTransaction::parse_response(uint8_t byte)
 
 bool WriteMotorCmdStreamTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
 {
+#ifdef DEBUG
+    debug_print_buf(rcvd_buff, buff_len, "<=");
+#endif // DEBUG
+
     if (buff_len != 19) {
         return false;
     }
@@ -441,7 +452,7 @@ ReadMotorStreamTransaction::ReadMotorStreamTransaction(AP_HAL::UARTDriver *uart_
 bool ReadMotorStreamTransaction::parse_response(uint8_t byte)
 {
 #ifdef DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r parse_response %02X %d", byte, (uint8_t)_parse_state);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r parse_response %02X %d", byte, (uint8_t)_parse_state);
 #endif // DEBUG
 
     switch (_parse_state) {
@@ -472,6 +483,10 @@ bool ReadMotorStreamTransaction::parse_response(uint8_t byte)
 
 bool ReadMotorStreamTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
 {
+#ifdef DEBUG
+    debug_print_buf(rcvd_buff, buff_len, "<=");
+#endif // DEBUG
+
     if (buff_len != 24) {
         return false;
     }
@@ -483,14 +498,14 @@ bool ReadMotorStreamTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
         return false;
     }
 
-    _reg_value = be32toh_ptr(&rcvd_buff[3]);
-    _operating_mode = static_cast<orca::OperatingMode>(rcvd_buff[7]);
-    _actuator_state.shaft_position = be32toh_ptr(&rcvd_buff[8]);
-    _actuator_state.force_realized = be32toh_ptr(&rcvd_buff[12]);
-    _actuator_state.power_consumed = be16toh_ptr(&rcvd_buff[16]);
-    _actuator_state.temperature = rcvd_buff[18];
-    _actuator_state.voltage = be16toh_ptr(&rcvd_buff[19]);
-    _actuator_state.errors = be16toh_ptr(&rcvd_buff[21]);
+    _reg_value = be32toh_ptr(&rcvd_buff[2]);
+    _operating_mode = static_cast<orca::OperatingMode>(rcvd_buff[6]);
+    _actuator_state.shaft_position = be32toh_ptr(&rcvd_buff[7]);
+    _actuator_state.force_realized = be32toh_ptr(&rcvd_buff[11]);
+    _actuator_state.power_consumed = be16toh_ptr(&rcvd_buff[15]);
+    _actuator_state.temperature = rcvd_buff[17];
+    _actuator_state.voltage = be16toh_ptr(&rcvd_buff[18]);
+    _actuator_state.errors = be16toh_ptr(&rcvd_buff[20]);
     
     return eval_crc(rcvd_buff, buff_len);
 }

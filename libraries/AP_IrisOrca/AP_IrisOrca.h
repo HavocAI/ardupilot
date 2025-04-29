@@ -89,8 +89,6 @@ private:
     bool _initialised;
     bool _healthy;
 
-    orca::ActuatorState _actuator_state;
-
     struct run_state {
         
         async_state;
@@ -107,7 +105,9 @@ private:
     async run();
     async read_firmware(orca::get_firmware_state *state);
 
-    
+    orca::OperatingMode _operating_mode;
+    orca::ActuatorState _actuator_state;
+
     ReadRegisterTransaction read_register_tx;
     WriteRegisterTransaction write_register_tx;
     WriteMotorCmdStreamTransaction write_motor_cmd_stream_tx;

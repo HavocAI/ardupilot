@@ -239,16 +239,35 @@ async AP_IrisOrca::run()
         return ASYNC_CONT;
     }
 
-    // WRITE_REGISTER(orca::Register::PC_PGAIN, _gain_p, "IrisOrca: Failed to set P gain");
-    // WRITE_REGISTER(orca::Register::PC_IGAIN, _gain_i, "IrisOrca: Failed to set I gain");
-    // WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
-    // WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
+    WRITE_REGISTER(orca::Register::PC_PGAIN, _gain_p, "IrisOrca: Failed to set P gain");
+    WRITE_REGISTER(orca::Register::PC_IGAIN, _gain_i, "IrisOrca: Failed to set I gain");
+    WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
+    WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
+
+    WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
+    WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
+
+    WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
+    WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
+
+    // set comms timeout to 300ms
+    WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 300, "IrisOrca: Failed to set comms timeout");
+
+    // set auto zero max force
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero max force %d", _auto_zero_f_max.get());
+    WRITE_REGISTER(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max.get(), "IrisOrca: Failed to set auto zero max force");
+
+    // set auto zero exit mode
+    WRITE_REGISTER(orca::Register::AUTO_ZERO_EXIT_MODE, orca::OperatingMode::POSITION, "IrisOrca: Failed to set auto zero exit mode");
+
+    // set auto-zero enabled
+    WRITE_REGISTER(orca::Register::ZERO_MODE, 2, "IrisOrca: Failed to set auto zero mode");
 
     // set motor to auto zero
     WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO, "IrisOrca: Failed to set auto zero mode");
 
-    _run_state.last_send_ms = AP_HAL::millis();
-    await(TIME_PASSED(_run_state.last_send_ms, 10000));
+    // _run_state.last_send_ms = AP_HAL::millis();
+    // await(TIME_PASSED(_run_state.last_send_ms, 1000));
 
 
     // read the motor stream and wait to see the operating mode goto position
@@ -263,18 +282,37 @@ async AP_IrisOrca::run()
             return ASYNC_CONT;
         }
 
-        {
-        orca::ActuatorState actuator_state = read_motor_stream_tx.actuator_state();
-        if (actuator_state.errors) {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error %04X", actuator_state.errors);
+        
+        _actuator_state = read_motor_stream_tx.actuator_state();
+        _operating_mode = read_motor_stream_tx.operating_mode();
+
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %ld", _actuator_state.shaft_position);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %ld", _actuator_state.force_realized);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %u", _actuator_state.power_consumed);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %u", _actuator_state.temperature);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %u", _actuator_state.voltage);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Operating mode %u", (uint8_t)_operating_mode);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Errors %04X", _actuator_state.errors);
+
+        if (_actuator_state.errors) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error %04X", _actuator_state.errors);
             async_init(&_run_state);
             return ASYNC_CONT;
         }
+
+        if (_operating_mode == orca::OperatingMode::AUTO_ZERO) {
+        } else if (_operating_mode == orca::OperatingMode::POSITION) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Position control");
+            break;
+        } else if (_operating_mode == orca::OperatingMode::SLEEP) {
+            WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::AUTO_ZERO, "IrisOrca: Failed to set auto zero mode");
+        } else {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Unknown operating mode %u", (uint8_t)_operating_mode);
+            async_init(&_run_state);
+            return ASYNC_CONT;
         }
 
-        if (read_motor_stream_tx.operating_mode() == orca::OperatingMode::POSITION) {
-            break;
-        }
+        
 
         await(TIME_PASSED(_run_state.last_send_ms, 100));
     }

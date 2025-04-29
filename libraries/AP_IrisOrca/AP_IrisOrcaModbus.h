@@ -47,6 +47,9 @@ namespace orca {
         PC_DEGAIN = 136,
         PC_FSATU = 137,
         PC_FSATU_H = 138,
+        USER_MAX_FORCE = 140,
+        USER_MAX_FORCE_H = 141,
+        USER_COMMS_TIMEOUT = 163,
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
         AUTO_ZERO_EXIT_MODE = 173,
@@ -76,8 +79,8 @@ namespace orca {
     };
 
     struct ActuatorState {
-        uint32_t shaft_position;
-        uint32_t force_realized;
+        int32_t shaft_position;
+        int32_t force_realized;
         uint16_t power_consumed;
         uint8_t temperature;
         uint16_t voltage;
