@@ -425,9 +425,9 @@ bool WriteMotorCmdStreamTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_
         return false;
     }
 
-    _actuator_state.shaft_position = be32toh_ptr(&rcvd_buff[3]);
-    _actuator_state.force_realized = be32toh_ptr(&rcvd_buff[7]);
-    _actuator_state.power_consumed = be16toh_ptr(&rcvd_buff[11]);
+    _actuator_state.shaft_position = be32toh_ptr(&rcvd_buff[2]);
+    _actuator_state.force_realized = be32toh_ptr(&rcvd_buff[6]);
+    _actuator_state.power_consumed = be16toh_ptr(&rcvd_buff[10]);
     _actuator_state.temperature = rcvd_buff[12];
     _actuator_state.voltage = be16toh_ptr(&rcvd_buff[13]);
     _actuator_state.errors = be16toh_ptr(&rcvd_buff[15]);
