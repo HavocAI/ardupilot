@@ -6,9 +6,9 @@
 #define IRISORCA_SERIAL_PARITY                  2       // communication is always even parity
 
 
-#define DEBUG
+// #define DEBUG
 #define SOFTWARE_FLOWCONTROL
-#define IO_ASYNC_WAIT
+// #define IO_ASYNC_WAIT
 
 #ifdef DEBUG
 #include <stdio.h>
@@ -150,6 +150,7 @@ bool AP_ModbusTransaction::run()
         case WaitingForResponse: 
         {
             uint8_t b;
+            uart->wait_timeout(1, 100);
             if (uart->read(&b, 1) == 1) {
                 last_received_ms = AP_HAL::millis();
                 if (parse_response(b)) {

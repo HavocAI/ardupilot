@@ -105,6 +105,8 @@ private:
     async run();
     async read_firmware(orca::get_firmware_state *state);
 
+    uint32_t _counter;
+
     orca::OperatingMode _operating_mode;
     orca::ActuatorState _actuator_state;
 
