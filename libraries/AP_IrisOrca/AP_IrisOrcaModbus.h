@@ -55,6 +55,8 @@ namespace orca {
         MAJOR_VERSION = 408,
         RELEASE_STATE = 409,
         REVISION_NUMBER = 410,
+        COMMIT_ID_LOW = 411,
+        COMMIT_ID_HIGH = 412,
     };
 
     enum class OperatingMode : uint8_t {

@@ -150,19 +150,88 @@ void AP_IrisOrca::init()
     }
 }
 
+
+struct state { async_state; };
+
+
+#define READ_REGISTER(reg, store) \
+    _run_state.read_register_tx = ReadRegisterTransaction(_uart, static_cast<uint16_t>(reg)); \
+    await( _run_state.read_register_tx.run() ); \
+    if (_run_state.read_register_tx.is_timeout()) { \
+        state->result = orca::Result::TIMEOUT; \
+        async_exit; \
+    } else { \
+        store = _run_state.read_register_tx.reg_value(); \
+    }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+async AP_IrisOrca::read_firmware(orca::get_firmware_state *state)
+{
+    async_begin(state)
+
+    READ_REGISTER(orca::Register::MAJOR_VERSION, state->major_version);
+    READ_REGISTER(orca::Register::RELEASE_STATE, state->release_state);
+    READ_REGISTER(orca::Register::REVISION_NUMBER, state->revision_number);
+    READ_REGISTER(orca::Register::SERIAL_NUMBER_LOW, state->serial_number_low);
+    READ_REGISTER(orca::Register::SERIAL_NUMBER_HIGH, state->serial_number_high);
+    READ_REGISTER(orca::Register::COMMIT_ID_LOW, state->commit_hash_low);
+    READ_REGISTER(orca::Register::COMMIT_ID_HIGH, state->commit_hash_high);
+    
+    state->result = orca::Result::OK;
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Fw %u.%u.%u",
+        state->major_version,
+        state->release_state,
+        state->revision_number);
+    
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Serial %lu",
+        static_cast<uint32_t>(state->serial_number_low |
+        static_cast<uint32_t>(state->serial_number_high) << 16));
+
+    async_end
+}
+#pragma GCC diagnostic pop
+
+
+#define WRITE_REGISTER(reg, value, err_msg) \
+    _run_state.write_register_tx = WriteRegisterTransaction(_uart, static_cast<uint16_t>(reg), static_cast<uint16_t>(value)); \
+    await( _run_state.write_register_tx.run() ); \
+    if (_run_state.write_register_tx.is_timeout()) { \
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, err_msg); \
+        async_init(&_run_state); \
+        return ASYNC_CONT; \
+    }
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 async AP_IrisOrca::run()
 {
     async_begin(&_run_state)
+
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 1000));
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialising");
     
     if (_uart == nullptr) {
         _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
         init_uart_for_modbus(_uart);
     }
 
-    _run_state.read_register_tx = ReadRegisterTransaction(_uart, static_cast<uint16_t>(orca::Register::MAJOR_VERSION));
-    await( _run_state.read_register_tx.run() );
+    // set motor to sleep
+    WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP, "IrisOrca: Failed to set sleep mode");
+
+    // read firmware version
+    _run_state.get_firmware = orca::get_firmware_state();
+    await( async_call(read_firmware, &_run_state.get_firmware) );
+    if (_run_state.get_firmware.result != orca::Result::OK) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read firmware version");
+        async_init(&_run_state);
+        return ASYNC_CONT;
+    }
+
+    
 
 	while (true) {
 

@@ -31,6 +31,31 @@
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
+namespace orca {
+
+enum Result {
+    OK = 0,
+    ERROR = -1,
+    TIMEOUT = -2,
+};
+
+struct get_firmware_state {
+    get_firmware_state() {
+        async_init(this);
+        result = Result::ERROR;
+    }
+    async_state;
+    Result result;
+    uint16_t major_version;
+    uint16_t release_state;
+    uint16_t revision_number;
+    uint16_t serial_number_low;
+    uint16_t serial_number_high;
+    uint16_t commit_hash_low;
+    uint16_t commit_hash_high;
+};
+
+} // namespace orca
 
 class AP_IrisOrca {
 public:
@@ -67,19 +92,23 @@ private:
     orca::ActuatorState _actuator_state;
 
     struct run_state {
+        run_state() {}
         async_state;
         uint32_t last_send_ms;
         union {
             ReadRegisterTransaction read_register_tx;
             WriteRegisterTransaction write_register_tx;
         };
-        // ReadRegisterTransaction read_register_tx;
+        union {
+            orca::get_firmware_state get_firmware;
+        };
     } _run_state;
 
     static AP_IrisOrca *_singleton;
 
     void run_io();
     async run();
+    async read_firmware(orca::get_firmware_state *state);
 
 };
 
