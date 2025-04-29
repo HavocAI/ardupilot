@@ -88,15 +88,17 @@ void AP_ModbusTransaction::set_tx_data(uint8_t* data, uint8_t len)
     memcpy(buffer.data, data, len);
 }
 
-void AP_ModbusTransaction::wait_us(uint32_t us)
+bool AP_ModbusTransaction::wait_us(uint32_t us)
 {
 #ifdef IO_ASYNC_WAIT
     if (AP_HAL::micros() - start_wait_us > us) {
-        // timeout waiting for send to finish
-        state = Timeout;
+        return true;
+    } else {
+        return false;
     }
 #else
     AP_HAL::get_HAL().scheduler->delay_microseconds(us);
+    return true;
 #endif
 }
 
@@ -137,7 +139,9 @@ bool AP_ModbusTransaction::run()
 
         case WaitingToFinshSend:
 #ifdef SOFTWARE_FLOWCONTROL
-            wait_us(calc_transmit_time_us(buffer.len));
+            if (!wait_us(calc_transmit_time_us(buffer.len))) {
+                return false;
+            }
             uart->set_CTS_pin(false);
 #endif
             state = WaitingForResponse;
@@ -148,14 +152,19 @@ bool AP_ModbusTransaction::run()
             uint8_t b;
             if (uart->read(&b, 1) == 1) {
                 last_received_ms = AP_HAL::millis();
-                if (parse_response(b) ) {
+                if (parse_response(b)) {
                     state = Finished;
                 }
             } else if (AP_HAL::millis() - last_received_ms > 2000) {
                 // timeout waiting for response
                 state = Timeout;
             }
-            }break;
+
+            // if (AP_HAL::millis() - last_received_ms > 2000) {
+            //     // timeout waiting for response
+            //     state = Timeout;
+            // }
+        } break;
 
         case Finished:
             // transaction is finished
@@ -214,20 +223,24 @@ WriteRegisterTransaction::WriteRegisterTransaction(AP_HAL::UARTDriver *uart_seri
 
 bool WriteRegisterTransaction::parse_response(uint8_t byte)
 {
+#ifdef DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: w parse_response %02X %d", byte, (uint8_t)_parse_state);
+#endif // DEBUG
+
     switch (_parse_state) {
         case ParseState::Init:
             // check for start of message
             if (byte == 0x01) {
                 buffer.len = 0;
                 buffer.data[buffer.len++] = byte;
-                _parse_state = ParseState::Start;
+                _parse_state = ParseState::Shift;
             }
-            return false;
+            break;
 
-        case ParseState::Start:
+        case ParseState::Shift:
+            buffer.data[buffer.len++] = byte;
             // check for end of message
             if (buffer.len < 8) {
-                buffer.data[buffer.len++] = byte;
                 return false;
             }
             _parse_state = ParseState::Finished;
@@ -257,10 +270,10 @@ bool WriteRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
     uint16_t reg_addr = be16toh_ptr(&rcvd_buff[2]);
     uint16_t reg_value = be16toh_ptr(&rcvd_buff[4]);
 
-    #ifdef DEBUG
+#ifdef DEBUG
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: reg_addr %04X reg_value %04X", reg_addr, reg_value);
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: tx reg_addr %04X tx reg_value %04X", _reg_addr, _reg_value);
-    #endif // DEBUG
+#endif // DEBUG
 
     if (_reg_addr != reg_addr) {
         return false;
@@ -274,7 +287,9 @@ bool WriteRegisterTransaction::parse_msg(uint8_t *rcvd_buff, uint8_t buff_len)
 }
 
 ReadRegisterTransaction::ReadRegisterTransaction(AP_HAL::UARTDriver *uart_serial, uint16_t reg_addr)
- : AP_ModbusTransaction(uart_serial)
+ : AP_ModbusTransaction(uart_serial),
+    _reg_value(0),
+    _parse_state(ParseState::Init)
 {
     // prepare the write buffer
     buffer.len = 0;
@@ -290,20 +305,24 @@ ReadRegisterTransaction::ReadRegisterTransaction(AP_HAL::UARTDriver *uart_serial
 
 bool ReadRegisterTransaction::parse_response(uint8_t byte)
 {
+#ifdef DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: r parse_response %02X %d", byte, (uint8_t)_parse_state);
+#endif // DEBUG
+
     switch (_parse_state) {
         case ParseState::Init:
             // check for start of message
             if (byte == 0x01) {
                 buffer.len = 0;
                 buffer.data[buffer.len++] = byte;
-                _parse_state = ParseState::Start;
+                _parse_state = ParseState::Shift;
             }
             return false;
 
-        case ParseState::Start:
+        case ParseState::Shift:
+            buffer.data[buffer.len++] = byte;
             // check for end of message
-            if (buffer.len < 7) {
-                buffer.data[buffer.len++] = byte;
+            if (buffer.len < 7) {    
                 return false;
             }
             _parse_state = ParseState::Finished;

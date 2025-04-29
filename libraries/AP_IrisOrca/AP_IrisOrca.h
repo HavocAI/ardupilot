@@ -92,16 +92,13 @@ private:
     orca::ActuatorState _actuator_state;
 
     struct run_state {
-        run_state() {}
+        
         async_state;
         uint32_t last_send_ms;
-        union {
-            ReadRegisterTransaction read_register_tx;
-            WriteRegisterTransaction write_register_tx;
-        };
-        union {
-            orca::get_firmware_state get_firmware;
-        };
+        
+        
+        orca::get_firmware_state get_firmware;
+        
     } _run_state;
 
     static AP_IrisOrca *_singleton;
@@ -109,6 +106,11 @@ private:
     void run_io();
     async run();
     async read_firmware(orca::get_firmware_state *state);
+
+    
+    ReadRegisterTransaction read_register_tx;
+    WriteRegisterTransaction write_register_tx;
+    
 
 };
 

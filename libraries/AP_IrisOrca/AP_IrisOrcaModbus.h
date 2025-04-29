@@ -121,7 +121,13 @@ private:
     uint32_t start_wait_us;
     uint32_t last_received_ms;
 
-    void wait_us(uint32_t us);
+    /**
+     * Wait for a specified number of microseconds.
+     * Keep calling this function until the wait is finished.
+     * @param us The number of microseconds to wait.
+     * @return true if the wait is finished, false otherwise.
+     */
+    bool wait_us(uint32_t us);
     
 
     enum ModbusState {
@@ -144,14 +150,14 @@ class WriteRegisterTransaction : public AP_ModbusTransaction {
         // CLASS_NO_COPY(WriteRegisterTransaction);
     
     protected:
-        virtual bool parse_response(uint8_t byte) override;
+        bool parse_response(uint8_t byte) override;
     private:
         uint16_t _reg_addr;
         uint16_t _reg_value;
 
         enum class ParseState {
             Init = 0,
-            Start,
+            Shift,
             Finished
         };
 
@@ -170,13 +176,13 @@ class ReadRegisterTransaction : public AP_ModbusTransaction {
         uint16_t reg_value() const { return _reg_value; }
 
     protected:
-        virtual bool parse_response(uint8_t byte) override;
+        bool parse_response(uint8_t byte) override;
     private:
         uint16_t _reg_value;
 
         enum class ParseState {
             Init = 0,
-            Start,
+            Shift,
             Finished
         };
 

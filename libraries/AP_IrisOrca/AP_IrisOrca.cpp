@@ -155,13 +155,13 @@ struct state { async_state; };
 
 
 #define READ_REGISTER(reg, store) \
-    _run_state.read_register_tx = ReadRegisterTransaction(_uart, static_cast<uint16_t>(reg)); \
-    await( _run_state.read_register_tx.run() ); \
-    if (_run_state.read_register_tx.is_timeout()) { \
+    read_register_tx = ReadRegisterTransaction(_uart, static_cast<uint16_t>(reg)); \
+    await( read_register_tx.run() ); \
+    if (read_register_tx.is_timeout()) { \
         state->result = orca::Result::TIMEOUT; \
         async_exit; \
     } else { \
-        store = _run_state.read_register_tx.reg_value(); \
+        store = read_register_tx.reg_value(); \
     }
 
 #pragma GCC diagnostic push
@@ -195,9 +195,9 @@ async AP_IrisOrca::read_firmware(orca::get_firmware_state *state)
 
 
 #define WRITE_REGISTER(reg, value, err_msg) \
-    _run_state.write_register_tx = WriteRegisterTransaction(_uart, static_cast<uint16_t>(reg), static_cast<uint16_t>(value)); \
-    await( _run_state.write_register_tx.run() ); \
-    if (_run_state.write_register_tx.is_timeout()) { \
+    write_register_tx = WriteRegisterTransaction(_uart, static_cast<uint16_t>(reg), static_cast<uint16_t>(value)); \
+    await( write_register_tx.run() ); \
+    if (write_register_tx.is_timeout()) { \
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, err_msg); \
         async_init(&_run_state); \
         return ASYNC_CONT; \
@@ -209,15 +209,21 @@ async AP_IrisOrca::run()
 {
     async_begin(&_run_state)
 
-    _run_state.last_send_ms = AP_HAL::millis();
-    await(TIME_PASSED(_run_state.last_send_ms, 1000));
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialising");
-    
     if (_uart == nullptr) {
         _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
         init_uart_for_modbus(_uart);
     }
+
+    if (_uart == nullptr) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to find serial port");
+        async_init(&_run_state);
+        return ASYNC_CONT;
+    }
+
+    _run_state.last_send_ms = AP_HAL::millis();
+    await(TIME_PASSED(_run_state.last_send_ms, 10000));
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialising");
 
     // set motor to sleep
     WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP, "IrisOrca: Failed to set sleep mode");
@@ -230,6 +236,11 @@ async AP_IrisOrca::run()
         async_init(&_run_state);
         return ASYNC_CONT;
     }
+
+    // WRITE_REGISTER(orca::Register::PC_PGAIN, _gain_p, "IrisOrca: Failed to set P gain");
+    // WRITE_REGISTER(orca::Register::PC_IGAIN, _gain_i, "IrisOrca: Failed to set I gain");
+    // WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
+    // WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
 
     
 
