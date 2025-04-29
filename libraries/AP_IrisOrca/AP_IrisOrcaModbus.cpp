@@ -155,7 +155,7 @@ bool AP_ModbusTransaction::run()
                 if (parse_response(b)) {
                     state = Finished;
                 }
-            } else if (AP_HAL::millis() - last_received_ms > 2000) {
+            } else if (AP_HAL::millis() - last_received_ms > 100) {
                 // timeout waiting for response
                 state = Timeout;
             }

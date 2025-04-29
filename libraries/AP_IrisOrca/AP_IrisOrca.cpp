@@ -321,6 +321,7 @@ async AP_IrisOrca::run()
         write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, 40000);
         await( write_motor_cmd_stream_tx.run() );
         if (write_motor_cmd_stream_tx.is_timeout()) {
+            _uart->set_RTS_pin(true);
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to write motor command stream");
             async_init(&_run_state);
             return ASYNC_CONT;
