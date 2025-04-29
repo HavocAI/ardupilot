@@ -312,22 +312,22 @@ async AP_IrisOrca::run()
             return ASYNC_CONT;
         }
 
-        
-
         await(TIME_PASSED(_run_state.last_send_ms, 100));
     }
 
 	while (true) {
         _run_state.last_send_ms = AP_HAL::millis();
 
-        // write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, 0);
-        // await( write_motor_cmd_stream_tx.run() );
-        // if (write_motor_cmd_stream_tx.is_timeout()) {
-        //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to set position control mode");
-        //     async_init(&_run_state);
-        //     return ASYNC_CONT;
-        // }
+        write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, 40000);
+        await( write_motor_cmd_stream_tx.run() );
+        if (write_motor_cmd_stream_tx.is_timeout()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to write motor command stream");
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
         _healthy = true;
+
+        _actuator_state = write_motor_cmd_stream_tx.actuator_state();
 
 	    // send at 10Hz
 	    await(TIME_PASSED(_run_state.last_send_ms, 100));
