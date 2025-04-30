@@ -623,11 +623,6 @@ __RAMFUNC__ void UARTDriver::rxbuff_full_irq(void* self, uint32_t flags)
     uart_drv->dma_rx_enable();
     
     if (len > 0) {
-        // TODO: set rts line hi for debugging
-        
-        palSetLineMode(uart_drv->arts_line, 1);
-        palWriteLine(uart_drv->arts_line, 1);
-
         /*
           we have data to copy out
          */

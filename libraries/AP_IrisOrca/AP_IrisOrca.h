@@ -104,6 +104,7 @@ private:
     void run_io();
     async run();
     async read_firmware(orca::get_firmware_state *state);
+    uint32_t get_desired_shaft_pos();
 
     uint32_t _counter;
 

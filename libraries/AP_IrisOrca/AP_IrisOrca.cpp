@@ -353,7 +353,7 @@ async AP_IrisOrca::run()
 	while (true) {
         _run_state.last_send_ms = AP_HAL::millis();
 
-        write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, 40000);
+        write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, get_desired_shaft_pos());
         await( write_motor_cmd_stream_tx.run() );
         if (write_motor_cmd_stream_tx.is_timeout()) {
             _uart->set_RTS_pin(true);
@@ -395,6 +395,18 @@ void AP_IrisOrca::run_io()
 bool AP_IrisOrca::healthy()
 {
     return _healthy;    
+}
+
+uint32_t AP_IrisOrca::get_desired_shaft_pos()
+{
+    float yaw = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering);
+
+    const float m = (_reverse_direction ? -1.0 : 1.0) * 0.5 * 1000 * (_max_travel_mm - (2.0 * _pad_travel_mm));
+    const float b = 0.5 * 1000 * _max_travel_mm;
+    
+    const float shaft_position_um = yaw * m + b;
+
+    return shaft_position_um;
 }
 
 
