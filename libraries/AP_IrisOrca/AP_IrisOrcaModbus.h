@@ -36,6 +36,7 @@ namespace orca {
     // registers
     enum Register : uint16_t {
         CTRL_REG_0 = 0,
+        CTRL_REG_1 = 1,
         CTRL_REG_2 = 2,
         CTRL_REG_3 = 3,
         CTRL_REG_4 = 4,
@@ -53,6 +54,7 @@ namespace orca {
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
         AUTO_ZERO_EXIT_MODE = 173,
+        MB_POS_FILTER = 176,
         SERIAL_NUMBER_LOW = 406,
         SERIAL_NUMBER_HIGH = 407,
         MAJOR_VERSION = 408,

@@ -96,7 +96,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 50),
+    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 70),
 
     // @Param: GAIN_DV
     // @DisplayName: Position control Dv gain
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 240),
+    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 260),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -261,17 +261,20 @@ async AP_IrisOrca::run()
         _gain_dv.get(),
         _gain_de.get());
 
-    WRITE_REGISTER(orca::Register::PC_PGAIN, _gain_p, "IrisOrca: Failed to set P gain");
-    WRITE_REGISTER(orca::Register::PC_IGAIN, _gain_i, "IrisOrca: Failed to set I gain");
-    WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
+    // These PID values are used durring AUTO-ZERO. 
+    // We found its important to have ~1000 P gain to get the motor to home correctly.
+    WRITE_REGISTER(orca::Register::PC_PGAIN, 1000, "IrisOrca: Failed to set P gain");
+    WRITE_REGISTER(orca::Register::PC_IGAIN, 2000, "IrisOrca: Failed to set I gain");
+    WRITE_REGISTER(orca::Register::PC_DVGAIN, 100, "IrisOrca: Failed to set Dv gain");
     WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
+    WRITE_REGISTER(orca::Register::MB_POS_FILTER, 9950, "IrisOrca: Failed to set position filter");
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: max force: %ld", _f_max.get());
     WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
     WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
 
-    WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
-    WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
+    WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(0), "IrisOrca: Failed to set max force");
+    WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(0), "IrisOrca: Failed to set max force");
 
     // set comms timeout to 300ms
     WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 300, "IrisOrca: Failed to set comms timeout");
@@ -334,6 +337,16 @@ async AP_IrisOrca::run()
         SLEEP(100);
         // await(TIME_PASSED(_run_state.last_send_ms, 100));
     }
+
+    // set the pids for position control
+
+
+    WRITE_REGISTER(orca::Register::PC_PGAIN, _gain_p, "IrisOrca: Failed to set P gain");
+    WRITE_REGISTER(orca::Register::PC_IGAIN, _gain_i, "IrisOrca: Failed to set I gain");
+    WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
+    WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
+    // then write the bit to have it take effect immediately
+    WRITE_REGISTER(orca::Register::CTRL_REG_1, (1 << 10), "IrisOrca: Failed to set position control mode");
 
     _counter = 0;
 
