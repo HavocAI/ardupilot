@@ -76,7 +76,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 60000),
+    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 130000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -263,8 +263,8 @@ async AP_IrisOrca::run()
 
     // These PID values are used durring AUTO-ZERO. 
     // We found its important to have ~1000 P gain to get the motor to home correctly.
-    WRITE_REGISTER(orca::Register::PC_PGAIN, 1000, "IrisOrca: Failed to set P gain");
-    WRITE_REGISTER(orca::Register::PC_IGAIN, 2000, "IrisOrca: Failed to set I gain");
+    WRITE_REGISTER(orca::Register::PC_PGAIN, 2000, "IrisOrca: Failed to set P gain");
+    WRITE_REGISTER(orca::Register::PC_IGAIN, 1000, "IrisOrca: Failed to set I gain");
     WRITE_REGISTER(orca::Register::PC_DVGAIN, 100, "IrisOrca: Failed to set Dv gain");
     WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
     WRITE_REGISTER(orca::Register::MB_POS_FILTER, 9950, "IrisOrca: Failed to set position filter");
