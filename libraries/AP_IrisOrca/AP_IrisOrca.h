@@ -105,6 +105,7 @@ private:
     async run();
     async read_firmware(orca::get_firmware_state *state);
     uint32_t get_desired_shaft_pos();
+    void disable_throttle();
 
     uint32_t _counter;
     uint8_t _num_timeouts;
@@ -116,6 +117,8 @@ private:
     WriteRegisterTransaction write_register_tx;
     WriteMotorCmdStreamTransaction write_motor_cmd_stream_tx;
     ReadMotorStreamTransaction read_motor_stream_tx;
+
+    bool _disable_throttle;
     
 
 };
