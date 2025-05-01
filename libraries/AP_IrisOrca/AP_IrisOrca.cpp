@@ -134,7 +134,8 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 AP_IrisOrca::AP_IrisOrca()
  : _uart(nullptr), 
    _initialised(false),
-   _healthy(false)
+   _healthy(false),
+   _disable_throttle(false)
 {
     _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
@@ -237,6 +238,8 @@ async AP_IrisOrca::run()
     }
 
     SLEEP(5000);
+
+    _disable_throttle = true;
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialising");
 
@@ -368,6 +371,7 @@ async AP_IrisOrca::run()
         } else {
             _num_timeouts = 0;
             _healthy = true;
+            _disable_throttle = false;
             _actuator_state = write_motor_cmd_stream_tx.actuator_state();
             if (_counter++ % 100 == 0) {
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %ld", _actuator_state.shaft_position);
@@ -378,6 +382,7 @@ async AP_IrisOrca::run()
             }
 
             if (_actuator_state.errors) {
+                _disable_throttle = true;
                 GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error %04X", _actuator_state.errors);
                 async_init(&_run_state);
                 return ASYNC_CONT;
@@ -397,6 +402,25 @@ void AP_IrisOrca::run_io()
 {
     while (true) {
         run();
+        disable_throttle();
+    }
+}
+
+void AP_IrisOrca::disable_throttle()
+{
+    if (_disable_throttle) {
+        // SRV_Channel* throttle_ch = SRV_Channels::get_channel_for(SRV_Channel::k_throttle);
+        // if (throttle_ch) {
+        //     uint16_t pwm = throttle_ch->pwm_from_scaled_value(0.0);
+        //     SRV_Channels::set_output_pwm_chan_timeout(throttle_ch->ch_num, pwm, 100);
+        // }
+        uint8_t chan;
+        if (SRV_Channels::find_channel(SRV_Channel::k_throttle, chan)) {
+            SRV_Channel* ch = SRV_Channels::srv_channel(chan);
+            uint16_t pwm = ch->pwm_from_scaled_value(0.0);
+            SRV_Channels::set_output_pwm_chan_timeout(chan, pwm, 100);
+        }
+        
     }
 }
 
