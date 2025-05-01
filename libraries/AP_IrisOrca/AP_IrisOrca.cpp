@@ -76,7 +76,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 130000),
+    AP_GROUPINFO("F_MAX", 5, AP_IrisOrca, _f_max, 200000),
 
     // @Param: GAIN_P
     // @DisplayName: Position control P gain
@@ -86,7 +86,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_P", 6, AP_IrisOrca, _gain_p, 40),
+    AP_GROUPINFO("GAIN_P", 6, AP_IrisOrca, _gain_p, 200),
 
     // @Param: GAIN_I
     // @DisplayName: Position control I gain
@@ -96,7 +96,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 70),
+    AP_GROUPINFO("GAIN_I", 7, AP_IrisOrca, _gain_i, 130),
 
     // @Param: GAIN_DV
     // @DisplayName: Position control Dv gain
@@ -106,7 +106,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 260),
+    AP_GROUPINFO("GAIN_DV", 8, AP_IrisOrca, _gain_dv, 400),
 
     // @Param: GAIN_DE
     // @DisplayName: Position control De gain
@@ -126,7 +126,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Increment: 1
     // @User: Standard
     // @RebootRequired: True
-    AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 30),
+    AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 200),
 
     AP_GROUPEND
 };
@@ -145,9 +145,9 @@ AP_IrisOrca::AP_IrisOrca()
 void AP_IrisOrca::init()
 {
     if (!_initialised) {
+        _initialised = true;
         // hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::run_io, void));
         hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_IrisOrca::run_io, void), "irisorca", 2048, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
-        _initialised = true;
     }
 }
 
@@ -246,6 +246,8 @@ async AP_IrisOrca::run()
     // set motor to sleep
     WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP, "IrisOrca: Failed to set sleep mode");
 
+    // WRITE_REGISTER(orca::Register::CTRL_REG_4, 7, "IrisOrca: reset defaults"); 
+
     // read firmware version
     _run_state.get_firmware = orca::get_firmware_state();
     await( async_call(read_firmware, &_run_state.get_firmware) );
@@ -273,8 +275,8 @@ async AP_IrisOrca::run()
     WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
     WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
 
-    WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(0), "IrisOrca: Failed to set max force");
-    WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(0), "IrisOrca: Failed to set max force");
+    // WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(0), "IrisOrca: Failed to set max force");
+    // WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(0), "IrisOrca: Failed to set max force");
 
     // set comms timeout to 300ms
     WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 300, "IrisOrca: Failed to set comms timeout");
@@ -356,23 +358,25 @@ async AP_IrisOrca::run()
         write_motor_cmd_stream_tx = WriteMotorCmdStreamTransaction(_uart, orca::MotorCommandStreamSubCode::POSITION_CONTROL_STREAM, get_desired_shaft_pos());
         await( write_motor_cmd_stream_tx.run() );
         if (write_motor_cmd_stream_tx.is_timeout()) {
-            _uart->set_RTS_pin(true);
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to write motor command stream");
-            async_init(&_run_state);
-            return ASYNC_CONT;
-        }
-        _healthy = true;
+        } else {
+            _healthy = true;
+            _actuator_state = write_motor_cmd_stream_tx.actuator_state();
+            if (_counter++ % 100 == 0) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %ld", _actuator_state.shaft_position);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %ld", _actuator_state.force_realized);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %u", _actuator_state.power_consumed);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %u", _actuator_state.temperature);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %u", _actuator_state.voltage);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Operating mode %u", (uint8_t)_operating_mode);
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Errors %04X", _actuator_state.errors);
+            }
 
-        _actuator_state = write_motor_cmd_stream_tx.actuator_state();
-
-        if (_counter++ % 100 == 0) {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %ld", _actuator_state.shaft_position);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %ld", _actuator_state.force_realized);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %u", _actuator_state.power_consumed);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %u", _actuator_state.temperature);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %u", _actuator_state.voltage);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Operating mode %u", (uint8_t)_operating_mode);
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Errors %04X", _actuator_state.errors);
+            if (_actuator_state.errors) {
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error %04X", _actuator_state.errors);
+                async_init(&_run_state);
+                return ASYNC_CONT;
+            }
         }
 
 	    // send at 10Hz
