@@ -134,7 +134,8 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 AP_IrisOrca::AP_IrisOrca()
  : _uart(nullptr), 
    _initialised(false),
-   _healthy(false)
+   _healthy(false),
+   _disable_throttle(false)
 {
     _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
@@ -212,7 +213,6 @@ async AP_IrisOrca::read_firmware(orca::get_firmware_state *state)
 #else
 
 #define SLEEP(ms) \
-    _run_state.last_send_ms = AP_HAL::millis(); \
     await(TIME_PASSED(_run_state.last_send_ms, ms))
 
 #endif
@@ -224,6 +224,7 @@ async AP_IrisOrca::run()
     async_begin(&_run_state)
 
     _healthy = false;
+    _disable_throttle = true;
 
     if (_uart == nullptr) {
         _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
@@ -236,6 +237,7 @@ async AP_IrisOrca::run()
         return ASYNC_CONT;
     }
 
+    _run_state.last_send_ms = AP_HAL::millis();
     SLEEP(5000);
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialising");
@@ -336,12 +338,9 @@ async AP_IrisOrca::run()
         }
 
         SLEEP(100);
-        // await(TIME_PASSED(_run_state.last_send_ms, 100));
     }
 
     // set the pids for position control
-
-
     WRITE_REGISTER(orca::Register::PC_PGAIN, _gain_p, "IrisOrca: Failed to set P gain");
     WRITE_REGISTER(orca::Register::PC_IGAIN, _gain_i, "IrisOrca: Failed to set I gain");
     WRITE_REGISTER(orca::Register::PC_DVGAIN, _gain_dv, "IrisOrca: Failed to set Dv gain");
@@ -368,6 +367,7 @@ async AP_IrisOrca::run()
         } else {
             _num_timeouts = 0;
             _healthy = true;
+            _disable_throttle = false;
             _actuator_state = write_motor_cmd_stream_tx.actuator_state();
             if (_counter++ % 100 == 0) {
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
@@ -378,6 +378,7 @@ async AP_IrisOrca::run()
             }
 
             if (_actuator_state.errors) {
+                _disable_throttle = true;
                 GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error 0x%04X", _actuator_state.errors);
                 async_init(&_run_state);
                 return ASYNC_CONT;
@@ -385,7 +386,6 @@ async AP_IrisOrca::run()
         }
 
 	    // send at 10Hz
-	    // await(TIME_PASSED(_run_state.last_send_ms, 100));
         SLEEP(100);
     }
 	
@@ -397,6 +397,19 @@ void AP_IrisOrca::run_io()
 {
     while (true) {
         run();
+        disable_throttle();
+    }
+}
+
+void AP_IrisOrca::disable_throttle()
+{
+    if (_disable_throttle) {
+        uint8_t chan;
+        if (SRV_Channels::find_channel(SRV_Channel::k_throttle, chan)) {
+            SRV_Channel* ch = SRV_Channels::srv_channel(chan);
+            uint16_t pwm = ch->pwm_from_scaled_value(0.0);
+            SRV_Channels::set_output_pwm_chan_timeout(chan, pwm, 500);
+        }
     }
 }
 
