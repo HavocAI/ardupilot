@@ -62,6 +62,7 @@ namespace orca {
         REVISION_NUMBER = 410,
         COMMIT_ID_LOW = 411,
         COMMIT_ID_HIGH = 412,
+        ERROR_0 = 432,
     };
 
     enum class OperatingMode : uint8_t {
