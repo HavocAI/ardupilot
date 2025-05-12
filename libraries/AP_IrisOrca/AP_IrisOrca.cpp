@@ -454,6 +454,19 @@ uint32_t AP_IrisOrca::get_desired_shaft_pos()
     return shaft_position_um;
 }
 
+void AP_IrisOrca::send_mavlink_status(mavlink_channel_t ch)
+{
+    mavlink_orca_telemetry_t msg = {
+        .force = _actuator_state.force_realized,
+        .position = _actuator_state.shaft_position,
+        .power = _actuator_state.power_consumed,
+        .error = _actuator_state.errors,
+        .temperature = _actuator_state.temperature,
+    };
+    mavlink_msg_orca_telemetry_send_struct(ch, &msg);
+    
+}
+
 
 // get the AP_IrisOrca singleton
 AP_IrisOrca *AP_IrisOrca::get_singleton()
