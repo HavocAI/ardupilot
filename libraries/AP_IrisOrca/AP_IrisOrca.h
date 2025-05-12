@@ -26,6 +26,7 @@
 #if HAL_IRISORCA_ENABLED
 
 #include <AP_Param/AP_Param.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>
 #include <AP_Common/async.h>
 #include "AP_IrisOrcaModbus.h"
 
@@ -69,6 +70,8 @@ public:
 
     // returns true if communicating with the actuator
     bool healthy();
+
+    void send_mavlink_status(mavlink_channel_t ch);
 
     static const struct AP_Param::GroupInfo var_info[];
 
