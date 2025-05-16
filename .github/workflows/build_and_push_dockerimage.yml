@@ -30,7 +30,7 @@ jobs:
         with:
           context: .github/docker_build
           push: true
-          tags: ghcr.io/${{ github.repository }}/ardupilot-build-env:latest
+          tags: ghcr.io/havocai/ardupilot/ardupilot-build-env:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

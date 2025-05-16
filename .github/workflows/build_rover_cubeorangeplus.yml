@@ -10,7 +10,7 @@ jobs:
       name: Build Rover Firmware
       runs-on: ubuntu-latest
       container:
-        image: ghcr.io/${{ github.repository }}/ardupilot-build-env:latest
+        image: ghcr.io/havocai/ardupilot/ardupilot-build-env:latest
         credentials:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
