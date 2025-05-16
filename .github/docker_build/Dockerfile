@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     wget \
     python3 \
+    python3-venv \
     python3-pip \
     make \
     libtool \
