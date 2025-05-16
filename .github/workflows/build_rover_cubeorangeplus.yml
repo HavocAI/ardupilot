@@ -1,0 +1,35 @@
+name: Build Rover for CubeOrangePlus
+
+on:
+  push:
+    
+  workflow_dispatch: # Allows you to run the workflow manually from the GitHub Actions tab
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: true # ArduPilot uses submodules, so this is important
+
+    - name: Set up ArduPilot build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y git
+        Tools/environment_install/install-prereqs-ubuntu.sh -y
+
+    - name: Configure and build Rover for CubeOrangePlus
+      run: |
+        cd ~/ardupilot # The prerequisite script clones to ~/ardupilot by default
+        source ~/.profile # Source the profile to pick up environment changes
+        ./waf configure --board CubeOrangePlus
+        ./waf build --target bin/ardurover # Specify the rover target
+
+    - name: Upload built firmware (Optional)
+      uses: actions/upload-artifact@v4
+      with:
+        name: ardurover-cubecubeorangeplus
+        path: /home/runner/ardupilot/build/CubeOrangePlus/bin/ardurover.apj # Verify the exact path after a successful run
