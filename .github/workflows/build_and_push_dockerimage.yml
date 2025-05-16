@@ -2,11 +2,10 @@ name: Build Rover for CubeOrangePlus with Docker
 
 on:
   push:
-    branches:
-      - ps/cicd
-    paths: # Only build the Docker image if the Dockerfile or related files change
-      - '.github/docker_build/Dockerfile' # Dockerfile and related files
-      - '.github/workflows/build_rover_cubeorangeplus.yml' # Trigger rebuild if the workflow changes
+    
+    # paths: # Only build the Docker image if the Dockerfile or related files change
+    #   - '.github/docker_build/Dockerfile' # Dockerfile and related files
+    #   - '.github/workflows/build_rover_cubeorangeplus.yml' # Trigger rebuild if the workflow changes
   workflow_dispatch:
 
 jobs:
