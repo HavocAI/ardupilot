@@ -444,7 +444,7 @@ bool AP_IrisOrca::healthy()
 
 uint32_t AP_IrisOrca::get_desired_shaft_pos()
 {
-    float yaw = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering);
+    const float yaw = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering), -1.0, 1.0);
 
     const float m = (_reverse_direction ? -1.0 : 1.0) * 0.5 * 1000 * (_max_travel_mm - (2.0 * _pad_travel_mm));
     const float b = 0.5 * 1000 * _max_travel_mm;
