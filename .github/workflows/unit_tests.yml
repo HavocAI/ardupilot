@@ -1,0 +1,39 @@
+name: Run Unit Tests
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize] # Triggers on PR opened, reopened, or when new commits are pushed to the PR branch
+    branches:
+        - main
+        - master
+    
+  workflow_dispatch: # Allows you to run the workflow manually from the GitHub Actions tab
+
+jobs:
+
+    unit_tests:
+      name: Run unit tests
+      runs-on: ubuntu-latest
+      container:
+        # image: ghcr.io/havocai/ardupilot/ardupilot-build-env:latest
+        image: pshavoc/havoc_ardupilot:latest
+        credentials:
+          # username: ${{ github.actor }}
+          # password: ${{ secrets.GITHUB_TOKEN }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+          with:
+            submodules: true
+            path: ardupilot
+
+        - name: Run unit tests
+          run: |
+              cd ardupilot
+              ./Tools/gittools/submodule-sync.sh
+              ./waf configure --board=linux --debug
+              ./waf check --check-verbose
+

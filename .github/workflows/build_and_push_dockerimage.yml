@@ -1,0 +1,45 @@
+name: Create Docker image for CubeOrangePlus
+
+on:
+  push:
+    
+    paths: # Only build the Docker image if the Dockerfile or related files change
+      - '.github/docker_build/Dockerfile' # Dockerfile and related files
+      - '.github/docker_build/**' # Any files in the docker_build directory
+      - '.github/workflows/build_rover_cubeorangeplus.yml' # Trigger rebuild if the workflow changes
+  workflow_dispatch:
+
+jobs:
+  build_and_push_docker_image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # - name: Log in to GitHub Container Registry
+      #   uses: docker/login-action@v3
+      #   with:
+      #     registry: ghcr.io
+      #     username: ${{ github.actor }}
+      #     password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .github/docker_build
+          push: true
+          # tags: ghcr.io/havocai/ardupilot/ardupilot-build-env:latest
+          tags: ${{ secrets.DOCKER_USERNAME }}/havoc_ardupilot:latest
+          # cache-from: type=gha
+          # cache-to: type=gha,mode=max
+
