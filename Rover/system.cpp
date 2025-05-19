@@ -224,6 +224,15 @@ bool Rover::set_mode(Mode &new_mode, ModeReason reason)
         return true;
     }
 
+    if ((control_mode->mode_number() == Mode::Number::MANUAL &&
+        reason != ModeReason::RC_COMMAND) && new_mode.mode_number() != Mode::Number::HOLD) {
+      gcs().send_text(MAV_SEVERITY_WARNING,
+                      "Mode change from MANUAL to %s denied, only RC commands "
+                      "(QGC, MP, hand controller) can force exit from MANUAL",
+                      new_mode.name4());
+      return false;
+    }
+
     // Check if GCS mode change is disabled via parameter
     if ((reason == ModeReason::GCS_COMMAND) && !gcs_mode_enabled((Mode::Number)new_mode.mode_number())) {
         gcs().send_text(MAV_SEVERITY_NOTICE,"Mode change to %s denied, GCS entry disabled (FLTMODE_GCSBLOCK)", new_mode.name4());
