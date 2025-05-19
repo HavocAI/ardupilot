@@ -30,58 +30,7 @@
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 
-class AP_Ilmor_Driver : public CANSensor, public AP_ESC_Telem_Backend
-{
-public:
-    AP_Ilmor_Driver();
-
-    // called from SRV_Channels
-    void update();
-
-    // returns true if the driver is communicating with the motor 
-    bool healthy();
-
-    // J1939 CAN backend
-    AP_J1939_CAN* j1939;
-
-private:
-
-    // handler for incoming frames
-    void handle_frame(AP_HAL::CANFrame &frame) override;
-
-    bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
-    bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
-
-    void loop();
-
-    void handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
-    void handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
-    void handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg);
-    void handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg);
-    void handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg);
-    void handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg);
-    void handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg);
-    void handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg);
-    void handle_inverter_status_frame_5(const struct ilmor_inverter_status_frame_5_t &msg);
-
-    // output (command) struct
-    struct
-    {
-        HAL_Semaphore sem;
-        bool is_new;
-        uint32_t last_new_ms;
-        int16_t motor_rpm;
-        uint8_t motor_trim;
-    } _output;
-
-    uint8_t _current_trim_position;
-    uint8_t _trim_command_from_buttons;
-    bool _trim_locked_out = true;
-
-    uint32_t _last_new_ms;
-};
-
-class AP_Ilmor
+class AP_Ilmor : public CANSensor, public AP_ESC_Telem_Backend
 {
 public:
     AP_Ilmor();
@@ -93,10 +42,9 @@ public:
 
     void init();
     void update();
+    bool healthy() const;
 
     static AP_Ilmor *get_singleton() { return _singleton; }
-
-    bool healthy() const { return _driver->healthy();}
 
     // run pre-arm check.  returns false on failure and fills in failure_msg
     // any failure_msg returned will not include a prefix
@@ -110,9 +58,17 @@ public:
     int8_t get_can_port() const { return _can_port.get(); }
 
 private:
+
+    enum TrimCmd : uint8_t {
+        TRIM_CMD_STOP = 0,
+        TRIM_CMD_UP = 1,
+        TRIM_CMD_DOWN = 2,
+        TRIM_CMD_BUTTONS = 255,
+    };
+
     static AP_Ilmor *_singleton;
 
-    AP_Ilmor_Driver *_driver;
+    AP_J1939_CAN* j1939;
 
     // Parameters
     AP_Int16 _min_rpm;
@@ -120,6 +76,52 @@ private:
     AP_Int8 _trim_fn;
     AP_Int8 _max_run_trim;
     AP_Int8 _can_port;
+
+    uint8_t _current_trim_position;
+    uint8_t _trim_command_from_buttons;
+    bool _trim_locked_out = true;
+
+    struct run_state {
+        run_state() :
+            last_send_throttle_ms(0),
+            last_send_trim_ms(0),
+            last_received_msg_ms(0),
+            last_trim_cmd(TRIM_CMD_BUTTONS) {}
+
+        uint32_t last_send_throttle_ms;
+        uint32_t last_send_trim_ms;
+        uint32_t last_received_msg_ms;
+        TrimCmd last_trim_cmd;
+    } _run_state;
+
+    struct command_output {
+        command_output() :
+            motor_rpm(0),
+            motor_trim(TRIM_CMD_BUTTONS) {}
+
+        int16_t motor_rpm;
+        TrimCmd motor_trim;
+    } _output;
+    
+    void tick(void);
+    void send_throttle_cmd();
+    void send_trim_cmd();
+
+    // handler for incoming frames
+    void handle_frame(AP_HAL::CANFrame &frame) override;
+
+    bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
+    bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
+
+    void handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
+    void handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
+    void handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg);
+    void handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg);
+    void handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg);
+    void handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg);
+    void handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg);
+    void handle_inverter_status_frame_4(const struct ilmor_inverter_status_frame_4_t &msg);
+    void handle_inverter_status_frame_5(const struct ilmor_inverter_status_frame_5_t &msg);
 
 };
 namespace AP
