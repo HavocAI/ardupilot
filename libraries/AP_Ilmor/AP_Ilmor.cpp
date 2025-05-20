@@ -116,7 +116,9 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
-    : CANSensor("Ilmor")
+    : CANSensor("Ilmor"),
+    _run_state(),
+    _output()
 {
     AP_Param::setup_object_defaults(this, var_info);
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
@@ -157,7 +159,6 @@ void AP_Ilmor::init()
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
-    async_init(&_run_state);
     hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Ilmor::tick, void));
 }
 

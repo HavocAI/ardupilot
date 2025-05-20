@@ -29,7 +29,6 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
-#include <AP_Common/async.h>
 
 class AP_Ilmor : public CANSensor, public AP_ESC_Telem_Backend
 {
@@ -83,16 +82,23 @@ private:
     bool _trim_locked_out = true;
 
     struct run_state {
-        async_state;
+        run_state() :
+            last_send_throttle_ms(0),
+            last_send_trim_ms(0),
+            last_received_msg_ms(0),
+            last_trim_cmd(TRIM_CMD_BUTTONS) {}
 
         uint32_t last_send_throttle_ms;
         uint32_t last_send_trim_ms;
         uint32_t last_received_msg_ms;
         TrimCmd last_trim_cmd;
-
     } _run_state;
 
     struct command_output {
+        command_output() :
+            motor_rpm(0),
+            motor_trim(TRIM_CMD_BUTTONS) {}
+
         int16_t motor_rpm;
         TrimCmd motor_trim;
     } _output;
