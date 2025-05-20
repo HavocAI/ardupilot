@@ -52,7 +52,7 @@
 
 #include "AP_Ilmor.h"
 
-// #if HAL_ILMOR_ENABLED
+#if HAL_ILMOR_ENABLED
 #include <AP_HAL/utility/sparse-endian.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
@@ -508,4 +508,4 @@ namespace AP
     }
 };
 
-// #endif // HAL_ILMOR_ENABLED
+#endif // HAL_ILMOR_ENABLED

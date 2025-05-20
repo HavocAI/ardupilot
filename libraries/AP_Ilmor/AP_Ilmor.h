@@ -22,7 +22,7 @@
 
 #include <AP_Ilmor/AP_Ilmor_config.h>
 
-// #if HAL_ILMOR_ENABLED
+#if HAL_ILMOR_ENABLED
 #include <AP_Ilmor/ilmor.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_CANManager/AP_CANSensor.h>
@@ -123,4 +123,4 @@ namespace AP
     AP_Ilmor *ilmor();
 };
 
-// #endif // HAL_ILMOR_ENABLED
+#endif // HAL_ILMOR_ENABLED
