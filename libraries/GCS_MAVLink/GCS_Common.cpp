@@ -67,6 +67,7 @@
 #include <AP_KDECAN/AP_KDECAN.h>
 #include <AP_LandingGear/AP_LandingGear.h>
 #include <AP_Landing/AP_Landing_config.h>
+#include <AP_IrisOrca/AP_IrisOrca.h>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -1154,6 +1155,7 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #endif
         { MAVLINK_MSG_ID_AVAILABLE_MODES, MSG_AVAILABLE_MODES},
         { MAVLINK_MSG_ID_AVAILABLE_MODES_MONITOR, MSG_AVAILABLE_MODES_MONITOR},
+        { MAVLINK_MSG_ID_ORCA_TELEMETRY, MSG_ORCA_TELEMETRY},
             };
 
     for (uint8_t i=0; i<ARRAY_SIZE(map); i++) {
@@ -6591,6 +6593,15 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_AVAILABLE_MODES_MONITOR:
         ret = send_available_mode_monitor();
         break;
+    
+    case MSG_ORCA_TELEMETRY: {
+        CHECK_PAYLOAD_SIZE(ORCA_TELEMETRY);
+        AP_IrisOrca *orca = AP::irisorca();
+        if (orca) {
+            orca->send_mavlink_status(chan);
+        }
+        break;
+    }
 
     default:
         // try_send_message must always at some stage return true for
