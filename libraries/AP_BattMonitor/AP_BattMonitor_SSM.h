@@ -35,27 +35,31 @@ public:
                        AP_BattMonitor::BattMonitor_State &mon_state,
                        AP_BattMonitor_Params &params);
 
-    bool has_consumed_energy() const override { return false; }
-    bool has_current() const override { return _last_update_us != 0; }
-    bool has_cell_voltages() const override { return _last_update_us != 0; }
-    bool has_temperature() const override { return _last_update_us != 0; }
+    CLASS_NO_COPY(AP_BattMonitor_SSM);
+
+    bool has_consumed_energy() const override { return true; }
+    bool has_current() const override { return true; }
+    bool has_cell_voltages() const override { return true; }
+    bool has_temperature() const override { return true; }
     bool capacity_remaining_pct(uint8_t &percentage) const override;
 
-    void init(void) override;
+    void init() override;
     void read() override;
     
     static const struct AP_Param::GroupInfo var_info[];
 
 private:
+
+    void tick(void);
+    void init_can();
+
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
     bool send_status_request();
-    void loop();
 
     void send_query_frame();
 
-    void handle_query_frame(const struct ssmbattery_query_frame_t &msg);
     void handle_cell_voltage_information(const struct ssmbattery_cell_voltage_information_t &msg);
     void handle_cell_temperature_information(const struct ssmbattery_cell_temperature_information_t &msg);
     void handle_total_information_0(const struct ssmbattery_total_information_0_t &msg);
@@ -72,10 +76,7 @@ private:
 
     void split_id(uint32_t can_id, uint32_t& base_id, uint32_t& board_number);
 
-    uint32_t _last_update_us;
-    HAL_Semaphore _sem;
-
-    AP_BattMonitor::BattMonitor_State _internal_state;
+    AP_BattMonitor::BattMonitor_State _interim_state;
     uint8_t _capacity_remaining_pct;
 
     // Parameters
@@ -85,6 +86,9 @@ private:
 
     // J1939 CAN backend
     AP_J1939_CAN* j1939;
+
+    HAL_Semaphore _sem_battmon;
+    uint32_t _last_query_time;
 };
 
 #endif // AP_BATTERY_SSM_ENABLED

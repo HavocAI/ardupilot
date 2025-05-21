@@ -91,37 +91,35 @@ const AP_Param::GroupInfo AP_BattMonitor_SSM::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("SSM_CELLS", 72, AP_BattMonitor_SSM, _num_cells, 14),
 
-    AP_GROUPEND};
+    AP_GROUPEND
+};
 
 // Constructor
 AP_BattMonitor_SSM::AP_BattMonitor_SSM(AP_BattMonitor &mon, 
                                        AP_BattMonitor::BattMonitor_State &mon_state, 
                                        AP_BattMonitor_Params &params)
-    : AP_BattMonitor_Backend(mon, mon_state, params), CANSensor("SSMBattery")
+    : AP_BattMonitor_Backend(mon, mon_state, params),
+      CANSensor("SSMBattery")
 {
     AP_Param::setup_object_defaults(this, var_info);
     _state.var_info = var_info;
 }
 
-void AP_BattMonitor_SSM::init(void)
+void AP_BattMonitor_SSM::init_can()
 {
-    _state.healthy = false;
 
-    if (_can_port.get() < 0)
-    {
+    if (_can_port.get() < 0) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Disabled (CAN port = -1)");
         return;
     }
 
     j1939 = AP_J1939_CAN::get_instance(_can_port.get());
-
-    if (j1939 == nullptr)
-    {
+    if (j1939 == nullptr) {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: Failed to get J1939 instance");
         return;
     }
 
-    if (!j1939->register_frame_id(SSMBATTERY_QUERY_FRAME_FRAME_ID, this) ||
+    if (
         !j1939->register_frame_id(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
         !j1939->register_frame_id(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID, this) ||
         !j1939->register_frame_id(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID, this) ||
@@ -142,8 +140,14 @@ void AP_BattMonitor_SSM::init(void)
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Registered with J1939 on CAN%d", _can_port.get());
 
-    // start thread for receiving and sending CAN frames.
-    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_BattMonitor_SSM::loop, void), "ssm_battery", 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
+
+}
+
+void AP_BattMonitor_SSM::init(void)
+{
+    _last_query_time = 0;
+    hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_BattMonitor_SSM::tick, void));
+    init_can();
 }
 
 bool AP_BattMonitor_SSM::capacity_remaining_pct(uint8_t &percentage) const
@@ -156,52 +160,59 @@ bool AP_BattMonitor_SSM::capacity_remaining_pct(uint8_t &percentage) const
     return AP_BattMonitor_Backend::capacity_remaining_pct(percentage);
 }
 
+void AP_BattMonitor_SSM::tick()
+{
+    const uint32_t now_ms = AP_HAL::millis();
+
+    // Send query frame every 2 seconds
+    if (now_ms - _last_query_time >= AP_BATT_MONITOR_SSM_QUERY_INTERVAL_MS) {
+        send_query_frame();
+        _last_query_time = now_ms;
+    }
+    
+}
+
 // Called by frontend to update the state. Called at 10Hz
 void AP_BattMonitor_SSM::read()
 {
-    WITH_SEMAPHORE(_sem);
+    uint32_t tnow = AP_HAL::micros();
 
-    // Check for timeout
-    if (_last_update_us == 0 || AP_HAL::micros() - _last_update_us > AP_BATT_MONITOR_SSM_TIMEOUT_US) {
-        _state.healthy = false;
-        return;
-    }
-    else {
-        _state.healthy = true;
-    }
-    if (_state.last_time_micros == _last_update_us) {
-        // No new data
-        return;
+    WITH_SEMAPHORE(_sem_battmon);
+
+    // timeout after 5 seconds
+    if ((tnow - _interim_state.last_time_micros) > 5000000) {
+        _interim_state.healthy = false;
     }
 
-    for (uint8_t i = 0; i < MIN(AP_BATT_MONITOR_CELLS_MAX,_num_cells.get()); i++) {
-        _state.cell_voltages.cells[i] = _internal_state.cell_voltages.cells[i];
-    }
-    _state.voltage = _internal_state.voltage;
-    if (!isnan(_internal_state.current_amps)) {
-        _state.current_amps = _internal_state.current_amps;
-    }
-    if (!isnan(_internal_state.consumed_mah)) {
-        _state.consumed_mah = _internal_state.consumed_mah;
-    }
-    // Overide integrated consumed energy if it has been set
-    if (!isnan(_internal_state.consumed_wh)) {
-        _state.consumed_wh = _internal_state.consumed_wh;
-    }
-    if (!isnan(_internal_state.temperature)) {
-        _state.temperature = _internal_state.temperature;
-    }
+    _state.voltage = _interim_state.voltage;
+    _state.current_amps = _interim_state.current_amps;
+    _state.consumed_mah = _interim_state.consumed_mah;
+    _state.consumed_wh = _interim_state.consumed_wh;
+    _state.last_time_micros = _interim_state.last_time_micros;
+    _state.temperature = _interim_state.temperature;
+    _state.temperature_time = _interim_state.temperature_time;
+    _state.healthy = _interim_state.healthy;
+    memcpy(_state.cell_voltages.cells, _interim_state.cell_voltages.cells, sizeof(_state.cell_voltages));
 
-    // Update the timestamp (has to be done after the consumed_mah calculation)
-    _state.last_time_micros = _last_update_us;
 }
 
 // parse inbound frames
 void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
 {
+
+#if AP_BATT_MONITOR_SSM_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: received frame ID: 0x%08" PRIx32 ", DLC: %" PRIu8,
+                  frame.id, frame.dlc);
+#endif
     // Only handle extended frames for the "board number"
     // aka. source address that this monitor is configured for
+
+
     J1939::J1939Frame j1939_frame = J1939::unpack_j1939_frame(frame);
+#if AP_BATT_MONITOR_SSM_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "SSM Battery: unpacked frame - priority: %d, pgn: 0x%06" PRIx32 ", source address: 0x%02" PRIx8,
+                  j1939_frame.priority, j1939_frame.pgn, j1939_frame.source_address);
+#endif
     if (j1939_frame.source_address != _board_number) {
         return;
     }
@@ -209,13 +220,6 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     // Use only the J1939 PGN of the frame id to determine the message type
     switch (j1939_frame.pgn)
     {
-    case J1939::extract_j1939_pgn(SSMBATTERY_QUERY_FRAME_FRAME_ID):
-    {
-        struct ssmbattery_query_frame_t msg;
-        ssmbattery_query_frame_unpack(&msg, frame.data, frame.dlc);
-        handle_query_frame(msg);
-        break;
-    }
     case J1939::extract_j1939_pgn(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_cell_voltage_information_t msg;
@@ -313,26 +317,16 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
 }
 
-void AP_BattMonitor_SSM::loop()
-{
-    uint32_t last_query_time = 0;
-    while (true)
-    {
-        hal.scheduler->delay_microseconds(20000); // 50Hz
 
-        const uint32_t now_ms = AP_HAL::millis();
-
-        // Send query frame every 2 seconds
-        if (now_ms - last_query_time >= AP_BATT_MONITOR_SSM_QUERY_INTERVAL_MS) {
-            send_query_frame();
-            last_query_time = now_ms;
-        }
-
-    } // while true
-}
 
 void AP_BattMonitor_SSM::send_query_frame()
 {
+
+#if AP_BATT_MONITOR_SSM_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Sent query frame");
+#endif
+
+
     // Prepare the data for the query frame (all zeros)
     struct ssmbattery_query_frame_t query_msg;
     ssmbattery_query_frame_init(&query_msg);
@@ -348,54 +342,51 @@ void AP_BattMonitor_SSM::send_query_frame()
     frame.source_address = AP_BATT_MONITOR_SSM_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    j1939->send_message(frame);
+    if (j1939 == nullptr) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "SSM Battery: J1939 instance not initialized");
+        init_can();
+    } else {
+        j1939->send_message(frame);
+    }
 
-#if AP_BATT_MONITOR_SSM_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Sent query frame");
-#endif
-}
 
-void AP_BattMonitor_SSM::handle_query_frame(const struct ssmbattery_query_frame_t &msg)
-{
-    // Handle the query frame message
 }
 
 void AP_BattMonitor_SSM::handle_cell_voltage_information(const struct ssmbattery_cell_voltage_information_t &msg)
 {
     // Handle the cell voltage information message
-    WITH_SEMAPHORE(_sem);
+
+    WITH_SEMAPHORE(_sem_battmon);
 
     if (msg.module == 1)
     {
-        _internal_state.cell_voltages.cells[0] = msg.volt1;
-        _internal_state.cell_voltages.cells[1] = msg.volt2;
-        _internal_state.cell_voltages.cells[2] = msg.volt3;
+        _state.cell_voltages.cells[0] = msg.volt1;
+        _state.cell_voltages.cells[1] = msg.volt2;
+        _state.cell_voltages.cells[2] = msg.volt3;
     }
     else if (msg.module == 2)
     {
-        _internal_state.cell_voltages.cells[3] = msg.volt1;
-        _internal_state.cell_voltages.cells[4] = msg.volt2;
-        _internal_state.cell_voltages.cells[5] = msg.volt3;
+        _state.cell_voltages.cells[3] = msg.volt1;
+        _state.cell_voltages.cells[4] = msg.volt2;
+        _state.cell_voltages.cells[5] = msg.volt3;
     }
     else if (msg.module == 3)
     {
-        _internal_state.cell_voltages.cells[6] = msg.volt1;
-        _internal_state.cell_voltages.cells[7] = msg.volt2;
-        _internal_state.cell_voltages.cells[8] = msg.volt3;
+        _state.cell_voltages.cells[6] = msg.volt1;
+        _state.cell_voltages.cells[7] = msg.volt2;
+        _state.cell_voltages.cells[8] = msg.volt3;
     }
     else if (msg.module == 4)
     {
-        _internal_state.cell_voltages.cells[9] = msg.volt1;
-        _internal_state.cell_voltages.cells[10] = msg.volt2;
-        _internal_state.cell_voltages.cells[11] = msg.volt3;
+        _state.cell_voltages.cells[9] = msg.volt1;
+        _state.cell_voltages.cells[10] = msg.volt2;
+        _state.cell_voltages.cells[11] = msg.volt3;
     }
     else if (msg.module == 5)
     {
-        _internal_state.cell_voltages.cells[12] = msg.volt1;
-        _internal_state.cell_voltages.cells[13] = msg.volt2;
+        _state.cell_voltages.cells[12] = msg.volt1;
+        _state.cell_voltages.cells[13] = msg.volt2;
     }
-
-    _last_update_us = AP_HAL::micros();
 
 }
 
@@ -411,12 +402,24 @@ void AP_BattMonitor_SSM::handle_total_information_0(const struct ssmbattery_tota
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "SSM Battery: Voltage: %f, Current: %f, SOC: %d", float(msg.sum_v) / 10.0f, float(msg.curr) / 10.0f, msg.soc / 10);
 #endif
 
-    WITH_SEMAPHORE(_sem);
-    _internal_state.voltage = float(msg.sum_v) / 10.0f;
-    _internal_state.current_amps = -1 * (float(msg.curr) / 10.0f - 3000.0f); //Flip sign to match BatteryMonitor convention
-    _internal_state.last_time_micros = AP_HAL::micros();
+    WITH_SEMAPHORE(_sem_battmon);
+
+    _interim_state.voltage = float(msg.sum_v) / 10.0f;
+    _interim_state.current_amps = -1 * (float(msg.curr) / 10.0f - 3000.0f); //Flip sign to match BatteryMonitor convention
     _capacity_remaining_pct = uint8_t(msg.soc / 10);
-    _last_update_us = AP_HAL::micros();
+
+    _interim_state.healthy = true;
+
+
+    // calculate time since last current read
+    uint32_t tnow = AP_HAL::micros();
+    uint32_t dt_us = tnow - _interim_state.last_time_micros;
+
+    // update total current drawn since startup
+    update_consumed(_interim_state, dt_us);
+
+    // record time
+    _interim_state.last_time_micros = tnow;
 }
 
 void AP_BattMonitor_SSM::handle_total_information_1(const struct ssmbattery_total_information_1_t &msg)
@@ -432,11 +435,9 @@ void AP_BattMonitor_SSM::handle_cell_voltage_statistical_information(const struc
 void AP_BattMonitor_SSM::handle_unit_temperature_statistical_information(const struct ssmbattery_unit_temperature_statistical_information_t &msg)
 {
     // Handle the unit temperature statistical information message
-    WITH_SEMAPHORE(_sem);
-    _internal_state.temperature = msg.max_t - 40;
-    _internal_state.temperature_time = AP_HAL::micros();
-
-    _last_update_us = AP_HAL::micros();
+    WITH_SEMAPHORE(_sem_battmon);
+    _state.temperature = msg.max_t - 40;
+    _state.temperature_time = AP_HAL::micros();
 }
 
 void AP_BattMonitor_SSM::handle_status_information_0(const struct ssmbattery_status_information_0_t &msg)
