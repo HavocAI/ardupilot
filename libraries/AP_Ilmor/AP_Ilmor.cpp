@@ -63,7 +63,7 @@ extern const AP_HAL::HAL &hal;
 #define AP_ILMOR_COMMAND_RATE_HZ 20
 #define AP_ILMOR_TRIM_DEADBAND 10
 #define AP_ILMOR_MAX_TRIM 190        // highest setting that AP will be allowed to trim
-#define AP_ILMOR_TRIM_PULSE_TIME 400 // ms
+
 #define AP_ILMOR_SOURCE_ADDRESS 0xF2
 
 // J1939 Message priorities
@@ -143,8 +143,9 @@ void AP_Ilmor::init()
     }
 
     // Register the driver with the J1939 CAN backend for the Ilmor specific CAN IDs
-    if (!j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, this) ||
+    if (
+        // !j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, this) ||
+        // !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, this) ||
@@ -184,12 +185,13 @@ void AP_Ilmor::send_throttle_cmd()
 {
 
     if (AP_HAL::millis() - _run_state.last_send_throttle_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
-        ilmor_unmanned_throttle_control_t throttle_msg;
-        throttle_msg.unmanned_control_key = ilmor_unmanned_throttle_control_unmanned_control_key_encode(0x4D);
-        throttle_msg.unmanned_p_rpm_demand = ilmor_unmanned_throttle_control_unmanned_p_rpm_demand_encode(_output.motor_rpm);
-
+        ilmor_unmanned_throttle_control_t throttle_msg = {
+            .unmanned_control_key = 0x4d,
+            .unmanned_p_rpm_demand = _output.motor_rpm,
+        };
+        
         if (!send_unmanned_throttle_control(throttle_msg)) {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send throttle control message");
+            // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send throttle control message");
         }
 
         _run_state.last_send_throttle_ms = AP_HAL::millis();
@@ -198,13 +200,14 @@ void AP_Ilmor::send_throttle_cmd()
 
 void AP_Ilmor::send_trim_cmd()
 {
-    if (AP_HAL::millis() - _run_state.last_send_trim_ms >= AP_ILMOR_TRIM_PULSE_TIME) {
+    if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
 
-        ilmor_r3_status_frame_2_t r3_status_frame_2_msg;
-        r3_status_frame_2_msg.trim_demand = _output.motor_trim;
+        ilmor_r3_status_frame_2_t r3_status_frame_2_msg = {
+            .trim_demand = static_cast<uint8_t>(_output.motor_trim),
+        };
 
         if (!send_r3_status_frame_2(r3_status_frame_2_msg)) {
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
+            // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
         }
 
         _run_state.last_send_trim_ms = AP_HAL::millis();
@@ -402,6 +405,8 @@ void AP_Ilmor::handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &
 void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
     _current_trim_position = msg.trim_position_adjusted;
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position_adjusted);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
 
     // Populate esc2_rpm with the trim position
     update_rpm(1, int32_t(msg.trim_position_adjusted));
@@ -409,25 +414,27 @@ void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t
 
 void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
 {
-    _trim_command_from_buttons = msg.trim_demand_request_from_buttons;
-    if (_trim_command_from_buttons != 0)
-    {
-        // Operator is using buttons to adjust trim
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim buttons pressed");
-        if (_trim_command_from_buttons == 1 && _current_trim_position >= AP_ILMOR_MAX_TRIM)
-        {
-            if (!_trim_locked_out)
-            {
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim locked up by buttons");
-            }
-            _trim_locked_out = true;
-        }
-        else if (_trim_command_from_buttons == 2 && _trim_locked_out)
-        {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim lock released");
-            _trim_locked_out = false;
-        }
-    }
+    
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: trim demand %d", msg.trim_demand_request_from_buttons);
+    // _trim_command_from_buttons = msg.trim_demand_request_from_buttons;
+    // if (_trim_command_from_buttons != 0)
+    // {
+    //     // Operator is using buttons to adjust trim
+    //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim buttons pressed");
+    //     if (_trim_command_from_buttons == 1 && _current_trim_position >= AP_ILMOR_MAX_TRIM)
+    //     {
+    //         if (!_trim_locked_out)
+    //         {
+    //             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim locked up by buttons");
+    //         }
+    //         _trim_locked_out = true;
+    //     }
+    //     else if (_trim_command_from_buttons == 2 && _trim_locked_out)
+    //     {
+    //         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim lock released");
+    //         _trim_locked_out = false;
+    //     }
+    // }
 }
 
 void AP_Ilmor::handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg)
