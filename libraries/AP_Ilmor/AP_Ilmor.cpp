@@ -405,11 +405,11 @@ void AP_Ilmor::handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &
 void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
     _current_trim_position = msg.trim_position_adjusted;
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position_adjusted);
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
 
     // Populate esc2_rpm with the trim position
-    update_rpm(1, int32_t(msg.trim_position_adjusted));
+    update_rpm(1, int32_t(msg.trim_position));
 }
 
 void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
