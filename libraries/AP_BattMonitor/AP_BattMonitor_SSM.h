@@ -39,7 +39,7 @@ public:
 
     bool has_consumed_energy() const override { return true; }
     bool has_current() const override { return true; }
-    bool has_cell_voltages() const override { return true; }
+    // bool has_cell_voltages() const override { return true; }
     bool has_temperature() const override { return true; }
     bool capacity_remaining_pct(uint8_t &percentage) const override;
 

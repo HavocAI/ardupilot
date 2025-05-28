@@ -120,7 +120,7 @@ void AP_BattMonitor_SSM::init_can()
     }
 
     if (
-        !j1939->register_frame_id(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
+        // !j1939->register_frame_id(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
         !j1939->register_frame_id(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID, this) ||
         !j1939->register_frame_id(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID, this) ||
         !j1939->register_frame_id(SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID, this) ||
@@ -192,7 +192,7 @@ void AP_BattMonitor_SSM::read()
     _state.temperature = _interim_state.temperature;
     _state.temperature_time = _interim_state.temperature_time;
     _state.healthy = _interim_state.healthy;
-    memcpy(_state.cell_voltages.cells, _interim_state.cell_voltages.cells, sizeof(_state.cell_voltages));
+    // memcpy(_state.cell_voltages.cells, _interim_state.cell_voltages.cells, sizeof(_state.cell_voltages));
 
 }
 
@@ -220,13 +220,13 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     // Use only the J1939 PGN of the frame id to determine the message type
     switch (j1939_frame.pgn)
     {
-    case J1939::extract_j1939_pgn(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID):
-    {
-        struct ssmbattery_cell_voltage_information_t msg;
-        ssmbattery_cell_voltage_information_unpack(&msg, frame.data, frame.dlc);
-        handle_cell_voltage_information(msg);
-        break;
-    }
+    // case J1939::extract_j1939_pgn(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID):
+    // {
+    //     struct ssmbattery_cell_voltage_information_t msg;
+    //     ssmbattery_cell_voltage_information_unpack(&msg, frame.data, frame.dlc);
+    //     handle_cell_voltage_information(msg);
+    //     break;
+    // }
     case J1939::extract_j1939_pgn(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID):
     {
         struct ssmbattery_cell_temperature_information_t msg;
