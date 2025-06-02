@@ -1,0 +1,36 @@
+name: Build Rover for CubeOrangePlus
+
+on:
+  push:
+    
+  workflow_dispatch: # Allows you to run the workflow manually from the GitHub Actions tab
+
+jobs:
+    build_rover:
+      name: Build Rover Firmware
+      runs-on: ubuntu-latest
+      container:
+        image: ghcr.io/havocai/ardupilot/ardupilot-build-env:latest
+        credentials:
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      steps:
+        - name: Checkout code
+          uses: actions/checkout@v4
+          with:
+            submodules: true
+            path: ardupilot
+
+        - name: Build Rover Firmware
+          run: |
+              cd ardupilot
+              ./waf configure --board CubeOrangePlus
+              ./waf build
+
+        - name: Upload built firmware
+          uses: actions/upload-artifact@v4
+          with:
+             name: ardurover-cubeorangeplus
+             path: ardupilot/build/CubeOrangePlus/bin/ardurover.apj
+
