@@ -436,6 +436,9 @@ public:
     // FS GCS timeout trigger time
     AP_Float fs_gcs_timeout;
 
+    // Pilot guided/auto throttle speed nudge
+    AP_Int8 pilot_speed_nudge;
+
     class ModeCircle mode_circle;
 
 #if HAL_IRISORCA_ENABLED
