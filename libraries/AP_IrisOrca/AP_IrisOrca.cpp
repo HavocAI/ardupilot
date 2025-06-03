@@ -138,17 +138,15 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 #define TEMP_PID_D 50000.0
 #define TEMP_PID_FF 0.0
 #define TEMP_PID_IMAX 600000.0
-#define TEMP_PID_FLTE 0.0
+#define TEMP_PID_FLTE 2.0
 #define TEMP_PID_FLTD 0.0
 
 AP_IrisOrca::AP_IrisOrca()
  : _uart(nullptr), 
    _initialised(false),
    _healthy(false),
-   _avg_power(ExponentialMovingAverage::from_n(100)),
-   _avg_temp(ExponentialMovingAverage::from_n(5)),
-   _temp_derating_max_force(0),
    _disable_throttle(false),
+   _temp_derating_max_force(0),
    _pid_temp(TEMP_PID_P, TEMP_PID_I, TEMP_PID_D, TEMP_PID_FF, TEMP_PID_IMAX, TEMP_PID_FLTE, TEMP_PID_FLTD)
 {
     _singleton = this;
@@ -401,19 +399,18 @@ async AP_IrisOrca::run()
             _healthy = true;
             _disable_throttle = false;
             _actuator_state = write_motor_cmd_stream_tx.actuator_state();
-            _avg_power.add(_actuator_state.power_consumed);
-            _avg_temp.add(_actuator_state.temperature);
 
-            if (_counter++ % 100 == 0) {
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %" PRIi32, _actuator_state.force_realized);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %" PRIu16, _actuator_state.power_consumed);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %" PRIu8, _actuator_state.temperature);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %" PRIu16, _actuator_state.voltage);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Avg power %.1fW", _avg_power.value());
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Avg temperature %.1fC", _avg_temp.value());
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: max force %" PRIu32, _temp_derating_max_force ? _temp_derating_max_force : _f_max.get());
-            }
+            _counter++;
+            // if (_counter % 100 == 0) {
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %" PRIi32, _actuator_state.force_realized);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %" PRIu16, _actuator_state.power_consumed);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %" PRIu8, _actuator_state.temperature);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %" PRIu16, _actuator_state.voltage);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Avg power %.1fW", _avg_power.value());
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Avg temperature %.1fC", _avg_temp.value());
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: max force %" PRIu32, _temp_derating_max_force ? _temp_derating_max_force : _f_max.get());
+            // }
 
             if (_actuator_state.errors) {
                 _disable_throttle = true;
@@ -426,17 +423,15 @@ async AP_IrisOrca::run()
 
             // run the temperature PID to get the force limit 1hz
             if (_counter % 10 == 0) {
-                
+
                 {
-                const float force_limit = constrain_float(_pid_temp.update_all(TEMP_DERATING, _avg_temp.value(), 1.0), 0.0, _f_max.get());
+                const float force_limit = constrain_float(_pid_temp.update_all(TEMP_DERATING, _actuator_state.temperature, 1.0), 0.0, _f_max.get());
                 _temp_derating_max_force = constrain_int32(_f_max.get() + static_cast<int32_t>(force_limit), 50000, _f_max.get());
-                }   
+                }
 
                 WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_temp_derating_max_force), "IrisOrca: Failed to set max force");
                 WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_temp_derating_max_force), "IrisOrca: Failed to set max force");
             }
-
-            
         }
 
 	    // send at 10Hz

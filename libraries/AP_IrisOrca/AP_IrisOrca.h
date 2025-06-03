@@ -30,7 +30,6 @@
 #include <AC_PID/AC_PID_Basic.h>
 #include <AP_Common/async.h>
 #include "AP_IrisOrcaModbus.h"
-#include "math_util.h"
 
 #define IRISORCA_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -123,14 +122,9 @@ private:
     WriteMotorCmdStreamTransaction write_motor_cmd_stream_tx;
     ReadMotorStreamTransaction read_motor_stream_tx;
 
-    ExponentialMovingAverage _avg_power;
-    ExponentialMovingAverage _avg_temp;
-    uint32_t _temp_derating_max_force;
-
     bool _disable_throttle;
-
+    uint32_t _temp_derating_max_force;
     AC_PID_Basic _pid_temp;
-    
 
 };
 
