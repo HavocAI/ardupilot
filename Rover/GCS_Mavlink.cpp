@@ -617,7 +617,9 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
 #if HAL_EFI_ENABLED
     MSG_EFI_STATUS,
 #endif
+#if HAL_IRISORCA_ENABLED
     MSG_ORCA_TELEMETRY,
+#endif
 };
 static const ap_message STREAM_PARAMS_msgs[] = {
     MSG_NEXT_PARAM,

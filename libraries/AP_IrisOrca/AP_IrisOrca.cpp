@@ -228,7 +228,6 @@ async AP_IrisOrca::run()
 
     if (_uart == nullptr) {
         _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
-        init_uart_for_modbus(_uart);
     }
 
     if (_uart == nullptr) {
@@ -236,6 +235,7 @@ async AP_IrisOrca::run()
         async_init(&_run_state);
         return ASYNC_CONT;
     }
+    init_uart_for_modbus(_uart);
 
     _run_state.last_send_ms = AP_HAL::millis();
     SLEEP(5000);
