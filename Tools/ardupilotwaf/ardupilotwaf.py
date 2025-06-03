@@ -21,6 +21,7 @@ SOURCE_EXTS = [
 COMMON_VEHICLE_DEPENDENT_CAN_LIBRARIES = [
     'AP_CANManager',
     'AP_KDECAN',
+    'AP_J1939_CAN',
     'AP_PiccoloCAN',
     'AP_PiccoloCAN/piccolo_protocol',
 ]
@@ -130,6 +131,7 @@ COMMON_VEHICLE_DEPENDENT_LIBRARIES = [
     'AP_Arming',
     'AP_RCMapper',
     'AP_MultiHeap',
+    'AP_FortVsc',
 ]
 
 def get_legacy_defines(sketch_name, bld):

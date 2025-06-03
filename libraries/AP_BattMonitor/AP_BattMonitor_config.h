@@ -5,6 +5,7 @@
 #include <AP_EFI/AP_EFI_config.h>
 #include <AP_Generator/AP_Generator_config.h>
 #include <AP_Torqeedo/AP_Torqeedo_config.h>
+#include <AP_J1939_CAN/AP_J1939_CAN_config.h>
 
 #ifndef AP_BATTERY_ENABLED
 #define AP_BATTERY_ENABLED 1
@@ -122,4 +123,8 @@
 
 #ifndef AP_BATTERY_OPTIONS_PARAM_ENABLED
 #define AP_BATTERY_OPTIONS_PARAM_ENABLED (!defined(HAL_BUILD_AP_PERIPH) || AP_BATTERY_SUM_ENABLED)
+#endif
+
+#ifndef AP_BATTERY_SSM_ENABLED
+#define AP_BATTERY_SSM_ENABLED HAL_J1939_CAN_ENABLED
 #endif

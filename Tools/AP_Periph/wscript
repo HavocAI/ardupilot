@@ -39,6 +39,7 @@ def build(bld):
                      'AP_BattMonitor',
                      'AP_CANManager',
                      'AP_KDECAN',
+                     'AP_Ilmor',
                      'AP_Param',
                      'StorageManager',
                      'AP_FlashStorage',
@@ -85,6 +86,8 @@ def build(bld):
                      'GCS_MAVLink',
                      'AP_Relay',
                      'AP_MultiHeap',
+                     'AP_FortVsc',
+                     'AP_J1939_CAN',
                      ]
 
     bld.ap_stlib(

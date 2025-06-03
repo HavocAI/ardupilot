@@ -700,6 +700,18 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(iris_orca, "ORCA_", 58, ParametersG2, AP_IrisOrca),
 #endif
 
+#if HAL_FORTVSC_ENABLED
+    // @Group: FORT_
+    // @Path: ../libraries/AP_FortVSC/AP_FortVSC.cpp
+    AP_SUBGROUPINFO(fort, "FORT_", 59, ParametersG2, AP_FortVsc),
+#endif
+
+#if HAL_ILMOR_ENABLED
+    // @Group: ILMOR_
+    // @Path: ../libraries/AP_Ilmor/AP_Ilmor.cpp
+    AP_SUBGROUPINFO(ilmor, "ILMOR_", 60, ParametersG2, AP_Ilmor),
+#endif
+
     AP_GROUPEND
 };
 
