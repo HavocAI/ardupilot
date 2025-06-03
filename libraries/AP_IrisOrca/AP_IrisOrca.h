@@ -27,6 +27,7 @@
 
 #include <AP_Param/AP_Param.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
+#include <AC_PID/AC_PID_Basic.h>
 #include <AP_Common/async.h>
 #include "AP_IrisOrcaModbus.h"
 
@@ -122,7 +123,8 @@ private:
     ReadMotorStreamTransaction read_motor_stream_tx;
 
     bool _disable_throttle;
-    
+    uint32_t _temp_derating_max_force;
+    AC_PID_Basic _pid_temp;
 
 };
 

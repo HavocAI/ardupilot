@@ -128,14 +128,26 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("AZ_F_MAX", 10, AP_IrisOrca, _auto_zero_f_max, 300),
 
+    AP_SUBGROUPINFO(_pid_temp, "_T_", 11, AP_IrisOrca, AC_PID_Basic),
+
     AP_GROUPEND
 };
+
+#define TEMP_PID_P 16000.0
+#define TEMP_PID_I 10000.0
+#define TEMP_PID_D 50000.0
+#define TEMP_PID_FF 0.0
+#define TEMP_PID_IMAX 600000.0
+#define TEMP_PID_FLTE 2.0
+#define TEMP_PID_FLTD 0.0
 
 AP_IrisOrca::AP_IrisOrca()
  : _uart(nullptr), 
    _initialised(false),
    _healthy(false),
-   _disable_throttle(false)
+   _disable_throttle(false),
+   _temp_derating_max_force(0),
+   _pid_temp(TEMP_PID_P, TEMP_PID_I, TEMP_PID_D, TEMP_PID_FF, TEMP_PID_IMAX, TEMP_PID_FLTE, TEMP_PID_FLTD)
 {
     _singleton = this;
     AP_Param::setup_object_defaults(this, var_info);
@@ -248,8 +260,6 @@ async AP_IrisOrca::run()
     // set motor to sleep
     WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP, "IrisOrca: not responding");
 
-    // WRITE_REGISTER(orca::Register::CTRL_REG_4, 7, "IrisOrca: reset defaults"); 
-
     // read firmware version
     _run_state.get_firmware = orca::get_firmware_state();
     await( async_call(read_firmware, &_run_state.get_firmware) );
@@ -258,6 +268,26 @@ async AP_IrisOrca::run()
         async_init(&_run_state);
         return ASYNC_CONT;
     }
+
+    // read the ERROR_0 register.
+    read_register_tx = ReadRegisterTransaction(_uart, static_cast<uint16_t>(orca::Register::ERROR_0));
+    await( read_register_tx.run() );
+    if (read_register_tx.is_timeout()) {
+        async_init(&_run_state);
+        return ASYNC_CONT;
+    }
+    _actuator_state.errors = read_register_tx.reg_value();
+    if (_actuator_state.errors & 0x0040) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: temp exceeded");
+
+        _run_state.last_send_ms = AP_HAL::millis();
+        SLEEP(5000);
+        
+        async_init(&_run_state);
+        return ASYNC_CONT;
+    }
+
+    // WRITE_REGISTER(orca::Register::CTRL_REG_4, 7, "IrisOrca: reset defaults");
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: P/I/D: %d/%d/%d, De: %d",
         _gain_p.get(),
@@ -277,8 +307,8 @@ async AP_IrisOrca::run()
     WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
     WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
 
-    // WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(0), "IrisOrca: Failed to set max force");
-    // WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(0), "IrisOrca: Failed to set max force");
+    WRITE_REGISTER(orca::Register::USER_MAX_FORCE, LOWWORD(0), "IrisOrca: Failed to set max force");
+    WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(0), "IrisOrca: Failed to set max force");
 
     // set comms timeout to 300ms
     WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 300, "IrisOrca: Failed to set comms timeout");
@@ -369,19 +399,38 @@ async AP_IrisOrca::run()
             _healthy = true;
             _disable_throttle = false;
             _actuator_state = write_motor_cmd_stream_tx.actuator_state();
-            if (_counter++ % 100 == 0) {
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %" PRIi32, _actuator_state.force_realized);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %" PRIu16, _actuator_state.power_consumed);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %" PRIu8, _actuator_state.temperature);
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %" PRIu16, _actuator_state.voltage);
-            }
+
+            _counter++;
+            // if (_counter % 100 == 0) {
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %" PRIi32, _actuator_state.force_realized);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %" PRIu16, _actuator_state.power_consumed);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %" PRIu8, _actuator_state.temperature);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %" PRIu16, _actuator_state.voltage);
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Avg power %.1fW", _avg_power.value());
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Avg temperature %.1fC", _avg_temp.value());
+            //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: max force %" PRIu32, _temp_derating_max_force ? _temp_derating_max_force : _f_max.get());
+            // }
 
             if (_actuator_state.errors) {
                 _disable_throttle = true;
                 GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error 0x%04X", _actuator_state.errors);
                 async_init(&_run_state);
                 return ASYNC_CONT;
+            }
+
+            #define TEMP_DERATING 50.0
+
+            // run the temperature PID to get the force limit 1hz
+            if (_counter % 10 == 0) {
+
+                {
+                const float force_limit = constrain_float(_pid_temp.update_all(TEMP_DERATING, _actuator_state.temperature, 1.0), 0.0, _f_max.get());
+                _temp_derating_max_force = constrain_int32(_f_max.get() + static_cast<int32_t>(force_limit), 50000, _f_max.get());
+                }
+
+                WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_temp_derating_max_force), "IrisOrca: Failed to set max force");
+                WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_temp_derating_max_force), "IrisOrca: Failed to set max force");
             }
         }
 
