@@ -238,19 +238,19 @@ async AP_IrisOrca::run()
     _healthy = false;
     _disable_throttle = true;
 
-    if (_uart == nullptr) {
-        _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
-    }
-
-    if (_uart == nullptr) {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to find serial port");
-        async_init(&_run_state);
-        return ASYNC_CONT;
-    }
-    init_uart_for_modbus(_uart);
-
     _run_state.last_send_ms = AP_HAL::millis();
     SLEEP(5000);
+
+    if (_uart == nullptr) {
+        _uart = AP::serialmanager().find_serial(AP_SerialManager::SerialProtocol_IrisOrca, 0);
+        if (_uart) {
+            init_uart_for_modbus(_uart);
+        } else {
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to find serial port");
+            async_init(&_run_state);
+            return ASYNC_CONT;
+        }
+    }
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Initialising");
 
@@ -289,11 +289,11 @@ async AP_IrisOrca::run()
 
     // WRITE_REGISTER(orca::Register::CTRL_REG_4, 7, "IrisOrca: reset defaults");
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: P/I/D: %d/%d/%d, De: %d",
-        _gain_p.get(),
-        _gain_i.get(),
-        _gain_dv.get(),
-        _gain_de.get());
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: P/I/D: %d/%d/%d, De: %d",
+    //     _gain_p.get(),
+    //     _gain_i.get(),
+    //     _gain_dv.get(),
+    //     _gain_de.get());
 
     // These PID values are used durring AUTO-ZERO. 
     // We found its important to have ~1000 P gain to get the motor to home correctly.
@@ -303,7 +303,7 @@ async AP_IrisOrca::run()
     WRITE_REGISTER(orca::Register::PC_DEGAIN, _gain_de, "IrisOrca: Failed to set De gain");
     WRITE_REGISTER(orca::Register::MB_POS_FILTER, 9950, "IrisOrca: Failed to set position filter");
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: max force: %" PRIu32, _f_max.get());
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: max force: %" PRIu32, _f_max.get());
     WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_f_max), "IrisOrca: Failed to set max force");
     WRITE_REGISTER(orca::Register::PC_FSATU_H, HIGHWORD(_f_max), "IrisOrca: Failed to set max force");
 
@@ -314,7 +314,7 @@ async AP_IrisOrca::run()
     WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 300, "IrisOrca: Failed to set comms timeout");
 
     // set auto zero max force
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero max force %" PRIi16, _auto_zero_f_max.get());
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero max force %" PRIi16, _auto_zero_f_max.get());
     WRITE_REGISTER(orca::Register::AUTO_ZERO_FORCE_N, _auto_zero_f_max.get(), "IrisOrca: Failed to set auto zero max force");
 
     // set auto zero exit mode
@@ -342,12 +342,12 @@ async AP_IrisOrca::run()
         _actuator_state = read_motor_stream_tx.actuator_state();
         _operating_mode = read_motor_stream_tx.operating_mode();
 
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %" PRIi32, _actuator_state.force_realized);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %" PRIu16, _actuator_state.power_consumed);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %" PRIu8, _actuator_state.temperature);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %" PRIu16, _actuator_state.voltage);
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Operating mode %" PRIu8, (uint8_t)_operating_mode);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Shaft position %" PRIi32, _actuator_state.shaft_position);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Force realized %" PRIi32, _actuator_state.force_realized);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Power consumed %" PRIu16, _actuator_state.power_consumed);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Temperature %" PRIu8, _actuator_state.temperature);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Voltage %" PRIu16, _actuator_state.voltage);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Operating mode %" PRIu8, (uint8_t)_operating_mode);
 
         if (_actuator_state.errors) {
             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Motor error 0x%04X", _actuator_state.errors);
