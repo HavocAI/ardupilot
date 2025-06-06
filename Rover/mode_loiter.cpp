@@ -18,7 +18,7 @@ bool ModeLoiter::_enter()
     return true;
 }
 
-void ModeLoiter::update()
+void ModeLoiter::original_update()
 {
     // get distance (in meters) to destination
     _distance_to_destination = rover.current_loc.get_distance(_destination);
@@ -31,19 +31,10 @@ void ModeLoiter::update()
         const float desired_speed_within_radius = g2.sailboat.tack_enabled() ? 0.1f : 0.0f;
         _desired_speed = attitude_control.get_desired_speed_accel_limited(desired_speed_within_radius, rover.G_Dt);
 
-        Vector3f wind;
-
         // if we have a sail but not trying to use it then point into the wind
         if (!g2.sailboat.tack_enabled() && g2.sailboat.sail_enabled()) {
             _desired_yaw_cd = degrees(g2.windvane.get_true_wind_direction_rad()) * 100.0f;
-        } else if (rover.is_boat() && ahrs.wind_estimate(wind)) {
-            // if we have a wind estimate then point into the wind
-            _desired_yaw_cd = degrees(atan2f(-wind.y, -wind.x)) * 100.0f;
-
-            // desired speed should match the wind speed
-            _desired_speed = wind.length();
         }
-        
     } else {
         // P controller with hard-coded gain to convert distance to desired speed
         _desired_speed = MIN((_distance_to_destination - loiter_radius) * g2.loiter_speed_gain, g2.wp_nav.get_default_speed());
@@ -79,6 +70,40 @@ void ModeLoiter::update()
     // run steering and throttle controllers
     calc_steering_to_heading(_desired_yaw_cd, turn_rate);
     calc_throttle(_desired_speed, true);
+
+}
+
+void ModeLoiter::new_update()
+{
+
+    Vector3f wind;
+
+    // if we have a sail but not trying to use it then point into the wind
+    if (!g2.sailboat.tack_enabled() && g2.sailboat.sail_enabled()) {
+        _desired_yaw_cd = degrees(g2.windvane.get_true_wind_direction_rad()) * 100.0f;
+    } else if (rover.is_boat() && ahrs.wind_estimate(wind)) {
+        // if we have a wind estimate then point into the wind
+        _desired_yaw_cd = degrees(atan2f(-wind.y, -wind.x)) * 100.0f;
+    }
+
+    _desired_speed = 1.0f;
+
+    // run steering and throttle controllers
+    calc_steering_to_heading(_desired_yaw_cd);
+    calc_throttle(_desired_speed, true);
+
+}
+
+void ModeLoiter::update()
+{
+
+    if (g2.loit_type <= 3) {
+        // use original loiter code
+        original_update();
+    } else {
+        // use new loiter code
+        new_update();
+    }
 }
 
 // get desired location

@@ -657,6 +657,9 @@ protected:
 
     Location _destination;      // target location to hold position around
     float _desired_speed;       // desired speed (ramped down from initial speed to zero)
+
+    void original_update();
+    void new_update();
 };
 
 class ModeManual : public Mode
