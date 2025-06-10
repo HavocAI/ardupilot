@@ -712,6 +712,14 @@ const AP_Param::GroupInfo ParametersG2::var_info[] = {
     AP_SUBGROUPINFO(ilmor, "ILMOR_", 60, ParametersG2, AP_Ilmor),
 #endif
 
+    // @Param: LOIT_ANGLE_GAIN
+    // @DisplayName: Loiter angle gain
+    // @Description: Determines how aggressively LOITER tries to correct for drift from loiter point. Only used when LOIT_TYPE is set to 4.
+    // @Range: 0 5
+    // @Increment: 0.01
+    // @User: Advanced
+    AP_GROUPINFO("LOIT_ANGLE_GAIN", 61, ParametersG2, loiter_angle_gain, 0.5f),
+
     AP_GROUPEND
 };
 

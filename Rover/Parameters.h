@@ -415,6 +415,8 @@ public:
     // gain for speed of correction in loiter
     AP_Float loiter_speed_gain;
 
+    AP_Float loiter_angle_gain;
+
     // FS options
     AP_Int32 fs_options;
 
