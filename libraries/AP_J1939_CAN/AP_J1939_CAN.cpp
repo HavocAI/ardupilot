@@ -120,7 +120,7 @@ bool AP_J1939_CAN::register_pgn(uint32_t pgn, CANSensor *driver)
         return true;
     }
 
-    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "J1939: Driver already registered for PGN %lu", pgn);
+    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "J1939: Driver already registered for PGN %" PRIu32, pgn);
     return false;
 }
 
