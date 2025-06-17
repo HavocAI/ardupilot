@@ -57,6 +57,16 @@ struct get_firmware_state {
     uint16_t commit_hash_high;
 };
 
+struct check_modbus_state {
+    check_modbus_state() {
+        async_init(this);
+        result = Result::ERROR;
+    }
+    async_state;
+    Result result;
+    uint16_t reg_value;
+};
+
 } // namespace orca
 
 class AP_IrisOrca {
@@ -100,7 +110,8 @@ private:
         
         
         orca::get_firmware_state get_firmware;
-        
+        orca::check_modbus_state check_modbus_rs485_mode;
+    
     } _run_state;
 
     static AP_IrisOrca *_singleton;
@@ -108,6 +119,7 @@ private:
     void run_io();
     async run();
     async read_firmware(orca::get_firmware_state *state);
+    async check_modbus_rs485_mode(orca::check_modbus_state *state);
     uint32_t get_desired_shaft_pos();
     void disable_throttle();
 

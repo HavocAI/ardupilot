@@ -178,6 +178,15 @@ struct state { async_state; };
         store = read_register_tx.reg_value(); \
     }
 
+#define WRITE_REGISTER(reg, value, err_msg) \
+    write_register_tx = WriteRegisterTransaction(_uart, static_cast<uint16_t>(reg), static_cast<uint16_t>(value)); \
+    await( write_register_tx.run() ); \
+    if (write_register_tx.is_timeout()) { \
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, err_msg); \
+        async_init(&_run_state); \
+        return ASYNC_CONT; \
+    }
+
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 async AP_IrisOrca::read_firmware(orca::get_firmware_state *state)
@@ -208,14 +217,26 @@ async AP_IrisOrca::read_firmware(orca::get_firmware_state *state)
 #pragma GCC diagnostic pop
 
 
-#define WRITE_REGISTER(reg, value, err_msg) \
-    write_register_tx = WriteRegisterTransaction(_uart, static_cast<uint16_t>(reg), static_cast<uint16_t>(value)); \
-    await( write_register_tx.run() ); \
-    if (write_register_tx.is_timeout()) { \
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, err_msg); \
-        async_init(&_run_state); \
-        return ASYNC_CONT; \
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
+async AP_IrisOrca::check_modbus_rs485_mode(orca::check_modbus_state *state)
+{
+    async_begin(state)
+
+    READ_REGISTER(orca::Register::MB_RS485_MODE, state->reg_value);
+
+    if (state->reg_value != 0x0001) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "IrisOrca: Modbus RS485 mode not enabled");
+        WRITE_REGISTER(orca::Register::MB_RS485_MODE, 0x0001, "IrisOrca: Failed to enable Modbus RS485 mode");
+
+        // Save the user options section of registers to flash memory.
+        WRITE_REGISTER(orca::Register::CTRL_REG_3, 64, "IrisOrca: Failed to write CTRL_REG_3");
     }
+
+    async_end
+
+}
+#pragma GCC diagnostic pop
 
 #define BLOCKING_SLEEP 1
 #ifdef BLOCKING_SLEEP
@@ -259,6 +280,10 @@ async AP_IrisOrca::run()
 
     // set motor to sleep
     WRITE_REGISTER(orca::Register::CTRL_REG_3, orca::OperatingMode::SLEEP, "IrisOrca: not responding");
+
+    // check Modbus RS485 Mode
+    _run_state.check_modbus_rs485_mode = orca::check_modbus_state();
+    await( async_call(check_modbus_rs485_mode, &_run_state.check_modbus_rs485_mode) );
 
     // read firmware version
     _run_state.get_firmware = orca::get_firmware_state();

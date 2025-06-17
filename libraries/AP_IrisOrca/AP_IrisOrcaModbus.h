@@ -54,6 +54,7 @@ namespace orca {
         ZERO_MODE = 171,
         AUTO_ZERO_FORCE_N = 172,
         AUTO_ZERO_EXIT_MODE = 173,
+        MB_RS485_MODE = 174,
         MB_POS_FILTER = 176,
         SERIAL_NUMBER_LOW = 406,
         SERIAL_NUMBER_HIGH = 407,
