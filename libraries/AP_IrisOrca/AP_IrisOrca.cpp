@@ -130,6 +130,16 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
 
     AP_SUBGROUPINFO(_pid_temp, "T_", 11, AP_IrisOrca, AC_PID_Basic),
 
+    // @Param: T_THR
+    // @DisplayName: Temperature derating threshold
+    // @Description: Temperature threshold for derating the maximum force
+    // @Units: C
+    // @Range: 0 100
+    // @Increment: 1
+    // @User: Standard
+    // @RebootRequired: True
+    AP_GROUPINFO("T_THR", 12, AP_IrisOrca, _temp_derating_threshold, 50),
+
     AP_GROUPEND
 };
 
@@ -444,13 +454,11 @@ async AP_IrisOrca::run()
                 return ASYNC_CONT;
             }
 
-            #define TEMP_DERATING 50.0
-
             // run the temperature PID to get the force limit 1hz
             if (_counter % 10 == 0) {
 
                 {
-                const float force_limit = _pid_temp.update_all(TEMP_DERATING, _actuator_state.temperature, 1.0);
+                const float force_limit = _pid_temp.update_all(_temp_derating_threshold.cast_to_float(), _actuator_state.temperature, 1.0);
                 _temp_derating_max_force = constrain_int32(_f_max.get() + static_cast<int32_t>(force_limit), 50000, _f_max.get());
                 }
 
