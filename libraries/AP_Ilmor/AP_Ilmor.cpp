@@ -356,7 +356,7 @@ void AP_Ilmor::update()
     if (_trim_stop.get() > 0) {
         const uint16_t max_trim = static_cast<uint16_t>(_max_run_trim.get());
 
-        if (_current_trim_position > max_trim ) {
+        if (10 < _current_trim_position && _current_trim_position < 10000 && _current_trim_position > max_trim ) {
             _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
         }
     }
