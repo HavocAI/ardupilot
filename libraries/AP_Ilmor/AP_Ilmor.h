@@ -76,6 +76,7 @@ private:
     AP_Int8 _trim_fn;
     AP_Int8 _max_run_trim;
     AP_Int8 _can_port;
+    AP_Int16 _trim_stop;
 
     uint8_t _current_trim_position;
     uint8_t _trim_command_from_buttons;

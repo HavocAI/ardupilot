@@ -113,6 +113,14 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("CAN_PORT", 5, AP_Ilmor, _can_port, -1),
 
+    // @Param: TRIM_STP
+    // @DisplayName: Soft-stop Trim position
+    // @Description: Soft-stop Trim position
+    // @Values: 0:65000
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 5000),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -343,6 +351,14 @@ void AP_Ilmor::update()
         
     } else {
         _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
+    }
+
+    if (_trim_stop.get() > 0) {
+        const uint16_t max_trim = static_cast<uint16_t>(_max_run_trim.get());
+
+        if (_current_trim_position > max_trim ) {
+            _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
+        }
     }
 
 }
