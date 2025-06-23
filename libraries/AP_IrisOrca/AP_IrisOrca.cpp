@@ -346,7 +346,7 @@ async AP_IrisOrca::run()
     WRITE_REGISTER(orca::Register::USER_MAX_FORCE_H, HIGHWORD(0), "IrisOrca: Failed to set max force");
 
     // set comms timeout to 300ms
-    WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 300, "IrisOrca: Failed to set comms timeout");
+    WRITE_REGISTER(orca::Register::USER_COMMS_TIMEOUT, 500, "IrisOrca: Failed to set comms timeout");
 
     // set auto zero max force
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Auto zero max force %" PRIi16, _auto_zero_f_max.get());
