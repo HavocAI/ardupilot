@@ -113,10 +113,19 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("CAN_PORT", 5, AP_Ilmor, _can_port, -1),
 
+    // @Param: TRIM_STP
+    // @DisplayName: Soft-stop Trim position
+    // @Description: Soft-stop Trim position
+    // @Values: 0:65000
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 5000),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
     : CANSensor("Ilmor"),
+    _trimState(TrimState::Start),
     _run_state(),
     _output()
 {
@@ -309,6 +318,95 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
     _run_state.last_received_msg_ms = AP_HAL::millis();
 }
 
+bool AP_Ilmor::soft_stop_exceeded()
+{
+    const int16_t max_trim = _trim_stop.get();
+    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 30000 && _current_trim_position > max_trim ) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
+AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
+{
+    AP_Ilmor::TrimCmd retval;
+    const float trim_servo = SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_trim_fn.get());
+    if (trim_servo < -0.3f) {
+        retval = AP_Ilmor::TRIM_CMD_DOWN;
+    } else if (trim_servo > 0.3f) {
+        retval = AP_Ilmor::TRIM_CMD_UP;
+    } else {
+        retval = AP_Ilmor::TRIM_CMD_BUTTONS;
+    }
+    return retval;
+}
+
+void AP_Ilmor::trim_state_machine()
+{
+    switch (_trimState) {
+        case Start:
+            if (_trim_fn.get() > 0) {
+                _trimState = CheckSoftStop;
+            } else {
+                _output.motor_trim = TrimCmd::TRIM_CMD_BUTTONS;
+            }
+            break;
+
+        case CheckSoftStop:
+        {
+            if (soft_stop_exceeded()) {
+                _trimState = CmdDown;
+                _last_wait_ms = AP_HAL::millis();
+            } else {
+                _trimState = Manual;
+            }
+
+        } break;
+        
+        case Manual:
+        {
+            _output.motor_trim = trim_demand();
+            _trimState = CheckSoftStop;
+
+        } break;
+
+        case CheckRelease:
+        {
+            if (soft_stop_exceeded()) {
+                _trimState = CmdDown;
+                _last_wait_ms = AP_HAL::millis();
+            } else if (trim_demand() != AP_Ilmor::TRIM_CMD_UP) {
+                _trimState = CheckSoftStop;
+            }
+
+        } break;
+
+        case CmdDown:
+        {
+            _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
+            const uint32_t now = AP_HAL::millis();
+            if (now - _last_wait_ms > 125) {
+                _trimState = CmdStop;
+                _last_wait_ms = now;
+            }
+
+        } break;
+
+        case CmdStop:
+        {
+            _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
+            const uint32_t now = AP_HAL::millis();
+            if (now - _last_wait_ms > 1000) {
+                _trimState = CheckRelease;
+            }
+        }
+    }
+
+
+
+}
+
 // update the output from the throttle servo channel
 void AP_Ilmor::update()
 {
@@ -330,20 +428,7 @@ void AP_Ilmor::update()
 
     _output.motor_rpm = rpm;
 
-    if (_trim_fn.get() > 0) { // Only set trim if a valid servo function is set
-        
-        const float trim_servo = SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_trim_fn.get());
-        if (trim_servo < -0.3f) {
-            _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
-        } else if (trim_servo > 0.3f) {
-            _output.motor_trim = AP_Ilmor::TRIM_CMD_UP;
-        } else {
-            _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
-        }
-        
-    } else {
-        _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
-    }
+    trim_state_machine();
 
 }
 
@@ -404,12 +489,12 @@ void AP_Ilmor::handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &
 
 void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
-    _current_trim_position = msg.trim_position_adjusted;
+    _current_trim_position = msg.trim_position;
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position);
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
 
     // Populate esc2_rpm with the trim position
-    update_rpm(1, int32_t(msg.trim_position));
+    update_rpm(1, msg.trim_position);
 }
 
 void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
