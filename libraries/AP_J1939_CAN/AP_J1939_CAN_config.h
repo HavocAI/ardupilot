@@ -1,0 +1,8 @@
+
+#pragma once
+
+#include <AP_HAL/AP_HAL_Boards.h>
+
+#ifndef HAL_J1939_CAN_ENABLED
+#define HAL_J1939_CAN_ENABLED (HAL_MAX_CAN_PROTOCOL_DRIVERS && BOARD_FLASH_SIZE > 1024)
+#endif

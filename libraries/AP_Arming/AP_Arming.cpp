@@ -55,6 +55,7 @@
 #include <AP_Mount/AP_Mount.h>
 #include <AP_OpenDroneID/AP_OpenDroneID.h>
 #include <AP_SerialManager/AP_SerialManager.h>
+#include <AP_IrisOrca/AP_IrisOrca.h>
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 #include <AP_Scheduler/AP_Scheduler.h>
 #include <AP_KDECAN/AP_KDECAN.h>
@@ -974,6 +975,13 @@ bool AP_Arming::servo_checks(bool report) const
     }
 #endif
 
+#if HAL_IRISORCA_ENABLED
+    if (!AP::irisorca()->healthy()) {
+        check_failed(report, "Iris Orca is unhealthy");
+        check_passed = false;
+    }
+#endif // HAL_IRISORCA_ENABLED
+
     return check_passed;
 #else
     return false;
@@ -1254,6 +1262,7 @@ bool AP_Arming::can_checks(bool report)
                 case AP_CAN::Protocol::Scripting:
                 case AP_CAN::Protocol::Scripting2:
                 case AP_CAN::Protocol::KDECAN:
+                case AP_CAN::Protocol::J1939:
 
                     break;
             }

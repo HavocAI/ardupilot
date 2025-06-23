@@ -24,6 +24,8 @@ def build(bld):
             'AP_IrisOrca',
             'AC_PrecLand',
             'AP_IRLock',
+            'AP_FortVsc',
+            'AP_Ilmor',
         ],
     )
 

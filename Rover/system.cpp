@@ -85,6 +85,15 @@ void Rover::init_ardupilot()
     g2.iris_orca.init();
 #endif
 
+#if HAL_FORTVSC_ENABLED
+    // init fort vsc driver
+    g2.fort.init();
+#endif
+
+#if HAL_ILMOR_ENABLED
+    g2.ilmor.init();
+#endif
+
 #if AP_OPTICALFLOW_ENABLED
     // initialise optical flow sensor
     optflow.init(MASK_LOG_OPTFLOW);
@@ -222,6 +231,15 @@ bool Rover::set_mode(Mode &new_mode, ModeReason reason)
     if (control_mode == &new_mode) {
         // don't switch modes if we are already in the correct mode.
         return true;
+    }
+
+    if ((control_mode->mode_number() == Mode::Number::MANUAL &&
+        reason != ModeReason::RC_COMMAND) && new_mode.mode_number() != Mode::Number::HOLD) {
+      gcs().send_text(MAV_SEVERITY_WARNING,
+                      "Mode change from MANUAL to %s denied, only RC commands "
+                      "(QGC, MP, hand controller) can force exit from MANUAL",
+                      new_mode.name4());
+      return false;
     }
 
     // Check if GCS mode change is disabled via parameter

@@ -217,5 +217,16 @@ bool AP_Arming_Rover::motor_checks(bool report)
     }
 #endif
 
+#if HAL_ILMOR_ENABLED
+    char ilmor_failure_msg[50] = {};
+    AP_Ilmor *ilmor = AP_Ilmor::get_singleton();
+    if (ilmor != nullptr) {
+        if (!ilmor->pre_arm_checks(ilmor_failure_msg, ARRAY_SIZE(ilmor_failure_msg))) {
+            check_failed(report, "Ilmor: %s", ilmor_failure_msg);
+            ret = false;
+        }
+    }
+#endif
+
     return ret;
 }
