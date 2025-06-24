@@ -99,6 +99,7 @@ private:
     AP_Int16 _gain_de;                  // position control derivative error gain
     AP_Int16 _auto_zero_f_max;          // maximum force for auto zero in Newtons
     AP_Int8 _temp_derating_threshold;   // temperature threshold in degrees Celsius for derating
+    AP_Float _throttle_activate;        // min throttle to activate steering
 
     AP_HAL::UARTDriver *_uart;
     bool _initialised;
