@@ -140,6 +140,9 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("T_THR", 12, AP_IrisOrca, _temp_derating_threshold, 50),
 
+    // @param 
+    AP_GROUPINFO("THR_ACT", 13, AP_IrisOrca, _throttle_activate, 0.03f),
+
     AP_GROUPEND
 };
 
@@ -503,7 +506,14 @@ bool AP_IrisOrca::healthy()
 
 uint32_t AP_IrisOrca::get_desired_shaft_pos()
 {
-    const float yaw = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering), -1.0, 1.0);
+    const float throttle = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_throttle);
+
+    float yaw = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering), -1.0, 1.0);
+
+    if (fabsf(throttle) < _throttle_activate) {
+        yaw = 0.0f;
+    }
+    
 
     const float m = (_reverse_direction ? -1.0 : 1.0) * 0.5 * 1000 * (_max_travel_mm - (2.0 * _pad_travel_mm));
     const float b = 0.5 * 1000 * _max_travel_mm;
