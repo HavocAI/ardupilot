@@ -57,7 +57,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Description: Reverse the direction of the actuator
     // @Values: 0:Normal,1:Reverse
     // @User: Standard
-    AP_GROUPINFO("REVERSE_DIR", 3, AP_IrisOrca, _reverse_direction, 0),
+    // AP_GROUPINFO("REVERSE_DIR", 3, AP_IrisOrca, _reverse_direction, 0),
 
     // @Param: PAD_TRAVEL
     // @DisplayName: Pad travel distance
@@ -66,7 +66,7 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @Range: 0 100
     // @Increment: 1
     // @User: Standard
-    AP_GROUPINFO("PAD_TRAVEL", 4, AP_IrisOrca, _pad_travel_mm, 10),
+    // AP_GROUPINFO("PAD_TRAVEL", 4, AP_IrisOrca, _pad_travel_mm, 10),
 
     // @Param: F_MAX
     // @DisplayName: Maximum force
@@ -140,7 +140,13 @@ const AP_Param::GroupInfo AP_IrisOrca::var_info[] = {
     // @RebootRequired: True
     AP_GROUPINFO("T_THR", 12, AP_IrisOrca, _temp_derating_threshold, 50),
 
-    // @param 
+    // @param: THR_ACT
+    // @DisplayName: Throttle activation threshold
+    // @Description: Minimum throttle value to activate steering. Below this value, steering will be disabled.
+    // @Range: 0.0 1.0
+    // @Increment: 0.001
+    // @User: Standard
+    // @RebootRequired: False
     AP_GROUPINFO("THR_ACT", 13, AP_IrisOrca, _throttle_activate, 0.03f),
 
     AP_GROUPEND
@@ -510,19 +516,30 @@ bool AP_IrisOrca::healthy()
 
 uint32_t AP_IrisOrca::get_desired_shaft_pos()
 {
+    uint8_t chan;
+
     const float throttle = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_throttle);
 
-    float yaw = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_steering), -1.0, 1.0);
+    uint16_t steering_idle_pos_pwm = 1500;
+    if (SRV_Channels::find_channel(SRV_Channel::k_steering, chan)) {
+        SRV_Channel* ch = SRV_Channels::srv_channel(chan);
+        steering_idle_pos_pwm = ch->get_trim();
+    }
+
+    uint16_t yaw_pwm;
+    if (!SRV_Channels::get_output_pwm(SRV_Channel::Aux_servo_function_t::k_steering, yaw_pwm)) {
+        yaw_pwm = steering_idle_pos_pwm; // default to center position if no steering channel is set
+    }
 
     if (fabsf(throttle) < _throttle_activate) {
-        yaw = 0.0f;
+        yaw_pwm = steering_idle_pos_pwm;
     }
     
 
-    const float m = (_reverse_direction ? -1.0 : 1.0) * 0.5 * 1000 * (_max_travel_mm - (2.0 * _pad_travel_mm));
-    const float b = 0.5 * 1000 * _max_travel_mm;
-    
-    const float shaft_position_um = yaw * m + b;
+    const float m = (1000.0f * _max_travel_mm.cast_to_float()) / 1000.0f;
+    const float b = -1000.0f * _max_travel_mm.cast_to_float();
+
+    const float shaft_position_um = yaw_pwm * m + b;
 
     return shaft_position_um;
 }
