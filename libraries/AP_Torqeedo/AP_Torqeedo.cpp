@@ -150,17 +150,6 @@ bool AP_Torqeedo::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
     return true;
 }
 
-// clear motor errors
-void AP_Torqeedo::clear_motor_error()
-{
-    for (uint8_t instance = 0; instance < AP_TORQEEDO_MAX_INSTANCES; instance++) {
-        auto *backend = get_instance(instance);
-        if (backend != nullptr) {
-            backend->clear_motor_error();
-        }
-    }
-}
-
 // get latest battery status info.  returns true on success and populates arguments
 // instance is normally 0 or 1, if invalid instances are provided the first instance is used
 bool AP_Torqeedo::get_batt_info(uint8_t instance, float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const
