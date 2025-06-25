@@ -460,9 +460,13 @@ async AP_IrisOrca::run()
             // run the temperature PID to get the force limit 1hz
             if (_counter % 10 == 0) {
 
-                {
-                const float force_limit = _pid_temp.update_all(_temp_derating_threshold.cast_to_float(), _actuator_state.temperature, 1.0);
-                _temp_derating_max_force = constrain_int32(_f_max.get() + static_cast<int32_t>(force_limit), 50000, _f_max.get());
+                if (fabsf(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_throttle)) < _throttle_activate) {
+                    // if the throttle is below the activation threshold, we set the max force to a very low (5N) to ensure we are not
+                    // needlessly trying to apply much force. This hopefully should allow the actuator to cool down.
+                    _temp_derating_max_force = 5000;
+                } else {
+                    const float force_limit = _pid_temp.update_all(_temp_derating_threshold.cast_to_float(), _actuator_state.temperature, 1.0);
+                    _temp_derating_max_force = constrain_int32(_f_max.get() + static_cast<int32_t>(force_limit), 50000, _f_max.get());
                 }
 
                 WRITE_REGISTER(orca::Register::PC_FSATU, LOWWORD(_temp_derating_max_force), "IrisOrca: Failed to set max force");
