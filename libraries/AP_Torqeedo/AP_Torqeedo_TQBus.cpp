@@ -1288,6 +1288,9 @@ void AP_Torqeedo_TQBus::update_esc_telem(float rpm, float voltage, float current
                                                   AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 
     update_rpm(telem_esc_index, rpm);
+
+    telem_dat.temperature_cdeg = telem_dat.motor_temp_cdeg;
+    update_telem_data(telem_esc_index+1, telem_dat, AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE);
 #endif
 }
 
