@@ -516,15 +516,23 @@ bool AP_IrisOrca::healthy()
 
 uint32_t AP_IrisOrca::get_desired_shaft_pos()
 {
+    uint8_t chan;
+
     const float throttle = SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_throttle);
+
+    uint16_t steering_idle_pos_pwm = 1500;
+    if (SRV_Channels::find_channel(SRV_Channel::k_steering, chan)) {
+        SRV_Channel* ch = SRV_Channels::srv_channel(chan);
+        steering_idle_pos_pwm = ch->get_trim();
+    }
 
     uint16_t yaw_pwm;
     if (!SRV_Channels::get_output_pwm(SRV_Channel::Aux_servo_function_t::k_steering, yaw_pwm)) {
-        yaw_pwm = 1500; // default to center position if no steering channel is set
+        yaw_pwm = steering_idle_pos_pwm; // default to center position if no steering channel is set
     }
 
     if (fabsf(throttle) < _throttle_activate) {
-        yaw_pwm = 1500;
+        yaw_pwm = steering_idle_pos_pwm;
     }
     
 
