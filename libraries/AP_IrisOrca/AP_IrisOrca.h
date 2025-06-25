@@ -90,8 +90,6 @@ private:
     // parameters
     AP_Int8 _pin_de;                    // Pin number connected to RS485 to Serial converter's DE pin. -1 to disable sending commands to actuator
     AP_Int16 _max_travel_mm;            // maximum travel of actuator in millimeters
-    AP_Int16 _pad_travel_mm;            // padding travel of actuator in millimeters
-    AP_Int8 _reverse_direction;         // reverse direction of actuator
     AP_Int32 _f_max;                    // position control max force in milliNewtons
     AP_Int16 _gain_p;                   // position control proportional gain
     AP_Int16 _gain_i;                   // position control integral gain
