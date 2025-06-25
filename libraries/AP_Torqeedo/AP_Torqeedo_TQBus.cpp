@@ -171,15 +171,13 @@ void AP_Torqeedo_TQBus::thread_main()
             // send motor speed
             if (_send_motor_speed) {
                 // If no soft faults and not in hold-down period, set throttle
-                if ((now_ms - _last_reset_ms > TORQEEDO_RESET_THROTTLE_HOLDDOWN_MS) &&
-                    !(_display_system_state.flags.set_throttle_stop || _display_system_state.flags.temp_warning) &&
-                    !(_display_system_state.master_error_code > 0 && _display_system_state.master_error_code != 132)) {
+                if (!_display_system_state.flags.set_throttle_stop) {
                     send_motor_speed_cmd(); 
-                }
-                else 
+                } else {
                     // set throttle=0 after a reset for the hold-down period 
                     // or if the motor is in a fault state that requires the throttle to be set to 0
-                    send_motor_speed_cmd(true); 
+                    send_motor_speed_cmd(true);
+                }
 
                 _send_motor_speed = false;
                 log_update = true;
@@ -344,9 +342,15 @@ void AP_Torqeedo_TQBus::report_error_codes()
     if (_motor_status.error_flags.undervoltage_static || _motor_status.error_flags.undervoltage_current) {
         GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s low voltage", msg_prefix);
     }
-    if (_motor_status.error_flags.overtemp_motor || _motor_status.error_flags.overtemp_pcb) {
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s high temp", msg_prefix);
+
+    if (_motor_status.error_flags.overtemp_motor) {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s motor high temp", msg_prefix);
     }
+
+    if (_motor_status.error_flags.overtemp_pcb) {
+        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s pcb high temp", msg_prefix);
+    }
+
     if (_motor_status.error_flags.timeout_rs485) {
         GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "%s comm timeout", msg_prefix);
     }
@@ -1288,6 +1292,9 @@ void AP_Torqeedo_TQBus::update_esc_telem(float rpm, float voltage, float current
                                                   AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 
     update_rpm(telem_esc_index, rpm);
+
+    telem_dat.temperature_cdeg = telem_dat.motor_temp_cdeg;
+    update_telem_data(telem_esc_index+1, telem_dat, AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE);
 #endif
 }
 
