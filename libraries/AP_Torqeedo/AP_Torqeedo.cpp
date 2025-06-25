@@ -134,6 +134,14 @@ bool AP_Torqeedo::healthy(uint8_t instance)
     return backend->healthy();
 }
 
+void AP_Torqeedo::send_mavlink_status(mavlink_channel_t ch)
+{
+    auto *backend = get_instance(0);
+    if (backend != nullptr) {
+        backend->send_mavlink_status(ch);
+    }
+}
+
 // run pre-arm check.  returns false on failure and fills in failure_msg
 // any failure_msg returned will not include a prefix
 bool AP_Torqeedo::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
@@ -148,17 +156,6 @@ bool AP_Torqeedo::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
         return false;
     }
     return true;
-}
-
-// clear motor errors
-void AP_Torqeedo::clear_motor_error()
-{
-    for (uint8_t instance = 0; instance < AP_TORQEEDO_MAX_INSTANCES; instance++) {
-        auto *backend = get_instance(instance);
-        if (backend != nullptr) {
-            backend->clear_motor_error();
-        }
-    }
 }
 
 // get latest battery status info.  returns true on success and populates arguments

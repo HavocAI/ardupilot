@@ -25,6 +25,7 @@
 
 #include <AP_Param/AP_Param.h>
 #include "AP_Torqeedo_Params.h"
+#include <GCS_MAVLink/GCS.h>
 
 #define AP_TORQEEDO_MAX_INSTANCES   2   // maximum number of Torqeedo backends
 
@@ -71,12 +72,11 @@ public:
     bool healthy();
     bool healthy(uint8_t instance);
 
+    void send_mavlink_status(mavlink_channel_t ch);
+
     // run pre-arm check.  returns false on failure and fills in failure_msg
     // any failure_msg returned will not include a prefix
     bool pre_arm_checks(char *failure_msg, uint8_t failure_msg_len);
-
-    // clear motor errors
-    void clear_motor_error();
 
     // get latest battery status info.  returns true on success and populates arguments
     // instance is normally 0 or 1, if invalid instances are provided the first instance is used
