@@ -1835,12 +1835,10 @@ bool RC_Channel::do_aux_function(const AUX_FUNC ch_option, const AuxSwitchPos ch
 #if HAL_TORQEEDO_ENABLED
     // clear torqeedo error
     case AUX_FUNC::TORQEEDO_CLEAR_ERR: {
-        if (ch_flag == AuxSwitchPos::HIGH) {
-            AP_Torqeedo *torqeedo = AP_Torqeedo::get_singleton();
-            if (torqeedo != nullptr) {
-                torqeedo->clear_motor_error();
-            }
-        }
+        // this is function should never have been created in the first place.
+        // if there is a torqeedo error, the driver should report it and then
+        // automatically clear it and try to continue running on its own. This
+        // should never require user interaction.
         break;
     }
 #endif

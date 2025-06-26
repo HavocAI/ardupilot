@@ -75,9 +75,6 @@ public:
     // any failure_msg returned will not include a prefix
     bool pre_arm_checks(char *failure_msg, uint8_t failure_msg_len);
 
-    // clear motor errors
-    void clear_motor_error();
-
     // get latest battery status info.  returns true on success and populates arguments
     // instance is normally 0 or 1, if invalid instances are provided the first instance is used
     bool get_batt_info(uint8_t instance, float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const WARN_IF_UNUSED;
