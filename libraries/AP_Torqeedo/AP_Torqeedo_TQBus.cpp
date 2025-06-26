@@ -43,6 +43,146 @@
 
 extern const AP_HAL::HAL& hal;
 
+class TQBusTransaction
+{
+public:
+    typedef struct Buffer {
+        uint8_t data[MODBUS_MAX_MSG_LEN];
+        uint8_t len;
+    } Buffer;
+
+    TQBusTransaction() {};
+    TQBusTransaction(AP_HAL::UARTDriver *uart);
+    // CLASS_NO_COPY(TQBusTransaction);
+
+    void set_tx_data(uint8_t* data, uint8_t len);
+    
+    /**
+     * run the transaction state machine
+     * @return true if the transaction is finished
+     */
+    bool run();
+
+    bool is_finished() const;
+    bool is_timeout() const;
+
+protected:
+    virtual bool parse_response(uint8_t byte) = 0;
+    Buffer buffer;
+
+private:
+    AP_HAL::UARTDriver *uart;
+    uint8_t read_len;
+    uint32_t start_wait_us;
+    uint32_t last_received_ms;
+
+    /**
+     * Wait for a specified number of microseconds.
+     * Keep calling this function until the wait is finished.
+     * @param us The number of microseconds to wait.
+     * @return true if the wait is finished, false otherwise.
+     */
+    bool wait_us(uint32_t us);
+    
+
+    enum ModbusState {
+        Init = 0,
+        Send,
+        WaitingToFinshSend,
+        WaitingForResponse,
+        Finished,
+        Timeout,
+    };
+
+    ModbusState state;
+
+};
+
+bool TQBusTransaction::run()
+{
+    switch (state) {
+        case Init:
+            uart->discard_input();
+            read_len = 0;
+            // send the write buffer
+            state = Send;
+        FALLTHROUGH;
+
+        case Send:
+#ifdef DEBUG
+            debug_print_buf(buffer.data, buffer.len, "=> ");
+#endif // DEBUG
+
+#ifdef SOFTWARE_FLOWCONTROL
+            uart->set_CTS_pin(true);
+#endif
+            {
+                size_t i = 0;
+                size_t bytes_written;
+                while (i < buffer.len) {
+                    // write the data to the UART
+                    bytes_written = uart->write(&buffer.data[i], buffer.len - i);
+                    i += bytes_written;
+                }
+            }
+            uart->flush();
+            last_received_ms = AP_HAL::millis();
+            state = WaitingToFinshSend;
+#ifdef IO_ASYNC_WAIT
+            start_wait_us = AP_HAL::micros();
+#endif
+        FALLTHROUGH;
+
+        case WaitingToFinshSend:
+#ifdef SOFTWARE_FLOWCONTROL
+            if (!wait_us(calc_transmit_time_us(buffer.len))) {
+                return false;
+            }
+            uart->set_CTS_pin(false);
+#endif
+            state = WaitingForResponse;
+        FALLTHROUGH;
+
+        case WaitingForResponse: 
+        {
+            uint8_t b;
+            uart->wait_timeout(1, 100);
+            if (uart->read(&b, 1) == 1) {
+                last_received_ms = AP_HAL::millis();
+                if (parse_response(b)) {
+                    state = Finished;
+                }
+            } else if (AP_HAL::millis() - last_received_ms > 100) {
+                // timeout waiting for response
+                state = Timeout;
+            }
+
+        } break;
+
+        case Finished:
+            // transaction is finished
+            break;
+        case Timeout:
+            // transaction timed out
+            break;
+    }
+
+    return is_finished();
+    
+}
+
+bool TQBusTransaction::is_finished() const
+{
+    return state == Finished || state == Timeout;
+}
+
+bool TQBusTransaction::is_timeout() const
+{
+    return state == Timeout;
+}
+
+
+
 // initialise driver
 void AP_Torqeedo_TQBus::init()
 {
@@ -73,7 +213,6 @@ void AP_Torqeedo_TQBus::thread_main()
 // get latest battery status info.  returns true on success and populates arguments
 bool AP_Torqeedo_TQBus::get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const
 {
-
     return false;
 }
 
