@@ -58,6 +58,8 @@ public:
     // constructor
     using AP_Torqeedo_Backend::AP_Torqeedo_Backend;
 
+    AP_Torqeedo_TQBus(AP_Torqeedo_Params &params, uint8_t instance);
+
     CLASS_NO_COPY(AP_Torqeedo_TQBus);
 
     // initialise driver
@@ -77,6 +79,8 @@ private:
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread
     void thread_main();
+
+    void process_rx_frame(const uint8_t* frame, uint8_t len);
 
     
 };

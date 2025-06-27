@@ -125,7 +125,11 @@ class TQBusRxFrame
 public:
     TQBusRxFrame();
 
-    bool push_bytes(uint8_t b);
+    bool push_byte(uint8_t b);
+    void reset() {
+        _len = 0;
+        _state = WAITING_FOR_HEADER;
+    }
 
     const uint8_t* get_buffer() const { return _buff; }
     uint8_t get_length() const { return _len; }
@@ -147,7 +151,7 @@ TQBusRxFrame::TQBusRxFrame()
   : _len(0), _state(WAITING_FOR_HEADER)
 {}
 
-bool TQBusRxFrame::push_bytes(uint8_t b)
+bool TQBusRxFrame::push_byte(uint8_t b)
 {
     switch (_state) {
         case WAITING_FOR_HEADER:
@@ -210,15 +214,18 @@ bool TQBusRxFrame::push_bytes(uint8_t b)
 
 
 
+AP_Torqeedo_TQBus::AP_Torqeedo_TQBus(AP_Torqeedo_Params &params, uint8_t instance)
+  : AP_Torqeedo_Backend(params, instance),
+  _uart(nullptr)
+{}
+
 // initialise driver
 void AP_Torqeedo_TQBus::init()
 {
-    
-
     // create background thread to process serial input and output
     char thread_name[15];
     hal.util->snprintf(thread_name, sizeof(thread_name), "torqeedo%u", (unsigned)_instance);
-    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Torqeedo_TQBus::thread_main, void), thread_name, 2048, AP_HAL::Scheduler::PRIORITY_RCOUT, 1)) {
+    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Torqeedo_TQBus::thread_main, void), thread_name, 1024, AP_HAL::Scheduler::PRIORITY_IO, 0)) {
         return;
     }
 }
@@ -241,11 +248,32 @@ void AP_Torqeedo_TQBus::thread_main()
     }
     configure_uart(_uart);
 
-
+    TQBusRxFrame rx_frame;
 
     while (true) {
-        
+
+        // wait for data to be available
+        if (_uart->available() == 0) {
+            hal.scheduler->delay(10); // no data, wait a bit
+            continue;
+        }
+
+        // read bytes from UART
+        uint8_t b;
+        while (_uart->read(b)) {
+            if (rx_frame.push_byte(b)) {
+                // complete frame received
+                process_rx_frame(rx_frame.get_buffer(), rx_frame.get_length());
+                rx_frame.reset();
+            }
+        }
     }
+    
+}
+
+void AP_Torqeedo_TQBus::process_rx_frame(const uint8_t* frame, uint8_t len)
+{
+
     
 }
 
