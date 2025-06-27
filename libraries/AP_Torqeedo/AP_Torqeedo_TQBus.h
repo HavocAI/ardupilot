@@ -75,12 +75,14 @@ public:
 private:
 
     AP_HAL::UARTDriver* _uart;
+    int16_t _motor_speed_desired = 0; // desired motor speed in range -1000 to +1000
 
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread
     void thread_main();
 
     void process_rx_frame(const uint8_t* frame, uint8_t len);
+    void handle_remote_msg(const uint8_t* frame, uint8_t len);
 
     
 };

@@ -37,6 +37,20 @@
 
 #define TORQEEDO_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
+enum class MsgAddress : uint8_t {
+    BUS_MASTER = 0x00,
+    REMOTE1 = 0x14,
+    DISPLAY = 0x20,
+    MOTOR = 0x30,
+    BATTERY = 0x80
+};
+
+enum class RemoteMsgId : uint8_t {
+    INFO = 0x00,
+    REMOTE = 0x01,
+    SETUP = 0x02
+};
+
 extern const AP_HAL::HAL& hal;
 
 #define SOFTWARE_FLOWCONTROL 1
@@ -79,9 +93,9 @@ static void configure_uart(AP_HAL::UARTDriver* uart)
     uart->discard_input();
 }
 
-static bool send_message(uint8_t* pkt_body, uint8_t len, uint8_t& num_bytes_written, AP_HAL::UARTDriver* uart)
+static bool send_message(uint8_t* pkt_body, uint8_t len, AP_HAL::UARTDriver* uart)
 {
-    num_bytes_written = 0;
+    uint8_t num_bytes_written = 0;
     if (uart->write(TORQEEDO_PACKET_HEADER) != 1) {
         return false;
     }
@@ -117,6 +131,13 @@ static bool send_message(uint8_t* pkt_body, uint8_t len, uint8_t& num_bytes_writ
     }
 
     uart->flush();
+
+#ifdef SOFTWARE_FLOWCONTROL
+    // wait for the transmission to complete
+    hal.scheduler->delay_microseconds(calc_transmit_time_us(num_bytes_written));
+    uart->set_CTS_pin(false);
+#endif // SOFTWARE_FLOWCONTROL
+
     return true;
 }
 
@@ -273,8 +294,58 @@ void AP_Torqeedo_TQBus::thread_main()
 
 void AP_Torqeedo_TQBus::process_rx_frame(const uint8_t* frame, uint8_t len)
 {
+    switch (frame[0]) {
+        case static_cast<uint8_t>(MsgAddress::REMOTE1):
+            handle_remote_msg(frame, len);
+            break;
+        
+        default:
+            // unknown frame, ignore
+            break;
+    }
 
     
+}
+
+void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
+{
+    switch (frame[1]) {
+        case static_cast<uint8_t>(RemoteMsgId::INFO):
+            {
+                uint8_t remote_msg_reply[] = {
+                    static_cast<uint8_t>(MsgAddress::BUS_MASTER),
+                    0x00, // message ID in replys are always 0x00
+                    0x00,
+                };
+
+                send_message(remote_msg_reply, sizeof(remote_msg_reply), _uart);
+
+            }
+            break;
+
+        case static_cast<uint8_t>(RemoteMsgId::REMOTE):
+            {
+                uint8_t remote_msg_reply[] = {
+                    static_cast<uint8_t>(MsgAddress::BUS_MASTER),
+                    0x00, // message ID in replys are always 0x00
+                    0x05, // flags, 0x05 means pin is present and motor speed is valid
+                    0x00, // status
+                    HIGHBYTE(_motor_speed_desired),
+                    LOWBYTE(_motor_speed_desired),
+                };
+
+                send_message(remote_msg_reply, sizeof(remote_msg_reply), _uart);
+                
+            }
+            break;
+
+        case static_cast<uint8_t>(RemoteMsgId::SETUP):
+            break;
+
+        default:
+            // unknown remote message ID, ignore
+            break;
+    }
 }
 
 
