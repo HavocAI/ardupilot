@@ -25,160 +25,146 @@
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 
+#include <AP_Common/async.h>
+
 #define TORQEEDO_SERIAL_BAUD        19200   // communication is always at 19200
 #define TORQEEDO_PACKET_HEADER      0xAC    // communication packet header
 #define TORQEEDO_PACKET_FOOTER      0xAD    // communication packet footer
 #define TORQEEDO_PACKET_ESCAPE      0xAE    // escape character for handling occurrences of header, footer and this escape bytes in original message
 #define TORQEEDO_PACKET_ESCAPE_MASK 0x80    // byte after ESCAPE character should be XOR'd with this value
-#define TORQEEDO_LOG_TRQD_INTERVAL_MS                   5000// log TRQD message at this interval in milliseconds
-#define TORQEEDO_SEND_MOTOR_SPEED_INTERVAL_MS           100 // motor speed sent at 10hz if connected to motor
-#define TORQEEDO_SEND_MOTOR_STATUS_REQUEST_INTERVAL_MS  400 // motor status requested every 0.4sec if connected to motor
-#define TORQEEDO_SEND_MOTOR_PARAM_REQUEST_INTERVAL_MS   400 // motor param requested every 0.4sec if connected to motor
-#define TORQEEDO_SEND_BATTERY_STATUS_REQUEST_INTERVAL_MS 400 // battery status requested every 0.4sec
-#define TORQEEDO_BATT_TIMEOUT_MS    5000    // battery info timeouts after 5 seconds
-#define TORQEEDO_REPLY_TIMEOUT_MS   25      // stop waiting for replies after 25ms
-#define TORQEEDO_ERROR_REPORT_INTERVAL_MAX_MS   10000   // errors reported to user at no less than once every 10 seconds
-#define TORQEEDO_MIN_RESET_INTERVAL_MS 5000    // minimum time between hard resets/wake
-#define TORQEEDO_RESET_THROTTLE_HOLDDOWN_MS 6000 // throttle hold down time after reset/wake
+
+#define TORQEEDO_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
 extern const AP_HAL::HAL& hal;
 
-class TQBusTransaction
+
+static bool send_message(uint8_t* pkt_body, uint8_t len, uint8_t& num_bytes_written, AP_HAL::UARTDriver* uart)
+{
+    num_bytes_written = 0;
+    if (uart->write(TORQEEDO_PACKET_HEADER) != 1) {
+        return false;
+    }
+    num_bytes_written++;
+
+    const uint8_t crc = crc8_maxim(pkt_body, len);
+
+    for (int i=0;i<len;i++) {
+        if (pkt_body[i] == TORQEEDO_PACKET_HEADER || pkt_body[i] == TORQEEDO_PACKET_FOOTER || pkt_body[i] == TORQEEDO_PACKET_ESCAPE) {
+            // escape the byte
+            if (uart->write(TORQEEDO_PACKET_ESCAPE) != 1) {
+                return false; // write failed
+            }
+            
+            pkt_body[i] ^= TORQEEDO_PACKET_ESCAPE_MASK; // XOR with escape mask
+
+            num_bytes_written += 2; // one for escape byte, one for the escaped byte
+        } else {
+            // write the byte as is
+            if (uart->write(pkt_body[i]) != 1) {
+                return false; // write failed
+            }
+            num_bytes_written++;
+        }
+    }
+
+    if (uart->write(crc) != 1) {
+        return false; // write failed
+    }
+
+    if (uart->write(TORQEEDO_PACKET_FOOTER) != 1) {
+        return false; // write failed
+    }
+
+    uart->flush();
+    return true;
+}
+
+class TQBusRxFrame
 {
 public:
-    typedef struct Buffer {
-        uint8_t data[MODBUS_MAX_MSG_LEN];
-        uint8_t len;
-    } Buffer;
+    TQBusRxFrame();
 
-    TQBusTransaction() {};
-    TQBusTransaction(AP_HAL::UARTDriver *uart);
-    // CLASS_NO_COPY(TQBusTransaction);
+    bool push_bytes(uint8_t b);
 
-    void set_tx_data(uint8_t* data, uint8_t len);
-    
-    /**
-     * run the transaction state machine
-     * @return true if the transaction is finished
-     */
-    bool run();
-
-    bool is_finished() const;
-    bool is_timeout() const;
-
-protected:
-    virtual bool parse_response(uint8_t byte) = 0;
-    Buffer buffer;
+    const uint8_t* get_buffer() const { return _buff; }
+    uint8_t get_length() const { return _len; }
 
 private:
-    AP_HAL::UARTDriver *uart;
-    uint8_t read_len;
-    uint32_t start_wait_us;
-    uint32_t last_received_ms;
+    uint8_t _buff[TORQEEDO_MESSAGE_LEN_MAX];
+    uint8_t _len;
 
-    /**
-     * Wait for a specified number of microseconds.
-     * Keep calling this function until the wait is finished.
-     * @param us The number of microseconds to wait.
-     * @return true if the wait is finished, false otherwise.
-     */
-    bool wait_us(uint32_t us);
-    
-
-    enum ModbusState {
-        Init = 0,
-        Send,
-        WaitingToFinshSend,
-        WaitingForResponse,
-        Finished,
-        Timeout,
-    };
-
-    ModbusState state;
+    enum {
+        WAITING_FOR_HEADER = 0,
+        WAITING_FOR_FOOTER,
+        WAITING_FOR_UNESCAPED_BYTE,
+        PACKET_RECEIVED,
+    } _state;
 
 };
 
-bool TQBusTransaction::run()
+TQBusRxFrame::TQBusRxFrame()
+  : _len(0), _state(WAITING_FOR_HEADER)
+{}
+
+bool TQBusRxFrame::push_bytes(uint8_t b)
 {
-    switch (state) {
-        case Init:
-            uart->discard_input();
-            read_len = 0;
-            // send the write buffer
-            state = Send;
-        FALLTHROUGH;
+    switch (_state) {
+        case WAITING_FOR_HEADER:
+            if (b == TORQEEDO_PACKET_HEADER) {
+                _len = 0;
+                _state = WAITING_FOR_FOOTER;
+            }
+            break;
 
-        case Send:
-#ifdef DEBUG
-            debug_print_buf(buffer.data, buffer.len, "=> ");
-#endif // DEBUG
+        case WAITING_FOR_FOOTER:
+            if (b == TORQEEDO_PACKET_FOOTER) {
+                // check CRC
+                const uint8_t calculated_crc = crc8_maxim(_buff, _len-1);
+                if (calculated_crc == _buff[_len-1]) {
+                    // valid packet received
+                    _len -= 1; // remove CRC byte from length
+                    _state = PACKET_RECEIVED; // set state to indicate packet is received
+                    return true;
+                } else {
+                    // invalid packet, reset state
+                    _len = 0;
+                    _state = WAITING_FOR_HEADER;
+                }
 
-#ifdef SOFTWARE_FLOWCONTROL
-            uart->set_CTS_pin(true);
-#endif
-            {
-                size_t i = 0;
-                size_t bytes_written;
-                while (i < buffer.len) {
-                    // write the data to the UART
-                    bytes_written = uart->write(&buffer.data[i], buffer.len - i);
-                    i += bytes_written;
+            } else if (b == TORQEEDO_PACKET_ESCAPE) {
+                _state = WAITING_FOR_UNESCAPED_BYTE;
+
+            } else {
+                // store the byte
+                if (_len < TORQEEDO_MESSAGE_LEN_MAX) {
+                    _buff[_len++] = b;
+                } else {
+                    // buffer overflow, reset state
+                    _len = 0;
+                    _state = WAITING_FOR_HEADER;
                 }
             }
-            uart->flush();
-            last_received_ms = AP_HAL::millis();
-            state = WaitingToFinshSend;
-#ifdef IO_ASYNC_WAIT
-            start_wait_us = AP_HAL::micros();
-#endif
-        FALLTHROUGH;
-
-        case WaitingToFinshSend:
-#ifdef SOFTWARE_FLOWCONTROL
-            if (!wait_us(calc_transmit_time_us(buffer.len))) {
-                return false;
-            }
-            uart->set_CTS_pin(false);
-#endif
-            state = WaitingForResponse;
-        FALLTHROUGH;
-
-        case WaitingForResponse: 
-        {
-            uint8_t b;
-            uart->wait_timeout(1, 100);
-            if (uart->read(&b, 1) == 1) {
-                last_received_ms = AP_HAL::millis();
-                if (parse_response(b)) {
-                    state = Finished;
-                }
-            } else if (AP_HAL::millis() - last_received_ms > 100) {
-                // timeout waiting for response
-                state = Timeout;
-            }
-
-        } break;
-
-        case Finished:
-            // transaction is finished
             break;
-        case Timeout:
-            // transaction timed out
+
+        case WAITING_FOR_UNESCAPED_BYTE:
+            if (_len < TORQEEDO_MESSAGE_LEN_MAX) {
+                _buff[_len++] = b ^ TORQEEDO_PACKET_ESCAPE_MASK;
+                _state = WAITING_FOR_FOOTER;
+            } else {
+                // buffer overflow, reset state
+                _len = 0;
+                _state = WAITING_FOR_HEADER;
+            }
             break;
+
+        case PACKET_RECEIVED:
+            // packet already received, ignore any further bytes until next header
+            break;
+            
     }
 
-    return is_finished();
-    
-}
 
-bool TQBusTransaction::is_finished() const
-{
-    return state == Finished || state == Timeout;
-}
-
-bool TQBusTransaction::is_timeout() const
-{
-    return state == Timeout;
+    return false;
 }
 
 
@@ -206,6 +192,10 @@ bool AP_Torqeedo_TQBus::healthy()
 // runs in background thread
 void AP_Torqeedo_TQBus::thread_main()
 {
+
+    while (true) {
+        
+    }
     
 }
 
