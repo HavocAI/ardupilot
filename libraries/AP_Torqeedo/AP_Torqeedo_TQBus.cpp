@@ -24,6 +24,7 @@
 #include <GCS_MAVLink/GCS.h>
 #include <AP_SerialManager/AP_SerialManager.h>
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
+#include <AP_HAL/utility/sparse-endian.h>
 
 #include <AP_Common/async.h>
 
@@ -49,6 +50,13 @@ enum class RemoteMsgId : uint8_t {
     INFO = 0x00,
     REMOTE = 0x01,
     SETUP = 0x02
+};
+
+// Display specific message ids
+enum class DisplayMsgId : uint8_t {
+    INFO = 0x00,
+    SYSTEM_STATE = 0x41,
+    SYSTEM_SETUP = 0x42
 };
 
 extern const AP_HAL::HAL& hal;
@@ -298,6 +306,10 @@ void AP_Torqeedo_TQBus::process_rx_frame(const uint8_t* frame, uint8_t len)
         case static_cast<uint8_t>(MsgAddress::REMOTE1):
             handle_remote_msg(frame, len);
             break;
+
+        case static_cast<uint8_t>(MsgAddress::DISPLAY):
+            handle_display_msg(frame, len);
+            break;
         
         default:
             // unknown frame, ignore
@@ -344,6 +356,55 @@ void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
 
         default:
             // unknown remote message ID, ignore
+            break;
+    }
+}
+
+void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
+{
+    switch (frame[1]) {
+        case static_cast<uint8_t>(DisplayMsgId::INFO):
+            {
+                uint8_t display_msg_reply[] = {
+                    static_cast<uint8_t>(MsgAddress::BUS_MASTER),
+                    0x00, // message ID in replys are always 0x00
+                    0x00,
+                };
+
+                send_message(display_msg_reply, sizeof(display_msg_reply), _uart);
+            }
+            break;
+
+        case static_cast<uint8_t>(DisplayMsgId::SYSTEM_STATE):
+            {
+
+                // uint8_t flags0 = frame[2];
+                // uint8_t flags1 = frame[3];
+                // uint8_t master_state = frame[4];
+                // uint8_t master_error_code = frame[5];
+                float motor_voltage = UINT16_VALUE(frame[6], frame[7]) * 0.01f; // convert to Volts
+                float motor_current = UINT16_VALUE(frame[8], frame[9]) * 0.1f; // convert to Amps
+                int16_t rpm = (int16_t)UINT16_VALUE(frame[12], frame[13]); // RPM value
+                uint8_t motor_stator_temp = frame[15];
+
+                uint8_t display_msg_reply[] = {
+                    static_cast<uint8_t>(MsgAddress::BUS_MASTER),
+                    0x00, // message ID in replys are always 0x00
+                };
+                send_message(display_msg_reply, sizeof(display_msg_reply), _uart);
+
+                TelemetryData telem_data = {
+                    .voltage = motor_voltage,
+                    .current = motor_current,
+                    .motor_temp_cdeg = static_cast<int16_t>(10 * motor_stator_temp), // convert to centi-degrees C
+                };
+                update_telem_data(_instance, telem_data, TelemetryType::VOLTAGE | TelemetryType::CURRENT | TelemetryType::MOTOR_TEMPERATURE);
+                update_rpm(_instance, (float)rpm);
+            }
+            break;
+
+        default:
+            // unknown display message ID, ignore
             break;
     }
 }
