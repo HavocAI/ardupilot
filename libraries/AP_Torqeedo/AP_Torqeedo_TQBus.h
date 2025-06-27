@@ -76,9 +76,17 @@ private:
 
     AP_HAL::UARTDriver* _uart;
     int16_t _motor_speed_desired = 0; // desired motor speed in range -1000 to +1000
+    int16_t _motor_rpm = 0;
     uint8_t _master_error_code = 0; // error code from the motor, 0 means no error
-    uint32_t _last_err_ms = 0;
     uint32_t _last_rx_ms = 0; // last time a message was received from the motor
+
+    uint32_t _last_state_change_ms = 0;
+    
+    enum class DriverState {
+        INITIALIZING,
+        READY,
+        RUNNING,
+    } _state;
 
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread
