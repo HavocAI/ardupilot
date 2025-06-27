@@ -76,6 +76,7 @@ private:
 
     AP_HAL::UARTDriver* _uart;
     int16_t _motor_speed_desired = 0; // desired motor speed in range -1000 to +1000
+    uint32_t _last_rx_ms = 0; // last time a message was received from the motor
 
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread

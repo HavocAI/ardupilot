@@ -262,7 +262,13 @@ void AP_Torqeedo_TQBus::init()
 // returns true if communicating with the motor
 bool AP_Torqeedo_TQBus::healthy()
 {
-    return false;
+    // if the last received time is more than 2 seconds ago, we consider the connection unhealthy
+    if (AP_HAL::millis() - _last_rx_ms > 2000) {
+        return false;
+    } else {
+        return true;
+    }
+    
 }
 
 // consume incoming messages from motor, reply with latest motor speed
@@ -283,7 +289,7 @@ void AP_Torqeedo_TQBus::thread_main()
 
         // wait for data to be available
         if (_uart->available() == 0) {
-            hal.scheduler->delay(10); // no data, wait a bit
+            hal.scheduler->delay(2); // no data, wait a bit
             continue;
         }
 
@@ -294,6 +300,7 @@ void AP_Torqeedo_TQBus::thread_main()
                 // complete frame received
                 process_rx_frame(rx_frame.get_buffer(), rx_frame.get_length());
                 rx_frame.reset();
+                _last_rx_ms = AP_HAL::millis();; // update last received time
             }
         }
     }
@@ -337,6 +344,12 @@ void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
 
         case static_cast<uint8_t>(RemoteMsgId::REMOTE):
             {
+
+                _motor_speed_desired = constrain_int16(SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0, -1000, 1000);
+                if (!hal.util->get_soft_armed()) {
+                    _motor_speed_desired = 0;
+                }
+
                 uint8_t remote_msg_reply[] = {
                     static_cast<uint8_t>(MsgAddress::BUS_MASTER),
                     0x00, // message ID in replys are always 0x00
@@ -381,7 +394,7 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 // uint8_t flags0 = frame[2];
                 // uint8_t flags1 = frame[3];
                 // uint8_t master_state = frame[4];
-                // uint8_t master_error_code = frame[5];
+                uint8_t master_error_code = frame[5];
                 float motor_voltage = UINT16_VALUE(frame[6], frame[7]) * 0.01f; // convert to Volts
                 float motor_current = UINT16_VALUE(frame[8], frame[9]) * 0.1f; // convert to Amps
                 int16_t rpm = (int16_t)UINT16_VALUE(frame[12], frame[13]); // RPM value
@@ -400,6 +413,13 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 };
                 update_telem_data(_instance, telem_data, TelemetryType::VOLTAGE | TelemetryType::CURRENT | TelemetryType::MOTOR_TEMPERATURE);
                 update_rpm(_instance, (float)rpm);
+
+                telem_data.temperature_cdeg = master_error_code;
+                update_telem_data(_instance + 1, telem_data, TelemetryType::MOTOR_TEMPERATURE);
+                if (master_error_code) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo error: E%02" PRIu8, master_error_code);
+                }
+
             }
             break;
 
