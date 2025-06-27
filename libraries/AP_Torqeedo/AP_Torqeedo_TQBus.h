@@ -72,6 +72,8 @@ public:
 
 private:
 
+    AP_HAL::UARTDriver* _uart;
+
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread
     void thread_main();

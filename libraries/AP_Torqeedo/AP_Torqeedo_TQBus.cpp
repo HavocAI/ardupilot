@@ -28,6 +28,8 @@
 #include <AP_Common/async.h>
 
 #define TORQEEDO_SERIAL_BAUD        19200   // communication is always at 19200
+#define TORQEEDO_PARITY             0       // communication is always no parity
+#define TORQEEDO_STOP_BITS          1       // communication is always 1 stop bit
 #define TORQEEDO_PACKET_HEADER      0xAC    // communication packet header
 #define TORQEEDO_PACKET_FOOTER      0xAD    // communication packet footer
 #define TORQEEDO_PACKET_ESCAPE      0xAE    // escape character for handling occurrences of header, footer and this escape bytes in original message
@@ -37,6 +39,45 @@
 
 extern const AP_HAL::HAL& hal;
 
+#define SOFTWARE_FLOWCONTROL 1
+
+#ifdef SOFTWARE_FLOWCONTROL
+static uint32_t calc_transmit_time_us(uint8_t num_bytes)
+{
+    // baud rate of 19200 bits/sec
+    // total number of bits = num_bytes * (1 start_bit + 8 data_bits + num_parity_bits + 1 stop_bit)
+    // convert from seconds to micros by multiplying by 1,000,000
+    // plus additional 300us safety margin
+    uint8_t bits_per_data_byte = 10 + TORQEEDO_PARITY;
+    const uint32_t delay_us = 1e6 * num_bytes * bits_per_data_byte / TORQEEDO_SERIAL_BAUD + 300;
+    return delay_us;
+}
+#endif
+
+
+static void configure_uart(AP_HAL::UARTDriver* uart)
+{
+    uart->end();
+    uart->configure_parity(0); // no parity
+    uart->set_stop_bits(1);
+
+
+#ifdef SOFTWARE_FLOWCONTROL
+    uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_DISABLE);
+    uart->set_unbuffered_writes(true);
+    uart->set_CTS_pin(false);
+#else
+    uart->set_flow_control(AP_HAL::UARTDriver::FLOW_CONTROL_RTS_DE);
+#endif // SOFTWARE_FLOWCONTROL
+
+    uart->set_options(uart->get_options()
+                     | AP_HAL::UARTDriver::OPTION_NODMA_RX
+                    // | AP_HAL::UARTDriver::OPTION_NOFIFO
+                );
+
+    uart->begin(TORQEEDO_SERIAL_BAUD, 16, 16);
+    uart->discard_input();
+}
 
 static bool send_message(uint8_t* pkt_body, uint8_t len, uint8_t& num_bytes_written, AP_HAL::UARTDriver* uart)
 {
@@ -192,6 +233,15 @@ bool AP_Torqeedo_TQBus::healthy()
 // runs in background thread
 void AP_Torqeedo_TQBus::thread_main()
 {
+
+    const AP_SerialManager &serial_manager = AP::serialmanager();
+    _uart = serial_manager.find_serial(AP_SerialManager::SerialProtocol_Torqeedo, _instance);
+    if (_uart == nullptr) {
+        return;
+    }
+    configure_uart(_uart);
+
+
 
     while (true) {
         
