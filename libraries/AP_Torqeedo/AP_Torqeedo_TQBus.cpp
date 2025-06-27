@@ -103,6 +103,10 @@ static void configure_uart(AP_HAL::UARTDriver* uart)
 
 static bool send_message(uint8_t* pkt_body, uint8_t len, AP_HAL::UARTDriver* uart)
 {
+#ifdef SOFTWARE_FLOWCONTROL
+    uart->set_CTS_pin(true);
+#endif // SOFTWARE_FLOWCONTROL
+
     uint8_t num_bytes_written = 0;
     if (uart->write(TORQEEDO_PACKET_HEADER) != 1) {
         return false;
@@ -141,7 +145,12 @@ static bool send_message(uint8_t* pkt_body, uint8_t len, AP_HAL::UARTDriver* uar
         return false; // write failed
     }
 
-    num_bytes_written += 2; // one for CRC byte, one for footer byte
+    // add padding byte
+    if (uart->write(0xFF) != 1) {
+        return false; // write failed
+    }
+
+    num_bytes_written += 3; // one for CRC byte, one for footer byte, one for padding byte
 
     uart->flush();
 
@@ -312,7 +321,7 @@ void AP_Torqeedo_TQBus::thread_main()
     
 }
 
-#define DEBUG_TORQEEDO 1
+// #define DEBUG_TORQEEDO 1
 
 void AP_Torqeedo_TQBus::process_rx_frame(const uint8_t* frame, uint8_t len)
 {
@@ -360,10 +369,7 @@ void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
                 if (!hal.util->get_soft_armed()) {
                     _motor_speed_desired = 0;
                 }
-
-                #ifdef DEBUG_TORQEEDO
-                GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "TQBus: remote speed set to %d", _motor_speed_desired);
-                #endif
+                
 
                 uint8_t remote_msg_reply[] = {
                     static_cast<uint8_t>(MsgAddress::BUS_MASTER),
@@ -375,11 +381,32 @@ void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
                 };
 
                 send_message(remote_msg_reply, sizeof(remote_msg_reply), _uart);
+
+                #ifdef DEBUG_TORQEEDO
+                GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "TQBus: remote speed set to %d", _motor_speed_desired);
+                #endif
                 
             }
             break;
 
         case static_cast<uint8_t>(RemoteMsgId::SETUP):
+            {
+                uint16_t capacity_ah = 60;
+                uint8_t charge_pct = 98;
+                uint8_t tech = 1;
+                 uint8_t remote_msg_reply[] = {
+                    static_cast<uint8_t>(MsgAddress::BUS_MASTER),
+                    0x00, // message ID in replys are always 0x00
+                    0x01, // flags, 0x01 means pexit setup and do not save
+                    HIGHBYTE(capacity_ah), // battery capacity in Ampere.hours
+                    LOWBYTE(capacity_ah), // battery capacity in Ampere.hours
+                    charge_pct, // battery charge percentage
+                    tech, // battery technology, 0 = lead acid, 1 = Lithium-Ion
+                };
+
+                send_message(remote_msg_reply, sizeof(remote_msg_reply), _uart);
+
+            }
             break;
 
         default:
