@@ -389,12 +389,16 @@ void AP_Torqeedo_TQBus::thread_main()
                 if (now_ms - _last_state_change_ms > 5000) {
                     _last_state_change_ms = now_ms;
 
-                    // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
-                    if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
-                        _state = DriverState::INITIALIZING;
-                        _last_state_change_ms = now_ms; // update last state change time
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected, resetting driver");
+                    if (!healthy()) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no response");
                     }
+
+                    // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
+                    // if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
+                    //     _state = DriverState::INITIALIZING;
+                    //     _last_state_change_ms = now_ms; // update last state change time
+                    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected, resetting driver");
+                    // }
                 }
             } break;
         }
