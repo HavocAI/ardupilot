@@ -286,6 +286,29 @@ bool AP_Torqeedo_TQBus::healthy()
     
 }
 
+void AP_Torqeedo_TQBus::reset()
+{
+    _state = DriverState::INITIALIZING;
+    _last_state_change_ms = AP_HAL::millis();
+    _motor_speed_desired = 0;
+    _motor_rpm = 0;
+    _master_error_code = 0;
+    _last_rx_ms = 0;
+    _last_set_rpm_ms = 0;
+
+    if (_uart != nullptr) {
+        _uart->discard_input();
+    }
+
+    // set throttle to zero and wait 5 seconds
+    _motor_speed_desired = 0;
+        // use serial port's RTS pin to turn on battery
+    _uart->set_RTS_pin(true);
+    hal.scheduler->delay(500);
+    _uart->set_RTS_pin(false);
+                
+}
+
 // consume incoming messages from motor, reply with latest motor speed
 // runs in background thread
 void AP_Torqeedo_TQBus::thread_main()
@@ -299,6 +322,8 @@ void AP_Torqeedo_TQBus::thread_main()
     configure_uart(_uart);
 
     TQBusRxFrame rx_frame;
+
+    reset();
 
     while (true) {
 
@@ -317,12 +342,11 @@ void AP_Torqeedo_TQBus::thread_main()
 
         switch (_state) {
             case DriverState::INITIALIZING:
-                // set throttle to zero and wait 5 seconds
-                _motor_speed_desired = 0;
-                 // use serial port's RTS pin to turn on battery
-                _uart->set_RTS_pin(true);
-                hal.scheduler->delay(500);
-                _uart->set_RTS_pin(false);
+                reset();
+                if (AP_HAL::millis() - _last_state_change_ms > 5000) {
+                    _last_state_change_ms = AP_HAL::millis();
+                    _state = DriverState::READY;
+                }
                 break;
 
             case DriverState::REVERSE_WAIT:
@@ -357,18 +381,17 @@ void AP_Torqeedo_TQBus::thread_main()
                     _last_state_change_ms = now_ms; // update last state change time
                 } else {
                     _motor_speed_desired = constrain_int16( static_cast<int16_t>(rpm_cmd), -1000, 1000);
+                }
 
-                    if (now_ms - _last_state_change_ms > 5000) {
-                        _last_state_change_ms = now_ms;
+                if (now_ms - _last_state_change_ms > 5000) {
+                    _last_state_change_ms = now_ms;
 
-                        // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
-                        if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
-                            _state = DriverState::INITIALIZING;
-                            _last_state_change_ms = now_ms; // update last state change time
-                            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected, resetting driver");
-                        }
+                    // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
+                    if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
+                        _state = DriverState::INITIALIZING;
+                        _last_state_change_ms = now_ms; // update last state change time
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected, resetting driver");
                     }
-
                 }
             } break;
         }
@@ -440,13 +463,13 @@ void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
                     LOWBYTE(_motor_speed_desired),
                 };
 
-                if (_state == DriverState::INITIALIZING) {
-                    remote_msg_reply[2] = 0x01;
-                    remote_msg_reply[3] = 0x02;
-                    remote_msg_reply[4] = 0x4c;
-                    remote_msg_reply[5] = 0x47;
-                    _state = DriverState::READY;
-                }
+                // if (_state == DriverState::INITIALIZING) {
+                //     remote_msg_reply[2] = 0x01;
+                //     remote_msg_reply[3] = 0x02;
+                //     remote_msg_reply[4] = 0x4c;
+                //     remote_msg_reply[5] = 0x47;
+                //     _state = DriverState::READY;
+                // }
 
                 send_message(remote_msg_reply, sizeof(remote_msg_reply), _uart);
 

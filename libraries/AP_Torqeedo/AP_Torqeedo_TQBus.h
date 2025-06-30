@@ -93,6 +93,7 @@ private:
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread
     void thread_main();
+    void reset();
 
     void set_master_error_code(uint8_t error_code);
 
