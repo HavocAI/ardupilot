@@ -279,6 +279,10 @@ bool AP_Torqeedo_TQBus::healthy()
 {
     // if the last received time is more than 2 seconds ago, we consider the connection unhealthy
     if (AP_HAL::millis() - _last_rx_ms > 2000) {
+        if (_state == DriverState::RUNNING) {
+            _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
+            _last_state_change_ms = AP_HAL::millis(); // update last state change time
+        }
         return false;
     } else {
         return true;
