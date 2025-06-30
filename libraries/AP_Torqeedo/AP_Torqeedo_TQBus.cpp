@@ -330,6 +330,13 @@ void AP_Torqeedo_TQBus::thread_main()
                 }
                 break;
 
+            case DriverState::REVERSE_WAIT:
+                if (AP_HAL::millis() - _last_state_change_ms > 3000) {
+                    _last_state_change_ms = AP_HAL::millis();
+                    _state = DriverState::READY;
+                }
+                break;
+
             case DriverState::READY:
                 if (hal.util->get_soft_armed()) {
                     _last_state_change_ms = AP_HAL::millis();
@@ -338,18 +345,37 @@ void AP_Torqeedo_TQBus::thread_main()
                 break;
 
             case DriverState::RUNNING:
-                _motor_speed_desired = constrain_int16(SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0, -1000, 1000);
-                
-                if (AP_HAL::millis() - _last_state_change_ms > 5000) {
-                    // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
-                    if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
-                        _state = DriverState::INITIALIZING;
-                        _last_state_change_ms = AP_HAL::millis(); // update last state change time
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no propeller detected, resetting driver state");
+            {
+                #define SLEW_FILTER_CUTOFF_FREQ 1.0f // cutoff frequency for the lowpass filter in Hz
+
+                const uint32_t now_ms = AP_HAL::millis();
+                const float dt = (now_ms - _last_set_rpm_ms) / 1000.0f; // time since last state change in seconds
+                _last_set_rpm_ms = now_ms; // update last set RPM time
+
+                float rpm_cmd = SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0f;
+                rpm_cmd = _motor_speed_desired + calc_lowpass_alpha_dt(dt, SLEW_FILTER_CUTOFF_FREQ) * (rpm_cmd - _motor_speed_desired);
+
+                // if the signs rpm_cmd and _motor_speed_desired signs are different, we need to wait for the direction change delay before setting the new RPM
+                if ((_motor_speed_desired < 0 && rpm_cmd > 0) || (_motor_speed_desired > 0 && rpm_cmd < 0)) {
+                    _motor_speed_desired = 0; // set motor speed to zero to stop the motor
+                    _state = DriverState::REVERSE_WAIT;
+                    _last_state_change_ms = now_ms; // update last state change time
+                } else {
+                    _motor_speed_desired = constrain_int16( static_cast<int16_t>(rpm_cmd), -1000, 1000);
+
+                    if (now_ms - _last_state_change_ms > 5000) {
+                        _last_state_change_ms = now_ms;
+
+                        // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
+                        if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
+                            _state = DriverState::INITIALIZING;
+                            _last_state_change_ms = now_ms; // update last state change time
+                            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no propeller detected, resetting driver state");
+                        }
                     }
-                    _last_state_change_ms = AP_HAL::millis();
+
                 }
-                break;
+            } break;
         }
     }
     

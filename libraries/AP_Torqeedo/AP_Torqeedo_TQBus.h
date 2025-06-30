@@ -79,6 +79,7 @@ private:
     int16_t _motor_rpm = 0;
     uint8_t _master_error_code = 0; // error code from the motor, 0 means no error
     uint32_t _last_rx_ms = 0; // last time a message was received from the motor
+    uint32_t _last_set_rpm_ms = 0; // last time we set the motor speed
 
     uint32_t _last_state_change_ms = 0;
     
@@ -86,6 +87,7 @@ private:
         INITIALIZING,
         READY,
         RUNNING,
+        REVERSE_WAIT,
     } _state;
 
     // consume incoming messages from motor, reply with latest motor speed
