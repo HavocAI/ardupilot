@@ -309,7 +309,7 @@ void AP_Torqeedo_TQBus::reset()
     _motor_speed_desired = 0;
         // use serial port's RTS pin to turn on battery
     _uart->set_RTS_pin(true);
-    hal.scheduler->delay(500);
+    hal.scheduler->delay(5000);
     _uart->set_RTS_pin(false);
                 
 }
