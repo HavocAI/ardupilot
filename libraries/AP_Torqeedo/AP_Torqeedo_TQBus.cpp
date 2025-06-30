@@ -292,6 +292,7 @@ bool AP_Torqeedo_TQBus::healthy()
 
 void AP_Torqeedo_TQBus::reset()
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: resetting driver");
     _state = DriverState::INITIALIZING;
     _last_state_change_ms = AP_HAL::millis();
     _motor_speed_desired = 0;
@@ -327,8 +328,6 @@ void AP_Torqeedo_TQBus::thread_main()
 
     TQBusRxFrame rx_frame;
 
-    reset();
-
     while (true) {
 
         hal.scheduler->delay(2);
@@ -346,9 +345,9 @@ void AP_Torqeedo_TQBus::thread_main()
 
         switch (_state) {
             case DriverState::INITIALIZING:
-                reset();
                 if (AP_HAL::millis() - _last_state_change_ms > 5000) {
                     _last_state_change_ms = AP_HAL::millis();
+                    reset();
                     _state = DriverState::READY;
                 }
                 break;
