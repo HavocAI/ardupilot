@@ -293,17 +293,6 @@ bool AP_Torqeedo_TQBus::healthy()
 void AP_Torqeedo_TQBus::reset()
 {
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: resetting driver");
-    _state = DriverState::INITIALIZING;
-    _last_state_change_ms = AP_HAL::millis();
-    _motor_speed_desired = 0;
-    _motor_rpm = 0;
-    _master_error_code = 0;
-    _last_rx_ms = 0;
-    _last_set_rpm_ms = 0;
-
-    if (_uart != nullptr) {
-        _uart->discard_input();
-    }
 
     // set throttle to zero and wait 5 seconds
     _motor_speed_desired = 0;
@@ -345,11 +334,9 @@ void AP_Torqeedo_TQBus::thread_main()
 
         switch (_state) {
             case DriverState::INITIALIZING:
-                if (AP_HAL::millis() - _last_state_change_ms > 5000) {
-                    _last_state_change_ms = AP_HAL::millis();
-                    reset();
-                    _state = DriverState::READY;
-                }
+                reset();
+                _state = DriverState::READY;
+                _last_state_change_ms = AP_HAL::millis();
                 break;
 
             case DriverState::REVERSE_WAIT:
@@ -384,22 +371,28 @@ void AP_Torqeedo_TQBus::thread_main()
                     _last_state_change_ms = now_ms; // update last state change time
                 } else {
                     _motor_speed_desired = constrain_int16( static_cast<int16_t>(rpm_cmd), -1000, 1000);
-                }
+                    if (abs(_motor_speed_desired) < 30) {
+                        _motor_speed_desired = 0;
+                    }
 
-                if (now_ms - _last_state_change_ms > 5000) {
-                    _last_state_change_ms = now_ms;
+                    if (now_ms - _last_state_change_ms > 5000) {
+                        _last_state_change_ms = now_ms;
+
+                        // if the motor is not spinning and we are trying to make it spin, try set RPM to zero for a bit.
+                        if (_motor_rpm == 0 && abs(_motor_speed_desired) > 100) {
+                            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected");
+                            _motor_speed_desired = 0;
+                            _state = DriverState::REVERSE_WAIT;
+                            _last_state_change_ms = now_ms; // update last state change time
+                        }
+                    }
 
                     if (!healthy()) {
                         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no response");
                     }
-
-                    // if the motor's rpm is close to zero and if the abs value of the desired RPM is > 100, reset the driver state to INITIALIZING
-                    // if (abs(_motor_rpm) < 100 && abs(_motor_speed_desired) > 100) {
-                    //     _state = DriverState::INITIALIZING;
-                    //     _last_state_change_ms = now_ms; // update last state change time
-                    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected, resetting driver");
-                    // }
                 }
+
+                
             } break;
         }
     }
@@ -535,10 +528,11 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 // uint8_t flags1 = frame[3];
                 // uint8_t master_state = frame[4];
                 const uint8_t master_error_code = frame[5];
-                float motor_voltage = 0.01f * UINT16_VALUE(frame[6], frame[7]); // convert to Volts
-                float motor_current = 0.1f * UINT16_VALUE(frame[8], frame[9]); // convert to Amps
-                _motor_rpm = (int16_t)UINT16_VALUE(frame[12], frame[13]); // RPM value
-                uint8_t motor_stator_temp = frame[15];
+                const float motor_voltage = 0.01f * UINT16_VALUE(frame[6], frame[7]); // convert to Volts
+                const float motor_current = 0.1f * UINT16_VALUE(frame[8], frame[9]); // convert to Amps
+
+                _motor_rpm = static_cast<int16_t>( ((frame[12] << 8) | frame[13]) ); // RPM value
+                const uint8_t motor_stator_temp = frame[15];
 
                 // uint8_t display_msg_reply[] = {
                 //     static_cast<uint8_t>(MsgAddress::BUS_MASTER),
@@ -546,13 +540,12 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 // };
                 // send_message(display_msg_reply, sizeof(display_msg_reply), _uart);
 
-                TelemetryData telem_data = {
-                    .temperature_cdeg = static_cast<int16_t>(10 * motor_stator_temp), // convert to centi-degrees C
-                    .voltage = motor_voltage,
-                    .current = motor_current,
-                };
+                TelemetryData telem_data;
+                telem_data.temperature_cdeg = motor_stator_temp * 10;
+                telem_data.voltage = motor_voltage;
+                telem_data.current = motor_current;
                 update_telem_data(_instance, telem_data, TelemetryType::VOLTAGE | TelemetryType::CURRENT | TelemetryType::TEMPERATURE);
-                update_rpm(_instance, (float)_motor_rpm);
+                update_rpm(_instance, _motor_rpm);
 
                 telem_data.temperature_cdeg = master_error_code;
                 update_telem_data(_instance + 1, telem_data, TelemetryType::TEMPERATURE);
