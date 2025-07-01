@@ -278,11 +278,7 @@ void AP_Torqeedo_TQBus::init()
 bool AP_Torqeedo_TQBus::healthy()
 {
     // if the last received time is more than 2 seconds ago, we consider the connection unhealthy
-    if (AP_HAL::millis() - _last_rx_ms > 2000) {
-        if (_state == DriverState::RUNNING) {
-            _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
-            _last_state_change_ms = AP_HAL::millis(); // update last state change time
-        }
+    if (AP_HAL::millis() - _last_rx_ms > 5000) {
         return false;
     } else {
         return true;
@@ -347,7 +343,12 @@ void AP_Torqeedo_TQBus::thread_main()
                 break;
 
             case DriverState::READY:
-                if (hal.util->get_soft_armed()) {
+                if (!healthy()) {
+                    _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
+                    _last_state_change_ms = AP_HAL::millis(); // update last state change time
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no response");
+                   
+                } else if (hal.util->get_soft_armed()) {
                     _last_state_change_ms = AP_HAL::millis();
                     _state = DriverState::RUNNING;
                 }
@@ -389,6 +390,8 @@ void AP_Torqeedo_TQBus::thread_main()
 
                     if (!healthy()) {
                         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no response");
+                        _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
+                        _last_state_change_ms = AP_HAL::millis(); // update last state change time
                     }
                 }
 
