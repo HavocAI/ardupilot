@@ -372,6 +372,13 @@ void AP_Torqeedo_TQBus::thread_main()
 
         switch (_state) {
             case DriverState::Init: {
+
+                const uint32_t now_ms = AP_HAL::millis();
+                if (!healthy() && now_ms - _last_state_change_ms > 20000) {
+                    _state = DriverState::PowerOn;
+                    _last_state_change_ms = AP_HAL::millis();
+                }
+
                 if (hal.util->get_soft_armed()) {
                     _state = DriverState::Stop;
                     _last_state_change_ms = AP_HAL::millis();
@@ -384,7 +391,7 @@ void AP_Torqeedo_TQBus::thread_main()
                 _uart->set_RTS_pin(true);
 
                 const uint32_t now_ms = AP_HAL::millis();
-                if (now_ms - _last_state_change_ms > 3000) {
+                if (now_ms - _last_state_change_ms > 6000) {
                     _last_state_change_ms = now_ms;
                     _state = DriverState::PowerOff; // go to PowerOff state after 3 seconds
                 }
