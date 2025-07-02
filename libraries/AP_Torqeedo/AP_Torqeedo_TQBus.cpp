@@ -652,7 +652,7 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
             {
                 // handle motor status message
                 const uint8_t status = frame[2];
-                const uint8_t errors = frame[3];
+                const uint16_t errors = UINT16_VALUE(frame[3], frame[4]);
 
                 #define TORQEEDO_STATUS_RUNNING (1 << 3)
 
@@ -661,14 +661,12 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
                 // if the TORQEEDO_STATUS_RUNNING bit is not set, send the status message
                 if (!(status & TORQEEDO_STATUS_RUNNING)) {
                     if (counter++ % 10 == 0) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: motor not running, status 0x%02X", status);
+                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: status 0x%02X", status);
                     }
-                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: motor status 0x%02X", status);
                 }
 
                 if (errors) {
-                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%02X", errors);
-                    
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%04X", errors);
                 }
 
                 TelemetryData telem_data = {
@@ -685,12 +683,12 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
         case static_cast<uint8_t>(MotorMsgId::PARAM):
             {
                 // handle motor parameter message
-                const int16_t rpm = static_cast<int16_t>( ((frame[3] << 8) | frame[2]) );
-                const uint16_t power = static_cast<uint16_t>( ((frame[5] << 8) | frame[4]) );
-                const uint16_t voltage = static_cast<uint16_t>( ((frame[7] << 8) | frame[6]) );
-                const uint16_t current = static_cast<uint16_t>( ((frame[9] << 8) | frame[8]) );
-                const int16_t pcb_temp = static_cast<int16_t>( ((frame[11] << 8) | frame[10]) );
-                const int16_t motor_temp = static_cast<int16_t>( ((frame[13] << 8) | frame[12]) );
+                const int16_t rpm = (int16_t)UINT16_VALUE(frame[2], frame[3]);
+                const uint16_t power = UINT16_VALUE(frame[4], frame[5]);
+                const uint16_t voltage = UINT16_VALUE(frame[6], frame[7]);
+                const uint16_t current = UINT16_VALUE(frame[8], frame[9]);
+                const int16_t pcb_temp = (int16_t)UINT16_VALUE(frame[10], frame[11]);
+                const int16_t motor_temp = (int16_t)UINT16_VALUE(frame[12], frame[13]);
 
                 static uint16_t counter = 0;
                 if (counter++ % 10 == 0) {
