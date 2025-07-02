@@ -370,7 +370,7 @@ void AP_Torqeedo_TQBus::thread_main()
         }
 
         static uint16_t counter = 0;
-        if (counter++ % 300 == 0) {
+        if (counter++ % 600 == 0) {
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: state %d", static_cast<uint16_t>(_state));
 
             TelemetryData data = {
@@ -666,7 +666,9 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
                 }
 
                 if (errors) {
-                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%04X", errors);
+                    if (counter++ % 10 == 0) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%04X", errors);
+                    }
                 }
 
                 TelemetryData telem_data = {
