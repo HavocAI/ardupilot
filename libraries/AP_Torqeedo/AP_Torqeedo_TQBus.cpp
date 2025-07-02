@@ -341,19 +341,6 @@ void AP_Torqeedo_TQBus::thread_main()
                 if (!healthy()) {
                     _comsState = ComsState::Unhealthy;
                     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: lost comms");
-                    switch (_state) {
-                        case DriverState::Init:
-                        case DriverState::Stop:
-                        case DriverState::Ready:
-                        case DriverState::Forward:
-                        case DriverState::Reverse:
-                            _state = DriverState::PowerOn;
-                            _last_state_change_ms = AP_HAL::millis();
-                            break;
-
-                        default:
-                            break;
-                    }
                 }
 
             } break;
@@ -362,8 +349,34 @@ void AP_Torqeedo_TQBus::thread_main()
                 if (healthy()) {
                     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: comms restored");
                     _comsState = ComsState::Healthy;
+                } else if (AP_HAL::millis() - _last_rx_ms > 20000) {
+
+                    switch (_state) {
+                        case DriverState::Init:
+                        case DriverState::Stop:
+                        case DriverState::Ready:
+                        case DriverState::Forward:
+                        case DriverState::Reverse:
+                            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: comms lost, resetting driver state");
+                            _state = DriverState::PowerOn;
+                            _last_state_change_ms = AP_HAL::millis();
+                            break;
+
+                        default:
+                            break;
+                    }
                 }
             } break;
+        }
+
+        static uint16_t counter = 0;
+        if (counter++ % 300 == 0) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: state %d", static_cast<uint16_t>(_state));
+
+            TelemetryData data = {
+                .temperature_cdeg = static_cast<int16_t>(_state),
+            };
+            update_telem_data(1, data, TelemetryType::TEMPERATURE);
         }
 
         
@@ -606,7 +619,7 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 update_rpm(_instance, _motor_rpm);
 
                 telem_data.temperature_cdeg = master_error_code;
-                update_telem_data(_instance + 1, telem_data, TelemetryType::TEMPERATURE);
+                update_telem_data(_instance + 2, telem_data, TelemetryType::TEMPERATURE);
                 set_master_error_code(master_error_code);
 
             }
@@ -643,14 +656,25 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
 
                 #define TORQEEDO_STATUS_RUNNING (1 << 3)
 
+                static uint16_t counter = 0;
+
                 // if the TORQEEDO_STATUS_RUNNING bit is not set, send the status message
                 if (!(status & TORQEEDO_STATUS_RUNNING)) {
+                    if (counter++ % 10 == 0) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: motor not running, status 0x%02X", status);
+                    }
                     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: motor status 0x%02X", status);
                 }
 
                 if (errors) {
                     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%02X", errors);
+                    
                 }
+
+                TelemetryData telem_data = {
+                    .temperature_cdeg = static_cast<int16_t>((errors << 8) | (0xFF & status)),
+                };
+                update_telem_data(_instance + 2, telem_data, TelemetryType::TEMPERATURE);
 
             } break;
 
@@ -661,17 +685,17 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
         case static_cast<uint8_t>(MotorMsgId::PARAM):
             {
                 // handle motor parameter message
-                const int16_t rpm = static_cast<int16_t>( ((frame[2] << 8) | frame[3]) );
-                const uint16_t power = static_cast<uint16_t>( ((frame[4] << 8) | frame[5]) );
-                const uint16_t voltage = static_cast<uint16_t>( ((frame[6] << 8) | frame[7]) );
-                const uint16_t current = static_cast<uint16_t>( ((frame[8] << 8) | frame[9]) );
-                const int16_t pcb_temp = static_cast<int16_t>( ((frame[10] << 8) | frame[11]) );
-                const int16_t motor_temp = static_cast<int16_t>( ((frame[12] << 8) | frame[13]) );
+                const int16_t rpm = static_cast<int16_t>( ((frame[3] << 8) | frame[2]) );
+                const uint16_t power = static_cast<uint16_t>( ((frame[5] << 8) | frame[4]) );
+                const uint16_t voltage = static_cast<uint16_t>( ((frame[7] << 8) | frame[6]) );
+                const uint16_t current = static_cast<uint16_t>( ((frame[9] << 8) | frame[8]) );
+                const int16_t pcb_temp = static_cast<int16_t>( ((frame[11] << 8) | frame[10]) );
+                const int16_t motor_temp = static_cast<int16_t>( ((frame[13] << 8) | frame[12]) );
 
                 static uint16_t counter = 0;
-                if (counter++ % 5 == 0) {
-                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: RPM %d, Power %dW, Voltage %dV, Current %dA, PCB Temp %dC, Motor Temp %dC",
-                                  rpm, power, voltage, current, pcb_temp / 10, motor_temp / 10);
+                if (counter++ % 10 == 0) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: RPM %d Pwr %dW %dV %dA PCB %d M %d",
+                                  rpm, power, voltage, current, pcb_temp, motor_temp);
                 }
             } break;
 
