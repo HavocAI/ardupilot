@@ -260,7 +260,7 @@ bool TQBusRxFrame::push_byte(uint8_t b)
 AP_Torqeedo_TQBus::AP_Torqeedo_TQBus(AP_Torqeedo_Params &params, uint8_t instance)
   : AP_Torqeedo_Backend(params, instance),
   _uart(nullptr),
-  _state(DriverState::INITIALIZING)
+  _state(DriverState::Init)
 {}
 
 // initialise driver
@@ -286,17 +286,16 @@ bool AP_Torqeedo_TQBus::healthy()
     
 }
 
-void AP_Torqeedo_TQBus::reset()
+void AP_Torqeedo_TQBus::filter_desired_speed()
 {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: resetting driver");
+    #define SLEW_FILTER_CUTOFF_FREQ 1.0f // cutoff frequency for the lowpass filter in Hz
 
-    // set throttle to zero and wait 5 seconds
-    _motor_speed_desired = 0;
-        // use serial port's RTS pin to turn on battery
-    _uart->set_RTS_pin(true);
-    hal.scheduler->delay(5000);
-    _uart->set_RTS_pin(false);
-                
+    const uint32_t now_ms = AP_HAL::millis();
+    const float dt = (now_ms - _last_set_rpm_ms) / 1000.0f; // time since last state change in seconds
+    _last_set_rpm_ms = now_ms; // update last set RPM time
+
+    float rpm_cmd = SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0f;
+    _filtered_desired_speed += calc_lowpass_alpha_dt(dt, SLEW_FILTER_CUTOFF_FREQ) * (rpm_cmd - _filtered_desired_speed);
 }
 
 // consume incoming messages from motor, reply with latest motor speed
@@ -328,76 +327,114 @@ void AP_Torqeedo_TQBus::thread_main()
             }
         }
 
-        switch (_state) {
-            case DriverState::INITIALIZING:
-                reset();
-                _state = DriverState::READY;
-                _last_state_change_ms = AP_HAL::millis();
-                break;
+        filter_desired_speed();
 
-            case DriverState::REVERSE_WAIT:
-                if (AP_HAL::millis() - _last_state_change_ms > 3000) {
-                    _last_state_change_ms = AP_HAL::millis();
-                    _state = DriverState::READY;
-                }
-                break;
-
-            case DriverState::READY:
+        switch (_comsState) {
+            case ComsState::Healthy: {
                 if (!healthy()) {
-                    _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
-                    _last_state_change_ms = AP_HAL::millis(); // update last state change time
-                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no response");
-                   
-                } else if (hal.util->get_soft_armed()) {
-                    _last_state_change_ms = AP_HAL::millis();
-                    _state = DriverState::RUNNING;
-                }
-                break;
+                    _comsState = ComsState::Unhealthy;
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: lost comms");
+                    switch (_state) {
+                        case DriverState::Init:
+                        case DriverState::Stop:
+                        case DriverState::Ready:
+                        case DriverState::Forward:
+                        case DriverState::Reverse:
+                            _state = DriverState::PowerOn;
+                            _last_state_change_ms = AP_HAL::millis();
+                            break;
 
-            case DriverState::RUNNING:
-            {
-                #define SLEW_FILTER_CUTOFF_FREQ 1.0f // cutoff frequency for the lowpass filter in Hz
-
-                const uint32_t now_ms = AP_HAL::millis();
-                const float dt = (now_ms - _last_set_rpm_ms) / 1000.0f; // time since last state change in seconds
-                _last_set_rpm_ms = now_ms; // update last set RPM time
-
-                float rpm_cmd = SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_params.servo_fn.get()) * 1000.0f;
-                rpm_cmd = _motor_speed_desired + calc_lowpass_alpha_dt(dt, SLEW_FILTER_CUTOFF_FREQ) * (rpm_cmd - _motor_speed_desired);
-
-                // if the signs rpm_cmd and _motor_speed_desired signs are different, we need to wait for the direction change delay before setting the new RPM
-                if ((_motor_speed_desired < 0 && rpm_cmd > 0) || (_motor_speed_desired > 0 && rpm_cmd < 0)) {
-                    _motor_speed_desired = 0; // set motor speed to zero to stop the motor
-                    _state = DriverState::REVERSE_WAIT;
-                    _last_state_change_ms = now_ms; // update last state change time
-                } else {
-                    _motor_speed_desired = constrain_int16( static_cast<int16_t>(rpm_cmd), -1000, 1000);
-                    if (abs(_motor_speed_desired) < 30) {
-                        _motor_speed_desired = 0;
-                    }
-
-                    if (now_ms - _last_state_change_ms > 5000) {
-                        _last_state_change_ms = now_ms;
-
-                        // if the motor is not spinning and we are trying to make it spin, try set RPM to zero for a bit.
-                        if (_motor_rpm == 0 && abs(_motor_speed_desired) > 100) {
-                            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no RPM detected");
-                            _motor_speed_desired = 0;
-                            _state = DriverState::REVERSE_WAIT;
-                            _last_state_change_ms = now_ms; // update last state change time
-                        }
-                    }
-
-                    if (!healthy()) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: no response");
-                        _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
-                        _last_state_change_ms = AP_HAL::millis(); // update last state change time
+                        default:
+                            break;
                     }
                 }
 
-                
+            } break;
+
+            case ComsState::Unhealthy: {
+                if (healthy()) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: comms restored");
+                    _comsState = ComsState::Healthy;
+                }
             } break;
         }
+
+        
+
+        #define MIN_THROTTLE 30 // minimum throttle to consider the motor running
+
+        switch (_state) {
+            case DriverState::Init: {
+                if (hal.util->get_soft_armed()) {
+                    _state = DriverState::Stop;
+                    _last_state_change_ms = AP_HAL::millis();
+                }
+
+            } break;
+
+            case DriverState::PowerOn: {
+                _motor_speed_desired = 0;
+                _uart->set_RTS_pin(true);
+
+                const uint32_t now_ms = AP_HAL::millis();
+                if (now_ms - _last_state_change_ms > 3000) {
+                    _last_state_change_ms = now_ms;
+                    _state = DriverState::PowerOff; // go to PowerOff state after 3 seconds
+                }
+
+            } break;
+
+            case DriverState::PowerOff: {
+                _uart->set_RTS_pin(false);
+
+                const uint32_t now_ms = AP_HAL::millis();
+                if (now_ms - _last_state_change_ms > 3000) {
+                    _state = DriverState::Init; // go back to Init state
+                    _last_state_change_ms = now_ms;
+                }
+            } break;
+
+            case DriverState::Stop: {
+                _motor_speed_desired = 0;
+                const uint32_t now_ms = AP_HAL::millis();
+                if (now_ms - _last_state_change_ms > 3000) {
+                    _last_state_change_ms = now_ms;
+                    _state = DriverState::Ready;
+                }
+
+            } break;
+
+            case DriverState::Ready: {
+                if (_filtered_desired_speed > MIN_THROTTLE) {
+                    _state = DriverState::Forward;
+                } else if (_filtered_desired_speed < -MIN_THROTTLE) {
+                    _state = DriverState::Reverse;
+                }
+                
+            } break;
+
+            case DriverState::Forward: {
+                if (_filtered_desired_speed > MIN_THROTTLE) {
+                    _motor_speed_desired = _filtered_desired_speed;
+                } else {
+                    _state = DriverState::Stop;
+                    _last_state_change_ms = AP_HAL::millis();
+                }
+
+            } break;
+
+            case DriverState::Reverse: {
+                if (_filtered_desired_speed < -MIN_THROTTLE) {
+                    _motor_speed_desired = _filtered_desired_speed;
+                } else {
+                    _state = DriverState::Stop;
+                    _last_state_change_ms = AP_HAL::millis();
+                }
+
+            } break;
+        }
+
+        
     }
     
 }
@@ -406,7 +443,7 @@ void AP_Torqeedo_TQBus::set_master_error_code(uint8_t error_code)
 {
 
     if (error_code != 0 && error_code != _master_error_code) {
-        _state = DriverState::INITIALIZING; // reset driver state to INITIALIZING
+        _state = DriverState::Init; // reset driver state to INITIALIZING
         _last_state_change_ms = AP_HAL::millis(); // update last state change time
         _master_error_code = error_code;
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo error: E%02" PRIu8, _master_error_code);

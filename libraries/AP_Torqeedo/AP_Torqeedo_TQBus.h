@@ -76,6 +76,7 @@ private:
 
     AP_HAL::UARTDriver* _uart;
     int16_t _motor_speed_desired = 0; // desired motor speed in range -1000 to +1000
+    float _filtered_desired_speed = 0.0f; // filtered desired motor speed in range -1000 to +1000
     int16_t _motor_rpm = 0;
     uint8_t _master_error_code = 0; // error code from the motor, 0 means no error
     uint32_t _last_rx_ms = 0; // last time a message was received from the motor
@@ -84,16 +85,25 @@ private:
     uint32_t _last_state_change_ms = 0;
     
     enum class DriverState {
-        INITIALIZING,
-        READY,
-        RUNNING,
-        REVERSE_WAIT,
+        Init,
+        Stop,
+        Ready,
+        Forward,
+        Reverse,
+        PowerOn,
+        PowerOff,
     } _state;
+
+    enum class ComsState {
+        Healthy,
+        Unhealthy,
+    } _comsState;
 
     // consume incoming messages from motor, reply with latest motor speed
     // runs in background thread
     void thread_main();
-    void reset();
+    
+    void filter_desired_speed();
 
     void set_master_error_code(uint8_t error_code);
 
