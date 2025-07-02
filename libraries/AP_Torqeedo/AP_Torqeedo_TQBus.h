@@ -110,6 +110,7 @@ private:
     void process_rx_frame(const uint8_t* frame, uint8_t len);
     void handle_remote_msg(const uint8_t* frame, uint8_t len);
     void handle_display_msg(const uint8_t* frame, uint8_t len);
+    void handle_motor_msg(const uint8_t* frame, uint8_t len);
 
     
 };

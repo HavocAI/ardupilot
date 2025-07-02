@@ -59,6 +59,13 @@ enum class DisplayMsgId : uint8_t {
     SYSTEM_SETUP = 0x42
 };
 
+enum class MotorMsgId : uint8_t {
+    INFO = 0x00,
+    STATUS = 0x01,
+    DRIVE = 0x82,
+    PARAM = 0x03,
+};
+
 extern const AP_HAL::HAL& hal;
 
 #define SOFTWARE_FLOWCONTROL 1
@@ -467,6 +474,10 @@ void AP_Torqeedo_TQBus::process_rx_frame(const uint8_t* frame, uint8_t len)
         case static_cast<uint8_t>(MsgAddress::DISPLAY):
             handle_display_msg(frame, len);
             break;
+
+        case static_cast<uint8_t>(MsgAddress::MOTOR):
+            handle_motor_msg(frame, len);
+            break;
         
         default:
             // unknown frame, ignore
@@ -606,6 +617,59 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
 
         default:
             // unknown display message ID, ignore
+            break;
+    }
+}
+
+void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
+{
+    switch (frame[1]) {
+        case static_cast<uint8_t>(MotorMsgId::INFO):
+            // handle motor info message
+            break;
+
+        case static_cast<uint8_t>(MotorMsgId::STATUS):
+            {
+                // handle motor status message
+                const uint8_t status = frame[2];
+                const uint8_t errors = frame[3];
+
+                #define TORQEEDO_STATUS_RUNNING (1 << 3)
+
+                // if the TORQEEDO_STATUS_RUNNING bit is not set, send the status message
+                if (!(status & TORQEEDO_STATUS_RUNNING)) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: motor status 0x%02X", status);
+                }
+
+                if (errors) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%02X", errors);
+                }
+
+            } break;
+
+        case static_cast<uint8_t>(MotorMsgId::DRIVE):
+            // handle motor drive message
+            break;
+
+        case static_cast<uint8_t>(MotorMsgId::PARAM):
+            {
+                // handle motor parameter message
+                const int16_t rpm = static_cast<int16_t>( ((frame[2] << 8) | frame[3]) );
+                const uint16_t power = static_cast<uint16_t>( ((frame[4] << 8) | frame[5]) );
+                const uint16_t voltage = static_cast<uint16_t>( ((frame[6] << 8) | frame[7]) );
+                const uint16_t current = static_cast<uint16_t>( ((frame[8] << 8) | frame[9]) );
+                const int16_t pcb_temp = static_cast<int16_t>( ((frame[10] << 8) | frame[11]) );
+                const int16_t motor_temp = static_cast<int16_t>( ((frame[12] << 8) | frame[13]) );
+
+                static uint16_t counter = 0;
+                if (counter++ % 5 == 0) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: RPM %d, Power %dW, Voltage %dV, Current %dA, PCB Temp %dC, Motor Temp %dC",
+                                  rpm, power, voltage, current, pcb_temp / 10, motor_temp / 10);
+                }
+            } break;
+
+        default:
+            // unknown motor message ID, ignore
             break;
     }
 }
