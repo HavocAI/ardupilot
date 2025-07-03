@@ -28,6 +28,8 @@
 
 #include <AP_Common/async.h>
 
+// #define DEBUG_TORQEEDO 1
+
 #define TORQEEDO_SERIAL_BAUD        19200   // communication is always at 19200
 #define TORQEEDO_PARITY             0       // communication is always no parity
 #define TORQEEDO_STOP_BITS          1       // communication is always 1 stop bit
@@ -281,6 +283,11 @@ void AP_Torqeedo_TQBus::init()
     }
 }
 
+void AP_Torqeedo_TQBus::send_mavlink_status(mavlink_channel_t ch)
+{
+    mavlink_msg_torqeedo_telemetry_send_struct(ch, &_torqeedo_telemetry);
+}
+
 // returns true if communicating with the motor
 bool AP_Torqeedo_TQBus::healthy()
 {
@@ -320,6 +327,16 @@ void AP_Torqeedo_TQBus::thread_main()
     TQBusRxFrame rx_frame;
 
     while (true) {
+
+        _torqeedo_telemetry.other = (0x0F & static_cast<uint8_t>(_state)) |
+                                    (healthy() ? 0x10 : 0x00)
+                                    ;
+
+
+#ifdef DEBUG_TORQEEDO
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "TQBus: state %d",
+                      static_cast<uint8_t>(_state));
+#endif // DEBUG_TORQEEDO
 
         hal.scheduler->delay(2);
 
@@ -368,18 +385,6 @@ void AP_Torqeedo_TQBus::thread_main()
                 }
             } break;
         }
-
-        static uint16_t counter = 0;
-        if (counter++ % 600 == 0) {
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: state %d", static_cast<uint16_t>(_state));
-
-            TelemetryData data = {
-                .temperature_cdeg = static_cast<int16_t>(_state),
-            };
-            update_telem_data(1, data, TelemetryType::TEMPERATURE);
-        }
-
-        
 
         #define MIN_THROTTLE 30 // minimum throttle to consider the motor running
 
@@ -478,8 +483,6 @@ void AP_Torqeedo_TQBus::set_master_error_code(uint8_t error_code)
     
 }
 
-// #define DEBUG_TORQEEDO 1
-
 void AP_Torqeedo_TQBus::process_rx_frame(const uint8_t* frame, uint8_t len)
 {
 #ifdef DEBUG_TORQEEDO
@@ -543,10 +546,6 @@ void AP_Torqeedo_TQBus::handle_remote_msg(const uint8_t* frame, uint8_t len)
                 // }
 
                 send_message(remote_msg_reply, sizeof(remote_msg_reply), _uart);
-
-                #ifdef DEBUG_TORQEEDO
-                GCS_SEND_TEXT(MAV_SEVERITY_DEBUG, "TQBus: remote speed set to %d", _motor_speed_desired);
-                #endif
                 
             }
             break;
@@ -602,7 +601,8 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 const float motor_voltage = 0.01f * UINT16_VALUE(frame[6], frame[7]); // convert to Volts
                 const float motor_current = 0.1f * UINT16_VALUE(frame[8], frame[9]); // convert to Amps
 
-                _motor_rpm = static_cast<int16_t>( ((frame[12] << 8) | frame[13]) ); // RPM value
+                _motor_rpm = (int16_t) ((frame[12] << 8) | frame[13]);
+                const uint8_t motor_pcb_temp = frame[14];
                 const uint8_t motor_stator_temp = frame[15];
 
                 // uint8_t display_msg_reply[] = {
@@ -612,14 +612,18 @@ void AP_Torqeedo_TQBus::handle_display_msg(const uint8_t* frame, uint8_t len)
                 // send_message(display_msg_reply, sizeof(display_msg_reply), _uart);
 
                 TelemetryData telem_data;
-                telem_data.temperature_cdeg = motor_stator_temp * 10;
+                telem_data.temperature_cdeg = motor_pcb_temp * 10;
                 telem_data.voltage = motor_voltage;
                 telem_data.current = motor_current;
-                update_telem_data(_instance, telem_data, TelemetryType::VOLTAGE | TelemetryType::CURRENT | TelemetryType::TEMPERATURE);
+                telem_data.motor_temp_cdeg = motor_stator_temp * 10;
+                update_telem_data(_instance, telem_data, 
+                    TelemetryType::TEMPERATURE |
+                    TelemetryType::MOTOR_TEMPERATURE |
+                    TelemetryType::VOLTAGE |
+                    TelemetryType::CURRENT);
                 update_rpm(_instance, _motor_rpm);
 
-                telem_data.temperature_cdeg = master_error_code;
-                update_telem_data(_instance + 2, telem_data, TelemetryType::TEMPERATURE);
+                _torqeedo_telemetry.master_error_code = master_error_code;
                 set_master_error_code(master_error_code);
 
             }
@@ -651,30 +655,8 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
         case static_cast<uint8_t>(MotorMsgId::STATUS):
             {
                 // handle motor status message
-                const uint8_t status = frame[2];
-                const uint16_t errors = UINT16_VALUE(frame[3], frame[4]);
-
-                #define TORQEEDO_STATUS_RUNNING (1 << 3)
-
-                static uint16_t counter = 0;
-
-                // if the TORQEEDO_STATUS_RUNNING bit is not set, send the status message
-                if (!(status & TORQEEDO_STATUS_RUNNING)) {
-                    if (counter++ % 10 == 0) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: status 0x%02X", status);
-                    }
-                }
-
-                if (errors) {
-                    if (counter++ % 10 == 0) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: motor error 0x%04X", errors);
-                    }
-                }
-
-                TelemetryData telem_data = {
-                    .temperature_cdeg = static_cast<int16_t>((errors << 8) | (0xFF & status)),
-                };
-                update_telem_data(_instance + 2, telem_data, TelemetryType::TEMPERATURE);
+                _torqeedo_telemetry.motor_status = frame[2];
+                _torqeedo_telemetry.motor_errors = UINT16_VALUE(frame[3], frame[4]);
 
             } break;
 
@@ -685,12 +667,12 @@ void AP_Torqeedo_TQBus::handle_motor_msg(const uint8_t* frame, uint8_t len)
         case static_cast<uint8_t>(MotorMsgId::PARAM):
             {
                 // handle motor parameter message
-                const int16_t rpm = (int16_t)UINT16_VALUE(frame[2], frame[3]);
-                const uint16_t power = UINT16_VALUE(frame[4], frame[5]);
-                const uint16_t voltage = UINT16_VALUE(frame[6], frame[7]);
-                const uint16_t current = UINT16_VALUE(frame[8], frame[9]);
-                const int16_t pcb_temp = (int16_t)UINT16_VALUE(frame[10], frame[11]);
-                const int16_t motor_temp = (int16_t)UINT16_VALUE(frame[12], frame[13]);
+                const int16_t rpm = (int16_t) ((frame[2] << 8) | frame[3]);
+                const uint16_t power = (uint16_t) ((frame[4] << 8) | frame[5]);
+                const uint16_t voltage = (uint16_t) ((frame[6] << 8) | frame[7]);
+                const uint16_t current = (uint16_t) ((frame[8] << 8) | frame[9]);
+                const int16_t pcb_temp = (int16_t) ((frame[10] << 8) | frame[11]);
+                const int16_t motor_temp = (int16_t) ((frame[12] << 8) | frame[13]);
 
                 static uint16_t counter = 0;
                 if (counter++ % 10 == 0) {

@@ -134,6 +134,14 @@ bool AP_Torqeedo::healthy(uint8_t instance)
     return backend->healthy();
 }
 
+void AP_Torqeedo::send_mavlink_status(mavlink_channel_t ch)
+{
+    auto *backend = get_instance(0);
+    if (backend != nullptr) {
+        backend->send_mavlink_status(ch);
+    }
+}
+
 // run pre-arm check.  returns false on failure and fills in failure_msg
 // any failure_msg returned will not include a prefix
 bool AP_Torqeedo::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)

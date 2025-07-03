@@ -49,6 +49,7 @@
 #if HAL_TORQEEDO_ENABLED
 
 #include "AP_Torqeedo_Backend.h"
+#include <GCS_MAVLink/GCS.h>
 
 #define TORQEEDO_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
@@ -72,6 +73,8 @@ public:
     bool get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const override;
     bool get_batt_capacity_Ah(uint16_t &amp_hours) const override;
 
+    void send_mavlink_status(mavlink_channel_t ch) override;
+
 private:
 
     AP_HAL::UARTDriver* _uart;
@@ -83,6 +86,8 @@ private:
     uint32_t _last_set_rpm_ms = 0; // last time we set the motor speed
 
     uint32_t _last_state_change_ms = 0;
+
+    mavlink_torqeedo_telemetry_t _torqeedo_telemetry = {}; // telemetry data to send to GCS
     
     enum class DriverState {
         Init,

@@ -68,6 +68,8 @@ public:
     virtual bool get_batt_info(float &voltage, float &current_amps, float &temp_C, uint8_t &pct_remaining) const WARN_IF_UNUSED = 0;
     virtual bool get_batt_capacity_Ah(uint16_t &amp_hours) const = 0;
 
+    virtual void send_mavlink_status(mavlink_channel_t ch) = 0;
+
    protected:
 
     // parameter helper functions
