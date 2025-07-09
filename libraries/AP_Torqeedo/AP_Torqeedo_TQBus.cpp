@@ -38,6 +38,8 @@
 
 #define TORQEEDO_MESSAGE_LEN_MAX    35  // messages are no more than 35 bytes
 
+#define MOTOR_STATUS_RUNNING (1 << 3)
+
 enum class MsgAddress : uint8_t {
     BUS_MASTER = 0x00,
     REMOTE1 = 0x14,
@@ -450,16 +452,17 @@ void AP_Torqeedo_TQBus::thread_main()
             case DriverState::Forward: {
                 if (_filtered_desired_speed > MIN_THROTTLE) {
                     _motor_speed_desired = _filtered_desired_speed;
+
+                    if (now_ms - _last_state_change_ms > 10000) {
+                        _last_state_change_ms = now_ms;
+                        if (_motor_rpm < 20 || (_torqeedo_telemetry.motor_status & MOTOR_STATUS_RUNNING) == 0) {
+                            set_master_error_code(240);
+                        }
+                    }
+
                 } else {
                     _state = DriverState::Stop;
                     _last_state_change_ms = now_ms;
-                }
-
-                if (now_ms - _last_state_change_ms > 10000) {
-                    _last_state_change_ms = now_ms;
-                    if (_motor_rpm < 20) {
-                        set_master_error_code(240);
-                    }
                 }
 
             } break;
@@ -467,16 +470,17 @@ void AP_Torqeedo_TQBus::thread_main()
             case DriverState::Reverse: {
                 if (_filtered_desired_speed < -MIN_THROTTLE) {
                     _motor_speed_desired = _filtered_desired_speed;
+
+                    if (now_ms - _last_state_change_ms > 10000) {
+                        _last_state_change_ms = now_ms;
+                        if (_motor_rpm > -20 || (_torqeedo_telemetry.motor_status & MOTOR_STATUS_RUNNING) == 0) {
+                            set_master_error_code(240);
+                        }
+                    }
+
                 } else {
                     _state = DriverState::Stop;
                     _last_state_change_ms = now_ms;
-                }
-
-                if (now_ms - _last_state_change_ms > 10000) {
-                    _last_state_change_ms = now_ms;
-                    if (_motor_rpm > -20) {
-                        set_master_error_code(240);
-                    }
                 }
 
             } break;
