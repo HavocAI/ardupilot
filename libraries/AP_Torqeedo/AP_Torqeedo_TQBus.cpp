@@ -351,6 +351,12 @@ void AP_Torqeedo_TQBus::thread_main()
 
         filter_desired_speed();
 
+        const uint32_t now_ms = AP_HAL::millis();
+        if (now_ms - _last_master_error_code_set_ms > 5000) {
+            // reset master error code after 5 seconds
+            _torqeedo_telemetry.master_error_code = 0;
+        }
+
         switch (_comsState) {
             case ComsState::Healthy: {
                 if (!healthy()) {
@@ -364,7 +370,7 @@ void AP_Torqeedo_TQBus::thread_main()
                 if (healthy()) {
                     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Torqeedo: comms restored");
                     _comsState = ComsState::Healthy;
-                } else if (AP_HAL::millis() - _last_rx_ms > 20000) {
+                } else if (now_ms - _last_rx_ms > 20000) {
 
                     switch (_state) {
                         case DriverState::Init:
@@ -374,7 +380,7 @@ void AP_Torqeedo_TQBus::thread_main()
                         case DriverState::Reverse:
                             GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo: comms lost, resetting driver state");
                             _state = DriverState::PowerOn;
-                            _last_state_change_ms = AP_HAL::millis();
+                            _last_state_change_ms = now_ms;
                             break;
 
                         default:
@@ -389,15 +395,14 @@ void AP_Torqeedo_TQBus::thread_main()
         switch (_state) {
             case DriverState::Init: {
 
-                const uint32_t now_ms = AP_HAL::millis();
                 if (!healthy() && now_ms - _last_state_change_ms > 20000) {
                     _state = DriverState::PowerOn;
-                    _last_state_change_ms = AP_HAL::millis();
+                    _last_state_change_ms = now_ms;
                 }
 
                 if (hal.util->get_soft_armed()) {
                     _state = DriverState::Stop;
-                    _last_state_change_ms = AP_HAL::millis();
+                    _last_state_change_ms = now_ms;
                 }
 
             } break;
@@ -406,7 +411,6 @@ void AP_Torqeedo_TQBus::thread_main()
                 _motor_speed_desired = 0;
                 _uart->set_RTS_pin(true);
 
-                const uint32_t now_ms = AP_HAL::millis();
                 if (now_ms - _last_state_change_ms > 6000) {
                     _last_state_change_ms = now_ms;
                     _state = DriverState::PowerOff; // go to PowerOff state after 3 seconds
@@ -417,7 +421,6 @@ void AP_Torqeedo_TQBus::thread_main()
             case DriverState::PowerOff: {
                 _uart->set_RTS_pin(false);
 
-                const uint32_t now_ms = AP_HAL::millis();
                 if (now_ms - _last_state_change_ms > 3000) {
                     _state = DriverState::Init; // go back to Init state
                     _last_state_change_ms = now_ms;
@@ -426,7 +429,6 @@ void AP_Torqeedo_TQBus::thread_main()
 
             case DriverState::Stop: {
                 _motor_speed_desired = 0;
-                const uint32_t now_ms = AP_HAL::millis();
                 if (now_ms - _last_state_change_ms > 3000) {
                     _last_state_change_ms = now_ms;
                     _state = DriverState::Ready;
@@ -437,10 +439,10 @@ void AP_Torqeedo_TQBus::thread_main()
             case DriverState::Ready: {
                 if (_filtered_desired_speed > MIN_THROTTLE) {
                     _state = DriverState::Forward;
-                    _last_state_change_ms = AP_HAL::millis();
+                    _last_state_change_ms = now_ms;
                 } else if (_filtered_desired_speed < -MIN_THROTTLE) {
                     _state = DriverState::Reverse;
-                    _last_state_change_ms = AP_HAL::millis();
+                    _last_state_change_ms = now_ms;
                 }
                 
             } break;
@@ -450,10 +452,9 @@ void AP_Torqeedo_TQBus::thread_main()
                     _motor_speed_desired = _filtered_desired_speed;
                 } else {
                     _state = DriverState::Stop;
-                    _last_state_change_ms = AP_HAL::millis();
+                    _last_state_change_ms = now_ms;
                 }
 
-                const uint32_t now_ms = AP_HAL::millis();
                 if (now_ms - _last_state_change_ms > 10000) {
                     _last_state_change_ms = now_ms;
                     if (_motor_rpm < 20) {
@@ -468,10 +469,9 @@ void AP_Torqeedo_TQBus::thread_main()
                     _motor_speed_desired = _filtered_desired_speed;
                 } else {
                     _state = DriverState::Stop;
-                    _last_state_change_ms = AP_HAL::millis();
+                    _last_state_change_ms = now_ms;
                 }
 
-                const uint32_t now_ms = AP_HAL::millis();
                 if (now_ms - _last_state_change_ms > 10000) {
                     _last_state_change_ms = now_ms;
                     if (_motor_rpm > -20) {
@@ -483,7 +483,6 @@ void AP_Torqeedo_TQBus::thread_main()
 
             case DriverState::Error: {
                 _motor_speed_desired = 0;
-                const uint32_t now_ms = AP_HAL::millis();
                 if (now_ms - _last_state_change_ms > 10000) {
                     _last_state_change_ms = now_ms;
                     _state = DriverState::Init;
@@ -500,7 +499,9 @@ void AP_Torqeedo_TQBus::set_master_error_code(uint8_t error_code)
 {
     if (error_code != 0 && error_code != _torqeedo_telemetry.master_error_code) {
         _state = DriverState::Error; // reset driver state to Error
-        _last_state_change_ms = AP_HAL::millis(); // update last state change time
+        const uint32_t now = AP_HAL::millis(); // update last state change time
+        _last_master_error_code_set_ms = now;
+        _last_state_change_ms = now;
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Torqeedo error: E%03" PRIu8, error_code);
     }
 

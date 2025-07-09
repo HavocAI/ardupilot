@@ -84,6 +84,7 @@ private:
     uint32_t _last_rx_ms = 0; // last time a message was received from the motor
     uint32_t _last_set_rpm_ms = 0; // last time we set the motor speed
     uint32_t _last_state_change_ms = 0;
+    uint32_t _last_master_error_code_set_ms = 0;
 
     mavlink_torqeedo_telemetry_t _torqeedo_telemetry = {}; // telemetry data to send to GCS
 
