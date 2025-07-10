@@ -354,8 +354,8 @@ void AP_Torqeedo_TQBus::thread_main()
         filter_desired_speed();
 
         const uint32_t now_ms = AP_HAL::millis();
-        if (now_ms - _last_master_error_code_set_ms > 5000) {
-            // reset master error code after 5 seconds
+        if (now_ms - _last_master_error_code_set_ms > 60000) {
+            // reset master error code after 60 seconds
             _torqeedo_telemetry.master_error_code = 0;
         }
 
