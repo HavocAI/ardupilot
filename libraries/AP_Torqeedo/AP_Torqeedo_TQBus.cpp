@@ -489,7 +489,7 @@ void AP_Torqeedo_TQBus::thread_main()
                 _motor_speed_desired = 0;
                 if (now_ms - _last_state_change_ms > 10000) {
                     _last_state_change_ms = now_ms;
-                    _state = DriverState::Init;
+                    _state = DriverState::PowerOn;
                 }
             } break;
         }
