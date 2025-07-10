@@ -329,7 +329,8 @@ void AP_Torqeedo_TQBus::thread_main()
     while (true) {
 
         _torqeedo_telemetry.other = (0x0F & static_cast<uint8_t>(_state)) |
-                                    (healthy() ? 0x10 : 0x00)
+                                    (healthy() ? 0x10 : 0x00) |
+                                    (_motor_speed_desired << 8)
                                     ;
 
 
