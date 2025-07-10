@@ -119,7 +119,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:65000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 5000),
+    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 135),
 
     AP_GROUPEND};
 
@@ -321,7 +321,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 bool AP_Ilmor::soft_stop_exceeded()
 {
     const int16_t max_trim = _trim_stop.get();
-    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 30000 && _current_trim_position > max_trim ) {
+    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 254 && _current_trim_position > max_trim ) {
         return true;
     } else {
         return false;
@@ -489,12 +489,12 @@ void AP_Ilmor::handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &
 
 void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
-    _current_trim_position = msg.trim_position;
+    _current_trim_position = msg.trim_position_adjusted;
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position);
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
 
     // Populate esc2_rpm with the trim position
-    update_rpm(1, msg.trim_position);
+    update_rpm(1, msg.trim_position_adjusted);
 }
 
 void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
