@@ -212,7 +212,7 @@ void AP_Ilmor::send_trim_cmd()
     if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
 
         ilmor_r3_status_frame_2_t r3_status_frame_2_msg = {
-            .trim_demand = static_cast<uint8_t>(_output.motor_trim),
+            .trim_demand_request_from_r3 = static_cast<uint8_t>(_output.motor_trim),
         };
 
         if (!send_r3_status_frame_2(r3_status_frame_2_msg)) {
