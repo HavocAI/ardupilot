@@ -192,11 +192,13 @@ bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 
 void AP_Ilmor::send_throttle_cmd()
 {
+    const uint8_t trim_upper_limit = _trim_stop.get() < 0 ? 255 : _trim_stop.get();
 
     if (AP_HAL::millis() - _run_state.last_send_throttle_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
         ilmor_unmanned_throttle_control_t throttle_msg = {
             .unmanned_control_key = 0x4d,
             .unmanned_p_rpm_demand = _output.motor_rpm,
+            .trim_custom_upper_limit = trim_upper_limit,
         };
         
         if (!send_unmanned_throttle_control(throttle_msg)) {
@@ -321,7 +323,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 bool AP_Ilmor::soft_stop_exceeded()
 {
     const int16_t max_trim = _trim_stop.get();
-    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 254 && _current_trim_position > max_trim ) {
+    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 254 && _current_trim_position > max_trim + 10 ) {
         return true;
     } else {
         return false;
