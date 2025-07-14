@@ -399,7 +399,7 @@ void AP_Torqeedo_TQBus::thread_main()
             case DriverState::Init: {
 
                 if (!healthy() && now_ms - _last_state_change_ms > 20000) {
-                    _state = DriverState::PowerOn;
+                    _state = DriverState::PowerOff;
                     _last_state_change_ms = now_ms;
                 }
 
@@ -410,18 +410,18 @@ void AP_Torqeedo_TQBus::thread_main()
 
             } break;
 
-            case DriverState::PowerOn: {
+            case DriverState::PowerOff: {
                 _motor_speed_desired = 0;
                 _uart->set_RTS_pin(true);
 
                 if (now_ms - _last_state_change_ms > 6000) {
                     _last_state_change_ms = now_ms;
-                    _state = DriverState::PowerOff; // go to PowerOff state after 3 seconds
+                    _state = DriverState::PowerOn; // go to PowerOn state after 3 seconds
                 }
 
             } break;
 
-            case DriverState::PowerOff: {
+            case DriverState::PowerOn: {
                 _uart->set_RTS_pin(false);
 
                 if (now_ms - _last_state_change_ms > 3000) {
@@ -490,7 +490,7 @@ void AP_Torqeedo_TQBus::thread_main()
                 _motor_speed_desired = 0;
                 if (now_ms - _last_state_change_ms > 10000) {
                     _last_state_change_ms = now_ms;
-                    _state = DriverState::PowerOn;
+                    _state = DriverState::PowerOff;
                 }
             } break;
         }
