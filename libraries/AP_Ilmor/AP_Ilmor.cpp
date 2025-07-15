@@ -119,12 +119,13 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:65000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 5000),
+    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 135),
 
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
     : CANSensor("Ilmor"),
+    _comsState(ComsState::Unhealthy),
     _trimState(TrimState::Start),
     _run_state(),
     _output()
@@ -170,6 +171,8 @@ void AP_Ilmor::init()
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
     hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Ilmor::tick, void));
+
+    _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
 }
 
 // run pre-arm check.  returns false on failure and fills in failure_msg
@@ -192,11 +195,13 @@ bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 
 void AP_Ilmor::send_throttle_cmd()
 {
+    const uint8_t trim_upper_limit = _trim_stop.get() < 0 ? 255 : _trim_stop.get();
 
     if (AP_HAL::millis() - _run_state.last_send_throttle_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
         ilmor_unmanned_throttle_control_t throttle_msg = {
             .unmanned_control_key = 0x4d,
             .unmanned_p_rpm_demand = _output.motor_rpm,
+            .trim_custom_upper_limit = trim_upper_limit,
         };
         
         if (!send_unmanned_throttle_control(throttle_msg)) {
@@ -212,7 +217,7 @@ void AP_Ilmor::send_trim_cmd()
     if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
 
         ilmor_r3_status_frame_2_t r3_status_frame_2_msg = {
-            .trim_demand = static_cast<uint8_t>(_output.motor_trim),
+            .trim_demand_request_from_r3 = static_cast<uint8_t>(_output.motor_trim),
         };
 
         if (!send_r3_status_frame_2(r3_status_frame_2_msg)) {
@@ -226,8 +231,31 @@ void AP_Ilmor::send_trim_cmd()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
-    send_throttle_cmd();
-    send_trim_cmd();
+    const uint32_t now_ms = AP_HAL::millis();
+    switch (_comsState) {
+        case ComsState::Running:
+            if (healthy()) {
+                send_throttle_cmd();
+                send_trim_cmd();
+            } else {
+                _comsState = ComsState::Unhealthy;
+            }
+            break;
+
+        case ComsState::Unhealthy:
+            if (healthy()) {
+                // start a 1 second timer to wait
+                _comsState = ComsState::Waiting;
+                _last_com_wait_ms = AP_HAL::millis();
+            }
+            break;
+        
+        case ComsState::Waiting:
+            if (now_ms - _last_com_wait_ms > 3000) {
+                _comsState = ComsState::Running;
+            }
+            break;
+    }
 }
 
 
@@ -258,8 +286,9 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
     {
         // Trim position adjusted
         struct ilmor_icu_status_frame_1_t msg;
-        ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc);
-        handle_icu_status_frame_1(msg);
+        if (ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc) == 0) {
+            handle_icu_status_frame_1(msg);
+        }
         break;
     }
     case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID):
@@ -321,7 +350,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 bool AP_Ilmor::soft_stop_exceeded()
 {
     const int16_t max_trim = _trim_stop.get();
-    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 30000 && _current_trim_position > max_trim ) {
+    if ( max_trim > 0 && 10 < _current_trim_position && _current_trim_position < 254 && _current_trim_position > max_trim + 10 ) {
         return true;
     } else {
         return false;
@@ -426,6 +455,11 @@ void AP_Ilmor::update()
         rpm = 0;
     }
 
+    if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
+        // If the trim position is above the maximum run trim, we need to stop the motor
+        rpm = 0;
+    }
+
     _output.motor_rpm = rpm;
 
     trim_state_machine();
@@ -489,12 +523,12 @@ void AP_Ilmor::handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &
 
 void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg)
 {
-    _current_trim_position = msg.trim_position;
+    _current_trim_position = msg.trim_position_adjusted;
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position);
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
 
     // Populate esc2_rpm with the trim position
-    update_rpm(1, msg.trim_position);
+    update_rpm(1, msg.trim_position_adjusted);
 }
 
 void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
