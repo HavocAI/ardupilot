@@ -455,6 +455,11 @@ void AP_Ilmor::update()
         rpm = 0;
     }
 
+    if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
+        // If the trim position is above the maximum run trim, we need to stop the motor
+        rpm = 0;
+    }
+
     _output.motor_rpm = rpm;
 
     trim_state_machine();
