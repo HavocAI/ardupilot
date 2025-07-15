@@ -494,7 +494,7 @@ void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t
 {
     _current_trim_position = msg.trim_position_adjusted;
     // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim position %d", msg.trim_position);
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Trim adj %d", msg.trim_position_adjusted);
 
     // Populate esc2_rpm with the trim position
     update_rpm(1, msg.trim_position_adjusted);
