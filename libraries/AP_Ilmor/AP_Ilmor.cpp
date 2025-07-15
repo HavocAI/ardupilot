@@ -230,8 +230,26 @@ void AP_Ilmor::send_trim_cmd()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
-    send_throttle_cmd();
-    send_trim_cmd();
+    const uint32_t now_ms = AP_HAL::millis();
+
+    static uint8_t health_state = 0;
+    static uint32_t last_healthy_ms = 0;
+
+    if (healthy() && health_state == 0) {
+        health_state = 1;
+        last_healthy_ms = now_ms;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: healthy");
+    }
+
+    if (!healthy() && health_state == 1) {
+        health_state = 0;
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: not healthy");
+    }
+
+    if (healthy() && now_ms - last_healthy_ms > 3000) {
+        send_throttle_cmd();
+        send_trim_cmd();
+    }
 }
 
 
