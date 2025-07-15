@@ -170,6 +170,8 @@ void AP_Ilmor::init()
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
     hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Ilmor::tick, void));
+
+    _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
 }
 
 // run pre-arm check.  returns false on failure and fills in failure_msg
@@ -193,7 +195,6 @@ bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 void AP_Ilmor::send_throttle_cmd()
 {
     uint8_t trim_upper_limit = _trim_stop.get() < 0 ? 255 : _trim_stop.get();
-    trim_upper_limit = 0;
 
     if (AP_HAL::millis() - _run_state.last_send_throttle_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
         ilmor_unmanned_throttle_control_t throttle_msg = {
@@ -261,8 +262,9 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
     {
         // Trim position adjusted
         struct ilmor_icu_status_frame_1_t msg;
-        ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc);
-        handle_icu_status_frame_1(msg);
+        if (ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc) == 0) {
+            handle_icu_status_frame_1(msg);
+        }
         break;
     }
     case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID):
@@ -431,7 +433,7 @@ void AP_Ilmor::update()
 
     _output.motor_rpm = rpm;
 
-    trim_state_machine();
+    // trim_state_machine();
 
 }
 
