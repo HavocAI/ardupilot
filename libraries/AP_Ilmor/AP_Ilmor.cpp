@@ -251,7 +251,7 @@ void AP_Ilmor::tick()
             break;
         
         case ComsState::Waiting:
-            if (now_ms - _last_com_wait_ms > 1000) {
+            if (now_ms - _last_com_wait_ms > 3000) {
                 _comsState = ComsState::Running;
             }
             break;
