@@ -75,6 +75,12 @@ private:
         CmdStop,
     };
 
+    enum ComsState {
+        Waiting,
+        Running,
+        Unhealthy,
+    } _comsState;
+
     static AP_Ilmor *_singleton;
 
     AP_J1939_CAN* j1939;
@@ -92,6 +98,7 @@ private:
     uint8_t _trim_command_from_buttons;
     bool _trim_locked_out = true;
     uint32_t _last_wait_ms;
+    uint32_t _last_com_wait_ms;
 
     struct run_state {
         run_state() :
