@@ -193,9 +193,7 @@ bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
 void AP_Ilmor::send_throttle_cmd()
 {
     uint8_t trim_upper_limit = _trim_stop.get() < 0 ? 255 : _trim_stop.get();
-    if (_output.motor_trim != TrimCmd::TRIM_CMD_BUTTONS) {
-        trim_upper_limit = 0;
-    }
+    trim_upper_limit = 0;
 
     if (AP_HAL::millis() - _run_state.last_send_throttle_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
         ilmor_unmanned_throttle_control_t throttle_msg = {
