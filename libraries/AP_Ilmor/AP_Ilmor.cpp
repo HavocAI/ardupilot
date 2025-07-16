@@ -129,6 +129,9 @@ AP_Ilmor::AP_Ilmor()
     _run_state(),
     _output()
 {
+    _output.motor_rpm = 0;
+    _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
+
     AP_Param::setup_object_defaults(this, var_info);
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (_singleton != nullptr)
@@ -430,7 +433,7 @@ void AP_Ilmor::update()
 
     _output.motor_rpm = rpm;
 
-    trim_state_machine();
+    // trim_state_machine();
 
 }
 
