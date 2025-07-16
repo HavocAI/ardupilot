@@ -423,6 +423,7 @@ void AP_Ilmor::trim_state_machine()
 // update the output from the throttle servo channel
 void AP_Ilmor::update()
 {
+    const uint32_t now_ms = AP_HAL::millis();
 
     // Check if the throttle is armed
     if (!hal.util->get_soft_armed()) {
@@ -431,17 +432,47 @@ void AP_Ilmor::update()
         return;
     }
 
-
-    // The throttle is normalized to the range of 0-1, then scaled to the range of min_rpm-max_rpm
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    int16_t rpm = throttle * _max_rpm.get();
-    if (abs(rpm) < _min_rpm.get()) {
-        rpm = 0;
+    int16_t rpm = throttle * _max_rpm.get();        
+
+
+    switch (_motor_state) {
+
+        case Stop: {
+            if (abs(rpm) < _min_rpm.get()) {
+                _output.motor_rpm = 0;
+            } else {
+                _output.motor_rpm = rpm;
+                _motor_state = Running;
+                _last_wait_ms = now_ms;
+            }
+        } break;
+        
+        case Running: {
+            if (abs(rpm) < _min_rpm.get()) {
+                _output.motor_rpm = 0;
+                _motor_state = Stop;
+                _last_wait_ms = now_ms;
+            } else {
+                _output.motor_rpm = rpm;
+            }
+
+            if (now_ms - _last_wait_ms > 5000) {
+                _last_wait_ms = now_ms;
+                if (abs(_last_rpm) < 10 && abs(_output.motor_rpm) > 10) {
+                    _motor_state = ZeroPropDetected;
+                }
+            }
+        
+        } break;
+
+        case ZeroPropDetected: {
+            _output.motor_rpm = 0;
+            if (now_ms - _last_wait_ms > 5000) {
+                _motor_state = Stop;
+            }
+        } break;
     }
-
-    _output.motor_rpm = rpm;
-
-    // trim_state_machine();
 
 }
 
@@ -537,7 +568,9 @@ void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t
 
 void AP_Ilmor::handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg)
 {
-    update_rpm(0, int32_t(msg.e_rpm / 5)); // Divide by 5 to get Prop RPM
+    // Divide by 5 to get Prop RPM
+    _last_rpm = msg.e_rpm / 5;
+    update_rpm(0, int32_t(_last_rpm));
     // Hack the motor current into the next ESC telemetry slot
     const TelemetryData t = {
         .current = float(msg.motor_current) / 10.0f,

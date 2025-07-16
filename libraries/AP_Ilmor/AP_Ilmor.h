@@ -75,6 +75,12 @@ private:
         CmdStop,
     };
 
+    enum MotorState {
+        Stop,
+        Running,
+        ZeroPropDetected,
+    } _motor_state;
+
     static AP_Ilmor *_singleton;
 
     AP_J1939_CAN* j1939;
@@ -92,6 +98,7 @@ private:
     uint8_t _trim_command_from_buttons;
     bool _trim_locked_out = true;
     uint32_t _last_wait_ms;
+    int32_t _last_rpm;
 
     struct run_state {
         run_state() :
