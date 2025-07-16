@@ -460,6 +460,7 @@ void AP_Ilmor::update()
             if (now_ms - _last_wait_ms > 5000) {
                 _last_wait_ms = now_ms;
                 if (abs(_last_rpm) < 10 && abs(_output.motor_rpm) > 10) {
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
                     _motor_state = ZeroPropDetected;
                 }
             }
