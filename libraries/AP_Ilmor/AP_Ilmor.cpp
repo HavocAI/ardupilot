@@ -172,7 +172,7 @@ void AP_Ilmor::init()
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
-    hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Ilmor::tick, void));
+    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), "ilmor", 1024, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
 }
 
 // run pre-arm check.  returns false on failure and fills in failure_msg
@@ -225,6 +225,14 @@ void AP_Ilmor::send_trim_cmd()
         }
 
         _run_state.last_send_trim_ms = AP_HAL::millis();
+    }
+}
+
+void AP_Ilmor::run_io()
+{
+    while (true) {
+        tick();
+        hal.scheduler->delay(2);
     }
 }
 

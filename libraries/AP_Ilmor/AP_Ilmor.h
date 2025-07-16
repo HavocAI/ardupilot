@@ -115,6 +115,7 @@ private:
         TrimCmd motor_trim;
     } _output;
     
+    void run_io(void);
     void tick(void);
     void send_throttle_cmd();
     void send_trim_cmd();
