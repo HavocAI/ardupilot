@@ -125,6 +125,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
 AP_Ilmor::AP_Ilmor()
     : CANSensor("Ilmor"),
+    _comsState(ComsState::Unhealthy),
     _trimState(TrimState::Start),
     _run_state(),
     _output()
@@ -173,6 +174,8 @@ void AP_Ilmor::init()
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
     hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), "ilmor", 1024, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
+
+    _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
 }
 
 // run pre-arm check.  returns false on failure and fills in failure_msg
@@ -239,8 +242,31 @@ void AP_Ilmor::run_io()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
-    send_throttle_cmd();
-    send_trim_cmd();
+    const uint32_t now_ms = AP_HAL::millis();
+    switch (_comsState) {
+        case ComsState::Running:
+            if (healthy()) {
+                send_throttle_cmd();
+                send_trim_cmd();
+            } else {
+                _comsState = ComsState::Unhealthy;
+            }
+            break;
+
+        case ComsState::Unhealthy:
+            if (healthy()) {
+                // start a 1 second timer to wait
+                _comsState = ComsState::Waiting;
+                _last_com_wait_ms = AP_HAL::millis();
+            }
+            break;
+        
+        case ComsState::Waiting:
+            if (now_ms - _last_com_wait_ms > 3000) {
+                _comsState = ComsState::Running;
+            }
+            break;
+    }
 }
 
 
@@ -271,8 +297,9 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
     {
         // Trim position adjusted
         struct ilmor_icu_status_frame_1_t msg;
-        ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc);
-        handle_icu_status_frame_1(msg);
+        if (ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc) == 0) {
+            handle_icu_status_frame_1(msg);
+        }
         break;
     }
     case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID):
@@ -475,6 +502,15 @@ void AP_Ilmor::update()
             }
         } break;
     }
+
+    if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
+        // If the trim position is above the maximum run trim, we need to stop the motor
+        rpm = 0;
+    }
+
+    _output.motor_rpm = rpm;
+
+    trim_state_machine();
 
 }
 

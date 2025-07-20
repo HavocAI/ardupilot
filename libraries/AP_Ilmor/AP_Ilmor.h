@@ -81,6 +81,12 @@ private:
         ZeroPropDetected,
     } _motor_state;
 
+    enum ComsState {
+        Waiting,
+        Running,
+        Unhealthy,
+    } _comsState;
+
     static AP_Ilmor *_singleton;
 
     AP_J1939_CAN* j1939;
@@ -99,6 +105,7 @@ private:
     bool _trim_locked_out = true;
     uint32_t _last_wait_ms;
     int32_t _last_rpm;
+    uint32_t _last_com_wait_ms;
 
     struct run_state {
         run_state() :
