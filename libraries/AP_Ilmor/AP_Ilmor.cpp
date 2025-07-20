@@ -385,60 +385,60 @@ AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
 void AP_Ilmor::trim_state_machine()
 {
     switch (_trimState) {
-        case Start:
+        case TrimState::Start:
             if (_trim_fn.get() > 0) {
-                _trimState = CheckSoftStop;
+                _trimState = TrimState::CheckSoftStop;
             } else {
                 _output.motor_trim = TrimCmd::TRIM_CMD_BUTTONS;
             }
             break;
 
-        case CheckSoftStop:
+        case TrimState::CheckSoftStop:
         {
             if (soft_stop_exceeded()) {
-                _trimState = CmdDown;
+                _trimState = TrimState::CmdDown;
                 _last_wait_ms = AP_HAL::millis();
             } else {
-                _trimState = Manual;
+                _trimState = TrimState::Manual;
             }
 
         } break;
         
-        case Manual:
+        case TrimState::Manual:
         {
             _output.motor_trim = trim_demand();
-            _trimState = CheckSoftStop;
+            _trimState = TrimState::CheckSoftStop;
 
         } break;
 
-        case CheckRelease:
+        case TrimState::CheckRelease:
         {
             if (soft_stop_exceeded()) {
-                _trimState = CmdDown;
+                _trimState = TrimState::CmdDown;
                 _last_wait_ms = AP_HAL::millis();
-            } else if (trim_demand() != AP_Ilmor::TRIM_CMD_UP) {
-                _trimState = CheckSoftStop;
+            } else if (trim_demand() != TrimCmd::TRIM_CMD_UP) {
+                _trimState = TrimState::CheckSoftStop;
             }
 
         } break;
 
-        case CmdDown:
+        case TrimState::CmdDown:
         {
             _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
             const uint32_t now = AP_HAL::millis();
             if (now - _last_wait_ms > 125) {
-                _trimState = CmdStop;
+                _trimState = TrimState::CmdStop;
                 _last_wait_ms = now;
             }
 
         } break;
 
-        case CmdStop:
+        case TrimState::CmdStop:
         {
             _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
             const uint32_t now = AP_HAL::millis();
             if (now - _last_wait_ms > 1000) {
-                _trimState = CheckRelease;
+                _trimState = TrimState::CheckRelease;
             }
         }
     }
@@ -465,20 +465,20 @@ void AP_Ilmor::update()
 
     switch (_motor_state) {
 
-        case Stop: {
+        case MotorState::Stop: {
             if (abs(rpm) < _min_rpm.get()) {
                 _output.motor_rpm = 0;
             } else {
                 _output.motor_rpm = rpm;
-                _motor_state = Running;
+                _motor_state = MotorState::Running;
                 _last_wait_ms = now_ms;
             }
         } break;
-        
-        case Running: {
+
+        case MotorState::Running: {
             if (abs(rpm) < _min_rpm.get()) {
                 _output.motor_rpm = 0;
-                _motor_state = Stop;
+                _motor_state = MotorState::Stop;
                 _last_wait_ms = now_ms;
             } else {
                 _output.motor_rpm = rpm;
@@ -489,16 +489,16 @@ void AP_Ilmor::update()
                 if (abs(_last_rpm) < 10 && abs(_output.motor_rpm) > 10) {
                     static uint16_t zero_count = 0;
                     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected: %d", ++zero_count);
-                    _motor_state = ZeroPropDetected;
+                    _motor_state = MotorState::ZeroPropDetected;
                 }
             }
         
         } break;
 
-        case ZeroPropDetected: {
+        case MotorState::ZeroPropDetected: {
             _output.motor_rpm = 0;
             if (now_ms - _last_wait_ms > 5000) {
-                _motor_state = Stop;
+                _motor_state = MotorState::Stop;
             }
         } break;
     }

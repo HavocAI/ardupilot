@@ -66,7 +66,7 @@ private:
         TRIM_CMD_BUTTONS = 255,
     };
 
-    enum TrimState {
+    enum class TrimState {
         Start,
         CheckSoftStop,
         Manual,
@@ -75,13 +75,13 @@ private:
         CmdStop,
     };
 
-    enum MotorState {
+    enum class MotorState {
         Stop,
         Running,
         ZeroPropDetected,
     } _motor_state;
 
-    enum ComsState {
+    enum class ComsState {
         Waiting,
         Running,
         Unhealthy,
