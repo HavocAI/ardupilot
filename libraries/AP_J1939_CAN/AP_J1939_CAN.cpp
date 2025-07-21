@@ -65,6 +65,18 @@ namespace J1939
         memcpy(j1939_frame.data, frame.data, 8);
         return j1939_frame;
     }
+
+    uint32_t DM1Frame::suspect_parameter_number(const uint8_t* pdu)
+    {
+        // SPN is packed in bytes 2, 3, and 4 of the DM1 PDU
+        return (pdu[2] | (pdu[3] << 8) | ((pdu[4] & 0xE0) << 11));
+    }
+
+    uint8_t DM1Frame::failure_mode_identifier(const uint8_t* pdu)
+    {
+        return pdu[4] & 0x1F; // FMI is in the lower 5 bits of byte 4
+    }
+
 }
 
 // Static member initialization

@@ -160,6 +160,7 @@ void AP_Ilmor::init()
     if (
         // !j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, this) ||
         // !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, this) ||
+        !j1939->register_pgn(J1939_PGN_DM1, this) ||
         !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, this) ||
@@ -278,6 +279,15 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 
     switch (j1939_frame.pgn)
     {
+    case J1939_PGN_DM1:
+    {
+        uint32_t spn = J1939::DM1Frame::suspect_parameter_number(frame.data);
+        uint8_t fmi = J1939::DM1Frame::failure_mode_identifier(frame.data);
+
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: DM1 SPN: %" PRIu32 " FMI: %" PRIu8, spn, fmi);
+
+        break;
+    }
     case J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID):
     {
         // Monitor in case there are other unmanned controllers on the network

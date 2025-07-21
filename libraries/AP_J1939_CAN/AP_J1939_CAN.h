@@ -9,6 +9,9 @@
 #include <map>
 #include <vector>
 
+// Diagnostic Message 1 PGN
+#define J1939_PGN_DM1 0xFECA
+
 namespace J1939 {
     struct J1939Frame {
         uint8_t priority;
@@ -28,6 +31,13 @@ namespace J1939 {
     {
         return (ext_can_id >> 8) & 0xFFFF;
     }
+
+    class DM1Frame {
+        public:
+
+        static uint32_t suspect_parameter_number(const uint8_t* pdu);
+        static uint8_t failure_mode_identifier(const uint8_t* pdu);
+    };
 }
 
 class AP_J1939_CAN : public CANSensor
