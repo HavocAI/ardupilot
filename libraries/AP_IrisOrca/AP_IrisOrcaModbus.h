@@ -56,6 +56,7 @@ namespace orca {
         AUTO_ZERO_EXIT_MODE = 173,
         MB_RS485_MODE = 174,
         MB_POS_FILTER = 176,
+        BOARD_TEMP = 336,
         SERIAL_NUMBER_LOW = 406,
         SERIAL_NUMBER_HIGH = 407,
         MAJOR_VERSION = 408,

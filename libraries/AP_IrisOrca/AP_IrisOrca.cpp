@@ -460,6 +460,16 @@ async AP_IrisOrca::run()
             // run the temperature PID to get the force limit 1hz
             if (_counter % 10 == 0) {
 
+                read_register_tx = ReadRegisterTransaction(_uart, static_cast<uint16_t>(orca::Register::BOARD_TEMP));
+                await( read_register_tx.run() );
+                if (!read_register_tx.is_timeout()) {
+                    _board_temp = read_register_tx.reg_value();
+                } else {
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read stator temperature");
+                }
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Board temp %" PRIu16 "C", _board_temp );
+
                 if (fabsf(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_throttle)) < _throttle_activate) {
                     // if the throttle is below the activation threshold, we set the max force to a very low (5N) to ensure we are not
                     // needlessly trying to apply much force. This hopefully should allow the actuator to cool down.
@@ -475,7 +485,12 @@ async AP_IrisOrca::run()
         }
 
 	    // send at 10Hz
-        SLEEP(100);
+        {
+            const uint32_t now = AP_HAL::millis();
+            if (now - _run_state.last_send_ms < 100) {
+                AP_HAL::get_HAL().scheduler->delay(100 - (now - _run_state.last_send_ms));
+            }
+        }
     }
 	
 	async_end
