@@ -468,7 +468,7 @@ async AP_IrisOrca::run()
                     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read stator temperature");
                 }
 
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Board temp %" PRIu16 "C", _board_temp );
+                // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Board temp %" PRIu16 "C", _board_temp );
 
                 if (fabsf(SRV_Channels::get_output_norm(SRV_Channel::Aux_servo_function_t::k_throttle)) < _throttle_activate) {
                     // if the throttle is below the activation threshold, we set the max force to a very low (5N) to ensure we are not
