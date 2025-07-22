@@ -550,6 +550,7 @@ void AP_IrisOrca::send_mavlink_status(mavlink_channel_t ch)
         .power = _actuator_state.power_consumed,
         .error = _actuator_state.errors,
         .temperature = _actuator_state.temperature,
+        .board_temp = (uint8_t) _board_temp,
     };
     mavlink_msg_orca_telemetry_send_struct(ch, &msg);
     
