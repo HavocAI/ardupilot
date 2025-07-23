@@ -465,7 +465,7 @@ async AP_IrisOrca::run()
                 if (!read_register_tx.is_timeout()) {
                     _board_temp = read_register_tx.reg_value();
                 } else {
-                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read stator temperature");
+                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "IrisOrca: Failed to read board temp");
                 }
 
                 // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "IrisOrca: Board temp %" PRIu16 "C", _board_temp );
