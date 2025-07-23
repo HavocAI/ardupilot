@@ -76,9 +76,11 @@ private:
     };
 
     enum class MotorState {
+        Ready,
         Stop,
-        Running,
-        ZeroPropDetected,
+        Forward,
+        Reverse,
+        Error,
     } _motor_state;
 
     enum class ComsState {

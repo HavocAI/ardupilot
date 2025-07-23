@@ -125,6 +125,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
 AP_Ilmor::AP_Ilmor()
     : CANSensor("Ilmor"),
+    _motor_state(MotorState::Ready),
     _comsState(ComsState::Unhealthy),
     _trimState(TrimState::Start),
     _run_state(),
@@ -460,55 +461,87 @@ void AP_Ilmor::update()
     }
 
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    int16_t rpm = throttle * _max_rpm.get();        
-
+    int16_t command_rpm = throttle * _max_rpm.get();
+    const int16_t min_rpm = abs(_min_rpm.get());
 
     switch (_motor_state) {
 
-        case MotorState::Stop: {
-            if (abs(rpm) < _min_rpm.get()) {
-                _output.motor_rpm = 0;
-            } else {
-                _output.motor_rpm = rpm;
-                _motor_state = MotorState::Running;
+        case MotorState::Ready: {
+            if (command_rpm > min_rpm) {
+                _output.motor_rpm = command_rpm;
+                _motor_state = MotorState::Forward;
                 _last_wait_ms = now_ms;
+            } else if (command_rpm < -min_rpm) {
+                _output.motor_rpm = command_rpm;
+                _motor_state = MotorState::Reverse;
+                _last_wait_ms = now_ms;
+            } else {
+                _output.motor_rpm = 0;
+            }
+
+        } break;
+
+        case MotorState::Stop: {
+            _output.motor_rpm = 0;
+            if (now_ms - _last_wait_ms > 3000) {
+                _motor_state = MotorState::Ready;
             }
         } break;
 
-        case MotorState::Running: {
-            if (abs(rpm) < _min_rpm.get()) {
-                _output.motor_rpm = 0;
+        case MotorState::Forward: {
+            if (command_rpm > min_rpm) {
+                _output.motor_rpm = command_rpm;
+
+                if (now_ms - _last_wait_ms > 5000) {
+                    _last_wait_ms = now_ms;
+                    if (abs(_last_rpm) < min_rpm) {
+                        static uint16_t zero_count = 0;
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected: %d", ++zero_count);
+                        _motor_state = MotorState::Error;
+                    }
+                }
+
+            } else {
                 _motor_state = MotorState::Stop;
                 _last_wait_ms = now_ms;
-            } else {
-                _output.motor_rpm = rpm;
-            }
-
-            if (now_ms - _last_wait_ms > 5000) {
-                _last_wait_ms = now_ms;
-                if (abs(_last_rpm) < 10 && abs(_output.motor_rpm) > 10) {
-                    static uint16_t zero_count = 0;
-                    GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected: %d", ++zero_count);
-                    _motor_state = MotorState::ZeroPropDetected;
-                }
             }
         
         } break;
 
-        case MotorState::ZeroPropDetected: {
-            _output.motor_rpm = 0;
-            if (now_ms - _last_wait_ms > 5000) {
+        case MotorState::Reverse: {
+            if (command_rpm < -min_rpm) {
+                _output.motor_rpm = command_rpm;
+
+                if (now_ms - _last_wait_ms > 5000) {
+                    _last_wait_ms = now_ms;
+                    if (abs(_last_rpm) < min_rpm) {
+                        static uint16_t zero_count = 0;
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected: %d", ++zero_count);
+                        _motor_state = MotorState::Error;
+                    }
+                }
+
+            } else {
                 _motor_state = MotorState::Stop;
+                _last_wait_ms = now_ms;
+            }
+        
+        } break;
+
+        case MotorState::Error: {
+            _output.motor_rpm = 0;
+            if (now_ms - _last_wait_ms > 10000) {
+                _motor_state = MotorState::Ready;
             }
         } break;
     }
 
     if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
         // If the trim position is above the maximum run trim, we need to stop the motor
-        rpm = 0;
+        command_rpm = 0;
     }
 
-    _output.motor_rpm = rpm;
+    _output.motor_rpm = command_rpm;
 
     trim_state_machine();
 
