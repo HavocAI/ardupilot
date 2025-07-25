@@ -103,11 +103,10 @@ private:
     AP_Int16 _trim_stop;
 
     uint8_t _current_trim_position;
-    uint8_t _trim_command_from_buttons;
-    bool _trim_locked_out = true;
     uint32_t _last_wait_ms;
     int32_t _last_rpm;
     uint32_t _last_com_wait_ms;
+    uint32_t _last_fault_notify_ms;
 
     struct run_state {
         run_state() :
@@ -156,6 +155,7 @@ private:
     TrimCmd trim_demand();
 
     void trim_state_machine();
+    void handle_fault(uint32_t spn, uint8_t fmi);
 
 };
 namespace AP

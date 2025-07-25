@@ -285,6 +285,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
         uint8_t fmi = J1939::DM1Frame::failure_mode_identifier(frame.data);
 
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: DM1 SPN: %" PRIu32 " FMI: %" PRIu8, spn, fmi);
+        handle_fault(spn, fmi);
 
         break;
     }
@@ -555,6 +556,29 @@ void AP_Ilmor::update()
 
     trim_state_machine();
 
+}
+
+void AP_Ilmor::handle_fault(uint32_t spn, uint8_t fmi)
+{
+
+    if (spn > 0) {
+
+        if (AP_HAL::millis() - _last_fault_notify_ms > 1000) {
+            _last_fault_notify_ms = AP_HAL::millis();
+            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: SPN: %" PRIu32 " FMI: %" PRIu8, spn, fmi);
+        }
+
+        // switch (spn) {
+        //     case 4:
+        //         // high motor temperature
+        //         break;
+
+        //     case 5:
+        //         // high mosfet temperature
+        //         break;
+        // }
+        // _motor_state = MotorState::Error;
+    }
 }
 
 bool AP_Ilmor::healthy() const
