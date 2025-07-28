@@ -13,6 +13,74 @@
 #define J1939_PGN_DM1 0xFECA
 
 namespace J1939 {
+
+    /// There are two different PDU formats. PDU1 format is used for sending messages
+    /// with a specific destination address, while PDU2 format is used for broadcast messages.
+    /// The PDU format byte in the identifier determines the message format. If the PDU format
+    /// byte is less than 240, it indicates PDU1 format, and if it is greater than 239, it is PDU2.
+    enum class PDUFormat {
+        PDU1 = 0, // PDU format 1
+        PDU2 = 1, // PDU format 2
+    };
+
+    class PGN {
+        public:
+            PGN(uint32_t pgn) : pgn(pgn) {}
+
+            uint32_t get_pgn() const {
+                return pgn & 0xFFFF00; // Mask to get the PGN
+            }
+
+            PDUFormat get_pdu_format() const {
+                return (pgn & 0xFF) < 240 ? PDUFormat::PDU1 : PDUFormat::PDU2;
+            }
+
+        private:
+            uint32_t pgn;
+    };
+
+    class Id {
+        public:
+            Id(uint32_t id) : id(id) {}
+
+            uint8_t priority() const {
+                return (id >> 26) & 0x07; // Priority is bits 26-28
+            }
+
+            uint8_t data_page() const {
+                return (id >> 24) & 0x1; // Data page is bit 24
+            }
+
+            uint32 pgn_raw() const {
+                switch (pdu_format()) {
+                    case PDUFormat::PDU1:
+                        return (id >> 8) & 0xFF00;
+                    case PDUFormat::PDU2:
+                        return (id >> 8) & 0xFFFF;
+                }
+                
+            }
+
+            PDUFormat pdu_format() const {
+                uint8_t format = (id >> 16) & 0xFF;
+                if (format & 0xf0 < 240) {
+                    return PDUFormat::PDU1;
+                } else {
+                    return PDUFormat::PDU2;
+                }
+            }
+
+            uint8_t source_address() const {
+                return id & 0xFF; // Source address is the last byte
+            }
+
+            uint8_t pdu_specific() const {
+                return (id >> 8) & 0xFF; // PDU-specific is bits 8-15
+            }
+
+        private:
+            uint32_t id;
+    };
     struct J1939Frame {
         uint8_t priority;
         uint32_t pgn;
