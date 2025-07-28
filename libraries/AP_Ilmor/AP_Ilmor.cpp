@@ -275,9 +275,9 @@ void AP_Ilmor::tick()
 // parse inbound frames
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
-    J1939::J1939Frame j1939_frame = J1939::unpack_j1939_frame(frame);
+    J1939::Id id(frame.id);
 
-    switch (j1939_frame.pgn)
+    switch (id.pgn_raw())
     {
     case J1939_PGN_DM1:
     {

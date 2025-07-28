@@ -66,6 +66,24 @@ namespace J1939
         return j1939_frame;
     }
 
+    PGNType PGN::type() const
+    {
+        switch (pgn) {
+            case 0xEC00: // Transport Protocol Connection Management
+                return PGNType::TransportProtocolConnectionManagement;
+            case 0xEB00: // Transport Protocol Data Transfer
+                return PGNType::TransportProtocolDataTransfer;
+            case 0xFECA: // Diagnostic Message 1
+                return PGNType::DiagnosticMessage1;
+            default:
+                if (65280 <= pgn && pgn <= 65535) {
+                    return PGNType::Other;
+                } else {
+                    return PGNType::Other;
+                }
+        }
+    }
+
     uint8_t Id::priority() const
     {
         return (id >> 26) & 0x07; // Priority is bits 26-28
@@ -88,6 +106,12 @@ namespace J1939
         return 0;
     }
 
+    PGN Id::pgn() const
+    {
+        uint32_t raw_pgn = pgn_raw();
+        return PGN(raw_pgn);
+    }
+
     PDUFormat Id::pdu_format() const
     {
         uint8_t format = (id >> 16) & 0xFF;
@@ -108,6 +132,21 @@ namespace J1939
         return (id >> 8) & 0xFF; // PDU-specific is bits 8-15
     }
 
+    bool DM1Frame::red_stop_lamp(const uint8_t* pdu)
+    {
+        return ((pdu[0] >> 4) & 0x03) == 1; // Red stop lamp is bit 4 of byte 0
+    }
+
+    bool DM1Frame::amber_warning_lamp(const uint8_t* pdu)
+    {
+        return ((pdu[0] >> 2) & 0x03) == 1;
+    }
+
+    bool DM1Frame::protect_lamp(const uint8_t* pdu)
+    {
+        return (pdu[0] & 0x03) == 1;
+    }
+
     uint32_t DM1Frame::suspect_parameter_number(const uint8_t* pdu)
     {
         // SPN is packed in bytes 2, 3, and 4 of the DM1 PDU
@@ -117,6 +156,64 @@ namespace J1939
     uint8_t DM1Frame::failure_mode_identifier(const uint8_t* pdu)
     {
         return pdu[4] & 0x1F; // FMI is in the lower 5 bits of byte 4
+    }
+
+    enum class ConnectionManagement: uint8_t {
+        RequestToSend = 0x10,
+        ClearToSend = 0x11,
+        EndOfMessageAcknowledgement = 0x13,
+        BroadcastAnnounceMessage = 0x20,
+        Abort = 0xff,
+    };
+
+    #define DATA_FRAME_SIZE 7
+
+    uint8_t BroadcastTransport::packet_count() const
+    {
+        // The packet count is determined by the data length divided by DATA_FRAME_SIZE
+        return (data_length + DATA_FRAME_SIZE - 1) / DATA_FRAME_SIZE;
+    }
+
+    bool BroadcastTransport::from_frame(const AP_HAL::CANFrame &frame)
+    {
+        const J1939::Id id(frame.id);
+        const J1939::PGN frame_pgn = id.pgn();
+        switch (frame_pgn.type()) {
+            case PGNType::TransportProtocolConnectionManagement: {
+
+                if (frame.data[0] == static_cast<uint8_t>(ConnectionManagement::BroadcastAnnounceMessage)) {
+                    data_length = (frame.data[2] << 8) | frame.data[1];
+                    pgn = PGN((frame.data[7] << 16) | (frame.data[6] << 8) | frame.data[5]);
+                    source_address = id.source_address();
+                }
+
+            } break;
+            
+
+            case PGNType::TransportProtocolDataTransfer: {
+                if (id.source_address() != source_address) {
+                    return false;
+                }
+                uint8_t sequence = frame.data[0];
+                if (sequence > packet_count()) {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "J1939: Invalid sequence number %d for PGN %lu", sequence, pgn.pgn);
+                    return false;
+                }
+                memcpy(&data[(sequence - 1) * DATA_FRAME_SIZE], &frame.data[1], frame.dlc - 1);
+
+                if (sequence == packet_count()) {
+                    // finished
+                    return true;
+                }
+
+            } break;
+
+            default:
+                break;
+        }
+
+        return false;
+
     }
 
 }

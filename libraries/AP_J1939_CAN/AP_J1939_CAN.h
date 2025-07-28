@@ -23,9 +23,19 @@ namespace J1939 {
         PDU2 = 1, // PDU format 2
     };
 
+    enum class PGNType {
+        TransportProtocolConnectionManagement,
+        TransportProtocolDataTransfer,
+        DiagnosticMessage1,
+        Other,
+    };
+
     class PGN {
         public:
+            PGN() : pgn(0) {}
             PGN(uint32_t v) : pgn(v) {}
+
+            PGNType type() const;
 
         private:
             uint32_t pgn;
@@ -40,6 +50,7 @@ namespace J1939 {
             uint8_t data_page() const;
 
             uint32_t pgn_raw() const;
+            PGN pgn() const;
 
             PDUFormat pdu_format() const;
 
@@ -50,6 +61,29 @@ namespace J1939 {
         private:
             uint32_t id;
     };
+
+    #define J1939_BROADCAST_MAX_LEN 70
+
+    class BroadcastTransport {
+        public:
+
+        bool from_frame(const AP_HAL::CANFrame &frame);
+        uint8_t packet_count() const;
+
+        private:
+            uint8_t source_address;
+            PGN pgn;
+            uint16_t data_length;
+            uint8_t data[J1939_BROADCAST_MAX_LEN];
+
+            enum class State {
+                ConnectionManagement,
+                DataTransfer,
+            } state;
+            
+    };
+
+
     struct J1939Frame {
         uint8_t priority;
         uint32_t pgn;
@@ -71,6 +105,10 @@ namespace J1939 {
 
     class DM1Frame {
         public:
+
+        static bool red_stop_lamp(const uint8_t* pdu);
+        static bool amber_warning_lamp(const uint8_t* pdu);
+        static bool protect_lamp(const uint8_t* pdu);
 
         static uint32_t suspect_parameter_number(const uint8_t* pdu);
         static uint8_t failure_mode_identifier(const uint8_t* pdu);
