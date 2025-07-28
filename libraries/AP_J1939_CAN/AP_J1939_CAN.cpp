@@ -290,20 +290,28 @@ void AP_J1939_CAN::handle_frame(AP_HAL::CANFrame &frame)
         return;
     }
 
-    J1939::Id id(frame.id);
-    uint32_t pgn = id.pgn_raw();
-    if (_msg_handlers.find(pgn) != _msg_handlers.end())
-    {
-        for (CANSensor *handler : _msg_handlers[pgn])
-        {
-            // Send the frame to all registered drivers for this PGN
-            handler->handle_frame(frame);
-        }
+    const J1939::Id id(frame.id);
+    const uint32_t pgn = id.pgn_raw();
+
+    switch (J1939::PGN(pgn).type()) {
+        case J1939::PGNType::TransportProtocolConnectionManagement:
+            FALLTHROUGH;
+        case J1939::PGNType::TransportProtocolDataTransfer:
+            if (_broadcast_transport.from_frame(frame) && on_transport_callback) {
+                // Notify the registered callback if transport data is complete
+                on_transport_callback(_broadcast_transport);
+            }
+            break;
+
+        default:
+            if (_msg_handlers.find(pgn) != _msg_handlers.end()) {
+                for (CANSensor *handler : _msg_handlers[pgn]) {
+                    // Send the frame to all registered drivers for this PGN
+                    handler->handle_frame(frame);
+                }
+            }
+            break;
     }
-    // else
-    // {
-    //     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "J1939: Unhandled PGN %lu", pgn);
-    // }
 }
 
 #endif // HAL_J1939_CAN_ENABLED

@@ -2,6 +2,8 @@
 
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 
+#include <cstring>
+
 const AP_HAL::HAL& hal = AP_HAL::get_HAL();
 
 
@@ -41,6 +43,9 @@ TEST(AP_J1939_CAN, test_rx_broadcast_transport)
     AP_HAL::CANFrame frame(0x18ebff0b, test_data, 8);
     EXPECT_TRUE(bt.from_frame(frame));
     }
+
+    const uint8_t expected_data[] = {0x04, 0xff, 0x1d, 0x03, 0x05, 0x02, 0x1e, 0x03, 0x05, 0x02, 0x75, 0x02, 0x08, 0x01};
+    EXPECT_TRUE(std::memcmp(bt.data_ptr(), expected_data, 14) == 0);
 }
 
 AP_GTEST_MAIN()

@@ -8,6 +8,7 @@
 #include <AP_CANManager/AP_CANSensor.h>
 #include <map>
 #include <vector>
+#include <functional>
 
 // Diagnostic Message 1 PGN
 #define J1939_PGN_DM1 0xFECA
@@ -36,6 +37,7 @@ namespace J1939 {
             PGN(uint32_t v) : pgn(v) {}
 
             PGNType type() const;
+            uint32_t raw() const { return pgn; }
 
         private:
             uint32_t pgn;
@@ -69,6 +71,9 @@ namespace J1939 {
 
         bool from_frame(const AP_HAL::CANFrame &frame);
         uint8_t packet_count() const;
+        uint16_t data_len() const { return data_length; }
+        const uint8_t* data_ptr() const { return data; }
+        PGN get_pgn() const { return pgn; }
 
         private:
             uint8_t source_address;
@@ -113,11 +118,25 @@ namespace J1939 {
         static uint32_t suspect_parameter_number(const uint8_t* pdu);
         static uint8_t failure_mode_identifier(const uint8_t* pdu);
     };
+
+    class DiagnosticMessage1 {
+        public:
+
+        class LampStatus {
+            public:
+        };
+
+        
+
+    }; 
 }
 
 class AP_J1939_CAN : public CANSensor
 {
 public:
+
+    typedef std::function<void(const J1939::BroadcastTransport&)> TransportCallback;
+
     static AP_J1939_CAN* get_instance(uint8_t can_port);
 
     // Register a frame ID to a driver (actually registers the PGN)
@@ -128,6 +147,8 @@ public:
 
     // Send a J1939 frame
     bool send_message(J1939::J1939Frame &frame);
+
+    TransportCallback on_transport_callback;
 
 protected:
     // Handler for incoming frames
@@ -140,6 +161,7 @@ private:
     std::map<uint32_t, std::vector<CANSensor*>> _msg_handlers;
 
     uint8_t _can_port;
+    J1939::BroadcastTransport _broadcast_transport;
 };
 
 #endif // HAL_J1939_CAN_ENABLED
