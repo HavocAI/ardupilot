@@ -25,15 +25,7 @@ namespace J1939 {
 
     class PGN {
         public:
-            PGN(uint32_t pgn) : pgn(pgn) {}
-
-            uint32_t get_pgn() const {
-                return pgn & 0xFFFF00; // Mask to get the PGN
-            }
-
-            PDUFormat get_pdu_format() const {
-                return (pgn & 0xFF) < 240 ? PDUFormat::PDU1 : PDUFormat::PDU2;
-            }
+            PGN(uint32_t v) : pgn(v) {}
 
         private:
             uint32_t pgn;
@@ -41,42 +33,19 @@ namespace J1939 {
 
     class Id {
         public:
-            Id(uint32_t id) : id(id) {}
+            Id(uint32_t v) : id(v) {}
 
-            uint8_t priority() const {
-                return (id >> 26) & 0x07; // Priority is bits 26-28
-            }
+            uint8_t priority() const;
 
-            uint8_t data_page() const {
-                return (id >> 24) & 0x1; // Data page is bit 24
-            }
+            uint8_t data_page() const;
 
-            uint32 pgn_raw() const {
-                switch (pdu_format()) {
-                    case PDUFormat::PDU1:
-                        return (id >> 8) & 0xFF00;
-                    case PDUFormat::PDU2:
-                        return (id >> 8) & 0xFFFF;
-                }
-                
-            }
+            uint32_t pgn_raw() const;
 
-            PDUFormat pdu_format() const {
-                uint8_t format = (id >> 16) & 0xFF;
-                if (format & 0xf0 < 240) {
-                    return PDUFormat::PDU1;
-                } else {
-                    return PDUFormat::PDU2;
-                }
-            }
+            PDUFormat pdu_format() const;
 
-            uint8_t source_address() const {
-                return id & 0xFF; // Source address is the last byte
-            }
+            uint8_t source_address() const;
 
-            uint8_t pdu_specific() const {
-                return (id >> 8) & 0xFF; // PDU-specific is bits 8-15
-            }
+            uint8_t pdu_specific() const;
 
         private:
             uint32_t id;

@@ -66,6 +66,48 @@ namespace J1939
         return j1939_frame;
     }
 
+    uint8_t Id::priority() const
+    {
+        return (id >> 26) & 0x07; // Priority is bits 26-28
+    }
+
+    uint8_t Id::data_page() const
+    {
+        return (id >> 24) & 0x1; // Data page is bit 24
+    }
+
+    uint32_t Id::pgn_raw() const
+    {
+        switch (pdu_format()) {
+            case PDUFormat::PDU1:
+                return (id >> 8) & 0xFF00;
+            case PDUFormat::PDU2:
+                return (id >> 8) & 0xFFFF;
+        }
+        // Should not be reached
+        return 0;
+    }
+
+    PDUFormat Id::pdu_format() const
+    {
+        uint8_t format = (id >> 16) & 0xFF;
+        if (format < 240) {
+            return PDUFormat::PDU1;
+        } else {
+            return PDUFormat::PDU2;
+        }
+    }
+
+    uint8_t Id::source_address() const
+    {
+        return id & 0xFF; // Source address is the last byte
+    }
+
+    uint8_t Id::pdu_specific() const
+    {
+        return (id >> 8) & 0xFF; // PDU-specific is bits 8-15
+    }
+
     uint32_t DM1Frame::suspect_parameter_number(const uint8_t* pdu)
     {
         // SPN is packed in bytes 2, 3, and 4 of the DM1 PDU
@@ -111,8 +153,8 @@ AP_J1939_CAN *AP_J1939_CAN::get_instance(uint8_t can_port)
 
 bool AP_J1939_CAN::register_frame_id(uint32_t can_id, CANSensor *driver)
 {
-    // Only register the PGN, not the full 29-bit ID
-    uint32_t pgn = J1939::extract_j1939_pgn(can_id);
+    J1939::Id id(can_id);
+    uint32_t pgn = id.pgn_raw();
     return register_pgn(pgn, driver);
 }
 
@@ -151,7 +193,8 @@ void AP_J1939_CAN::handle_frame(AP_HAL::CANFrame &frame)
         return;
     }
 
-    uint32_t pgn = J1939::extract_j1939_pgn(frame.id);
+    J1939::Id id(frame.id);
+    uint32_t pgn = id.pgn_raw();
     if (_msg_handlers.find(pgn) != _msg_handlers.end())
     {
         for (CANSensor *handler : _msg_handlers[pgn])
