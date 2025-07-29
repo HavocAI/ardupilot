@@ -145,6 +145,7 @@ private:
     void handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
     void handle_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
     void handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t &msg);
+    void handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t &msg);
     void handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg);
     void handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg);
     void handle_inverter_status_frame_2(const struct ilmor_inverter_status_frame_2_t &msg);

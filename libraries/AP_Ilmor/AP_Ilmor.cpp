@@ -160,7 +160,7 @@ void AP_Ilmor::init()
     if (
         // !j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, this) ||
         // !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, this) ||
-        !j1939->register_pgn(J1939_PGN_DM1, this) ||
+        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_2_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, this) ||
         !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, this) ||
@@ -320,6 +320,14 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
         struct ilmor_icu_status_frame_1_t msg;
         if (ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc) == 0) {
             handle_icu_status_frame_1(msg);
+        }
+        break;
+    }
+    case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_2_FRAME_ID):
+    {
+        struct ilmor_icu_status_frame_2_t msg;
+        if (ilmor_icu_status_frame_2_unpack(&msg, frame.data, frame.dlc) == 0) {
+            handle_icu_status_frame_2(msg);
         }
         break;
     }
@@ -653,6 +661,17 @@ void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t
 
     // Populate esc2_rpm with the trim position
     update_rpm(1, msg.trim_position_adjusted);
+}
+
+void AP_Ilmor::handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t &msg)
+{
+    static uint16_t counter = 0;
+    if (counter++ % 100 == 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: t: %" PRIi32 " s:%d v%d.%d.%d", msg.throttle_demand, msg.shift_position,
+            msg.software_version_major, msg.software_version_minor, msg.software_version_patch);
+    }
+    
+    
 }
 
 void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t &msg)
