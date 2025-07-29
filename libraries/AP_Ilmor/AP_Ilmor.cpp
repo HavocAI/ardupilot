@@ -275,6 +275,19 @@ void AP_Ilmor::tick()
 
 void AP_Ilmor::on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg)
 {
+    // Handle the diagnostic message
+    if (msg.get_lamp_status().red_stop_lamp()) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Red stop lamp is ON");
+    }
+    if (msg.get_lamp_status().amber_warning_lamp()) {
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: Amber warning lamp is ON");
+    }
+
+    // Process DTCs
+    const auto &dtc = msg.get_dtc();
+    if (dtc.spn() != 0) {
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: DTC SPN %" PRIu32 " FMI %" PRIu8 " OC %" PRIu8, dtc.spn(), dtc.fmi(), dtc.oc());
+    }
     
 }
 
