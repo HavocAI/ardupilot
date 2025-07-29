@@ -79,7 +79,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: -2000:2000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("MIN_RPM", 1, AP_Ilmor, _min_rpm, -500),
+    AP_GROUPINFO("MIN_RPM", 1, AP_Ilmor, _min_rpm, 200),
 
     // @Param: MAX_RPM
     // @DisplayName: Ilmor Motor Maximum RPM
@@ -87,7 +87,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: -2000:2000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("MAX_RPM", 2, AP_Ilmor, _max_rpm, 1600),
+    AP_GROUPINFO("MAX_RPM", 2, AP_Ilmor, _max_rpm, 2000),
 
     // @Param: TRIM_FN
     // @DisplayName: Ilmor Motor Trim Servo Channel
@@ -172,6 +172,8 @@ void AP_Ilmor::init()
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to register with J1939");
         return;
     }
+
+    j1939->on_diagnostic_message1_callback = FUNCTOR_BIND_MEMBER(&AP_Ilmor::on_diagnostic_message1, void, const J1939::DiagnosticMessage1&);
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
@@ -271,6 +273,10 @@ void AP_Ilmor::tick()
     }
 }
 
+void AP_Ilmor::on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg)
+{
+    
+}
 
 // parse inbound frames
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
@@ -279,16 +285,6 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 
     switch (id.pgn_raw())
     {
-    case J1939_PGN_DM1:
-    {
-        uint32_t spn = J1939::DM1Frame::suspect_parameter_number(frame.data);
-        uint8_t fmi = J1939::DM1Frame::failure_mode_identifier(frame.data);
-
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: DM1 SPN: %" PRIu32 " FMI: %" PRIu8, spn, fmi);
-        handle_fault(spn, fmi);
-
-        break;
-    }
     case J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID):
     {
         // Monitor in case there are other unmanned controllers on the network

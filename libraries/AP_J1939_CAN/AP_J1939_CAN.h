@@ -8,7 +8,7 @@
 #include <AP_CANManager/AP_CANSensor.h>
 #include <map>
 #include <vector>
-#include <functional>
+
 
 // Diagnostic Message 1 PGN
 #define J1939_PGN_DM1 0xFECA
@@ -124,9 +124,38 @@ namespace J1939 {
 
         class LampStatus {
             public:
+            static LampStatus from_data(const uint8_t*);
+
+            bool red_stop_lamp() const { return data[0] & 0x01; }
+            bool amber_warning_lamp() const { return data[0] & 0x02; }
+            bool protect_lamp() const { return data[0] & 0x04; }
+
+            private:
+                uint8_t data[2];
         };
 
-        
+        class DTC {
+            public:
+                static DTC from_data(const uint8_t* data);
+
+                uint32_t spn() const;
+                uint8_t fmi() const;
+                uint8_t oc() const;
+                bool cm() const;
+
+            private:
+                uint8_t data[4];
+        };
+
+        DiagnosticMessage1(const AP_HAL::CANFrame &frame);
+        DiagnosticMessage1(const DTC&, const LampStatus&);
+
+        const LampStatus& get_lamp_status() const { return lamp_status; }
+        const DTC& get_dtc() const { return dtc; }
+
+        private:
+            LampStatus lamp_status;
+            DTC dtc;
 
     }; 
 }
@@ -135,7 +164,11 @@ class AP_J1939_CAN : public CANSensor
 {
 public:
 
-    typedef std::function<void(const J1939::BroadcastTransport&)> TransportCallback;
+    // typedef std::function<void(const J1939::BroadcastTransport&)> TransportCallback;
+    // typedef std::function<void(const J1939::DiagnosticMessage1&)> DiagnosticMessage1Callback;
+
+    FUNCTOR_TYPEDEF(TransportCallback, void, const J1939::BroadcastTransport&);
+    FUNCTOR_TYPEDEF(DiagnosticMessage1Callback, void, const J1939::DiagnosticMessage1&);
 
     static AP_J1939_CAN* get_instance(uint8_t can_port);
 
@@ -149,6 +182,7 @@ public:
     bool send_message(J1939::J1939Frame &frame);
 
     TransportCallback on_transport_callback;
+    DiagnosticMessage1Callback on_diagnostic_message1_callback;
 
 protected:
     // Handler for incoming frames
@@ -162,6 +196,8 @@ private:
 
     uint8_t _can_port;
     J1939::BroadcastTransport _broadcast_transport;
+
+    void handle_dm1_transport();
 };
 
 #endif // HAL_J1939_CAN_ENABLED

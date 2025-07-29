@@ -216,6 +216,51 @@ namespace J1939
 
     }
 
+    DiagnosticMessage1::LampStatus DiagnosticMessage1::LampStatus::from_data(const uint8_t* data)
+    {
+        LampStatus status;
+        memcpy(status.data, data, sizeof(status.data));
+        return status;
+    }
+
+    DiagnosticMessage1::DTC DiagnosticMessage1::DTC::from_data(const uint8_t* data)
+    {
+        DTC dtc;
+        memcpy(dtc.data, data, sizeof(dtc.data));
+        return dtc;
+    }
+
+    uint32_t DiagnosticMessage1::DTC::spn() const
+    {
+        return (data[0] | (data[1] << 8) | ((data[2] & 0xE0) << 11));
+    }
+
+    uint8_t DiagnosticMessage1::DTC::fmi() const
+    {
+        return data[2] & 0x1F; // FMI is in the lower 5 bits of byte 2
+    }
+
+    uint8_t DiagnosticMessage1::DTC::oc() const
+    {
+        return data[3] & 0x7F; // Occurrence Count is in the lower 7 bits of byte 3
+    }
+
+    bool DiagnosticMessage1::DTC::cm() const
+    {
+        return (data[3] & 0x80) != 0; // Conversion Method is the highest bit of byte 3
+    }
+
+    DiagnosticMessage1::DiagnosticMessage1(const AP_HAL::CANFrame &frame)
+    {
+        lamp_status = LampStatus::from_data(frame.data);
+        dtc = DTC::from_data(frame.data + 2); // DTC starts at byte 2
+    }
+
+    DiagnosticMessage1::DiagnosticMessage1(const DTC& d, const LampStatus& l)
+        : lamp_status(l),
+          dtc(d)
+    {}
+
 }
 
 // Static member initialization
@@ -283,6 +328,8 @@ bool AP_J1939_CAN::send_message(J1939::J1939Frame &frame)
 
 void AP_J1939_CAN::handle_frame(AP_HAL::CANFrame &frame)
 {
+    using namespace J1939;
+
     if (!frame.isExtended())
     {
         // Only handle extended frames for J1939
@@ -294,12 +341,27 @@ void AP_J1939_CAN::handle_frame(AP_HAL::CANFrame &frame)
     const uint32_t pgn = id.pgn_raw();
 
     switch (J1939::PGN(pgn).type()) {
+        case J1939::PGNType::DiagnosticMessage1:
+            if (on_diagnostic_message1_callback) {
+                J1939::DiagnosticMessage1 dm1(frame);
+                on_diagnostic_message1_callback(dm1);
+            }
+            break;
         case J1939::PGNType::TransportProtocolConnectionManagement:
             FALLTHROUGH;
         case J1939::PGNType::TransportProtocolDataTransfer:
-            if (_broadcast_transport.from_frame(frame) && on_transport_callback) {
-                // Notify the registered callback if transport data is complete
-                on_transport_callback(_broadcast_transport);
+            if (_broadcast_transport.from_frame(frame)) {
+                if (_broadcast_transport.get_pgn().type() == PGNType::DiagnosticMessage1 && on_diagnostic_message1_callback) {
+                    const int num_dtc = _broadcast_transport.data_len() / 4;
+                    const DiagnosticMessage1::LampStatus lamp_status = DiagnosticMessage1::LampStatus::from_data(_broadcast_transport.data_ptr());
+                    for (int i = 0; i < num_dtc; i++) {
+                        const DiagnosticMessage1::DTC dtc = DiagnosticMessage1::DTC::from_data(_broadcast_transport.data_ptr() + (i * 4) + 2);
+                        on_diagnostic_message1_callback(DiagnosticMessage1(dtc, lamp_status));
+                    }
+                } else {
+                    // Notify the registered callback if transport data is complete
+                    on_transport_callback(_broadcast_transport);
+                }
             }
             break;
 

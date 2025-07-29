@@ -137,6 +137,7 @@ private:
 
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
+    void on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg);
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
     bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
