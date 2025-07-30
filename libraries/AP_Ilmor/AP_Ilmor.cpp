@@ -369,96 +369,68 @@ void AP_Ilmor::on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg)
 // parse inbound frames
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
-    const J1939::Id id(frame.id);
-    const uint32_t pgn = id.pgn_raw();
 
-    switch (pgn)
-    {
-    // case J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID):
-    // {
-    //     // Monitor in case there are other unmanned controllers on the network
-    //     struct ilmor_unmanned_throttle_control_t msg;
-    //     ilmor_unmanned_throttle_control_unpack(&msg, frame.data, frame.dlc);
-    //     handle_unmanned_throttle_control(msg);
-    //     break;
-    // }
-    case J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_2_FRAME_ID):
-    {
-        // Monitor in case there are other unmanned controllers on the network
-        struct ilmor_r3_status_frame_2_t msg;
-        ilmor_r3_status_frame_2_unpack(&msg, frame.data, frame.dlc);
-        handle_r3_status_frame_2(msg);
-        break;
+    switch (frame.id) {
+        case ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID: {
+            struct ilmor_inverter_status_frame_1_t msg;
+            ilmor_inverter_status_frame_1_unpack(&msg, frame.data, frame.dlc);
+            handle_inverter_status_frame_1(msg);
+        } break;
+
+        case ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID: {
+            // Ah consumed
+            struct ilmor_inverter_status_frame_2_t msg;
+            ilmor_inverter_status_frame_2_unpack(&msg, frame.data, frame.dlc);
+            handle_inverter_status_frame_2(msg);
+            
+        } break;
+
+        case ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID: {
+            // Wh consumed
+            struct ilmor_inverter_status_frame_3_t msg;
+            ilmor_inverter_status_frame_3_unpack(&msg, frame.data, frame.dlc);
+            handle_inverter_status_frame_3(msg);
+            
+        } break;
+
+        case ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID: {
+            struct ilmor_inverter_status_frame_4_t msg;
+            ilmor_inverter_status_frame_4_unpack(&msg, frame.data, frame.dlc);
+            handle_inverter_status_frame_4(msg);
+        } break;
+
+        case ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID: {
+            struct ilmor_inverter_status_frame_5_t msg;
+            ilmor_inverter_status_frame_5_unpack(&msg, frame.data, frame.dlc);
+            handle_inverter_status_frame_5(msg);
+        } break;
+
+        default: {
+            const J1939::Id id(frame.id);
+            const uint32_t pgn = id.pgn_raw();
+
+            switch (pgn) {
+                case 0xff01: {
+                    struct ilmor_icu_status_frame_1_t msg;
+                    if (ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc) == 0) {
+                        handle_icu_status_frame_1(msg);
+                    }
+                } break;
+
+                case 0xff02: {
+                    struct ilmor_icu_status_frame_2_t msg;
+                    if (ilmor_icu_status_frame_2_unpack(&msg, frame.data, frame.dlc) == 0) {
+                        handle_icu_status_frame_2(msg);
+                    }
+                } break;
+
+                default:
+                    break;
+            }
+
+        } break;
     }
-    case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID):
-    {
-        // Trim position adjusted
-        struct ilmor_icu_status_frame_1_t msg;
-        if (ilmor_icu_status_frame_1_unpack(&msg, frame.data, frame.dlc) == 0) {
-            handle_icu_status_frame_1(msg);
-        }
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_2_FRAME_ID):
-    {
-        struct ilmor_icu_status_frame_2_t msg;
-        if (ilmor_icu_status_frame_2_unpack(&msg, frame.data, frame.dlc) == 0) {
-            handle_icu_status_frame_2(msg);
-        }
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID):
-    {
-        // Trim demand request from buttons
-        struct ilmor_icu_status_frame_7_t msg;
-        ilmor_icu_status_frame_7_unpack(&msg, frame.data, frame.dlc);
-        handle_icu_status_frame_7(msg);
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID):
-    {
-        // eRPM
-        struct ilmor_inverter_status_frame_1_t msg;
-        ilmor_inverter_status_frame_1_unpack(&msg, frame.data, frame.dlc);
-        handle_inverter_status_frame_1(msg);
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID):
-    {
-        // Ah consumed
-        struct ilmor_inverter_status_frame_2_t msg;
-        ilmor_inverter_status_frame_2_unpack(&msg, frame.data, frame.dlc);
-        handle_inverter_status_frame_2(msg);
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID):
-    {
-        // Wh consumed
-        struct ilmor_inverter_status_frame_3_t msg;
-        ilmor_inverter_status_frame_3_unpack(&msg, frame.data, frame.dlc);
-        handle_inverter_status_frame_3(msg);
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID):
-    {
-        // MOSFET temperature, motor temperature, battery current
-        struct ilmor_inverter_status_frame_4_t msg;
-        ilmor_inverter_status_frame_4_unpack(&msg, frame.data, frame.dlc);
-        handle_inverter_status_frame_4(msg);
-        break;
-    }
-    case J1939::extract_j1939_pgn(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID):
-    {
-        // Battery voltage (low precision)
-        struct ilmor_inverter_status_frame_5_t msg;
-        ilmor_inverter_status_frame_5_unpack(&msg, frame.data, frame.dlc);
-        handle_inverter_status_frame_5(msg);
-        break;
-    }
-    default:
-        // Ignore other frames
-        break;
-    }
+
     // Update the last new message time
     _run_state.last_received_msg_ms = AP_HAL::millis();
 }
