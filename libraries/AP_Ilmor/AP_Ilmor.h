@@ -73,7 +73,7 @@ private:
         CheckRelease,
         CmdDown,
         CmdStop,
-    };
+    } _trimState;
 
     enum class MotorState {
         Ready,
@@ -89,10 +89,14 @@ private:
         Unhealthy,
     } _comsState;
 
+    enum class FwServerState {
+        WifiOff,
+        WifiOn,
+    } _fw_server_state;
+
     static AP_Ilmor *_singleton;
 
     AP_J1939_CAN* j1939;
-    TrimState _trimState;
 
     // Parameters
     AP_Int16 _min_rpm;
@@ -101,6 +105,7 @@ private:
     AP_Int8 _max_run_trim;
     AP_Int8 _can_port;
     AP_Int16 _trim_stop;
+    AP_Int8 _fw_update;
 
     uint8_t _current_trim_position;
     uint32_t _last_wait_ms;
@@ -140,6 +145,7 @@ private:
     void on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg);
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
+    bool send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg);
     bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
 
     void handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);

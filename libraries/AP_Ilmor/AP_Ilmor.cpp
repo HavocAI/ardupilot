@@ -69,6 +69,7 @@ extern const AP_HAL::HAL &hal;
 // J1939 Message priorities
 #define AP_ILMOR_UNMANNED_THROTTLE_CONTROL_PRIORITY 1
 #define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
+#define AP_ILMOR_R3_STATUS_FRAME_1_PRIORITY 3
 
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
@@ -121,13 +122,22 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 135),
 
+    // @Param: FW_UP
+    // @DisplayName: Ilmor Firmware Update Server
+    // @Description: Ilmor Firmware Update Server, 0 = off, 1 = on, 2 = request to turn on
+    // @Values: 0:2
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("FW_UP", 7, AP_Ilmor, _fw_update, 0),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
     : CANSensor("Ilmor"),
+    _trimState(TrimState::Start),
     _motor_state(MotorState::Ready),
     _comsState(ComsState::Unhealthy),
-    _trimState(TrimState::Start),
+    _fw_server_state(FwServerState::WifiOff),
     _run_state(),
     _output()
 {
@@ -268,6 +278,42 @@ void AP_Ilmor::tick()
         case ComsState::Waiting:
             if (now_ms - _last_com_wait_ms > 3000) {
                 _comsState = ComsState::Running;
+            }
+            break;
+    }
+
+    switch (_fw_server_state) {
+        case FwServerState::WifiOff:
+            if (_fw_update.get() == 2) {
+                // send request to turn on the firmware update server
+                _fw_server_state = FwServerState::WifiOn;
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn on");
+
+                ilmor_r3_status_frame_1_t msg = {
+                    .server_mode = 2,
+                };
+
+                if (!send_r3_status_frame_1(msg)) {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
+                }
+
+            }
+            break;
+        case FwServerState::WifiOn:
+            if (_fw_update.get() != 2) {
+                // send request to turn off firmware update server
+                _fw_server_state = FwServerState::WifiOff;
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn off");
+
+                ilmor_r3_status_frame_1_t msg = {
+                    .server_mode = 1,
+                };
+
+                if (!send_r3_status_frame_1(msg)) {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
+                }
             }
             break;
     }
@@ -619,6 +665,24 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
     J1939::J1939Frame frame;
     frame.priority = AP_ILMOR_UNMANNED_THROTTLE_CONTROL_PRIORITY;
     frame.pgn = J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID);
+    frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+    memcpy(frame.data, data, sizeof(data));
+
+    return j1939->send_message(frame);
+}
+
+bool AP_Ilmor::send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg)
+{
+    // Prepare the data
+    // Trim demand values: 0 = stop, 1 = up, 2 = down, 255 = trim control is given to the physical buttons
+    uint8_t data[ILMOR_R3_STATUS_FRAME_1_LENGTH];
+    ilmor_r3_status_frame_1_pack(data, &msg, sizeof(data));
+
+    // Even though the frame ID contains the priority and source address,
+    // we set them explicitly here for clarity
+    J1939::J1939Frame frame;
+    frame.priority = AP_ILMOR_R3_STATUS_FRAME_1_PRIORITY;
+    frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_1_FRAME_ID);
     frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
