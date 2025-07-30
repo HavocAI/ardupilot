@@ -180,10 +180,10 @@ void AP_Ilmor::init()
         !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, this))
     {
         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to register with J1939");
-        return;
+        // return;
     }
 
-    j1939->on_diagnostic_message1_callback = FUNCTOR_BIND_MEMBER(&AP_Ilmor::on_diagnostic_message1, void, const J1939::DiagnosticMessage1&);
+    // j1939->on_diagnostic_message1_callback = FUNCTOR_BIND_MEMBER(&AP_Ilmor::on_diagnostic_message1, void, const J1939::DiagnosticMessage1&);
 
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
 
@@ -319,6 +319,35 @@ void AP_Ilmor::tick()
     }
 }
 
+/*
+
+case J1939::PGNType::DiagnosticMessage1:
+            if (on_diagnostic_message1_callback) {
+                J1939::DiagnosticMessage1 dm1(frame);
+                on_diagnostic_message1_callback(dm1);
+            }
+            break;
+        case J1939::PGNType::TransportProtocolConnectionManagement:
+            FALLTHROUGH;
+        case J1939::PGNType::TransportProtocolDataTransfer:
+            if (_broadcast_transport.from_frame(frame)) {
+                if (_broadcast_transport.get_pgn().type() == PGNType::DiagnosticMessage1 && on_diagnostic_message1_callback) {
+                    const int num_dtc = _broadcast_transport.data_len() / 4;
+                    const DiagnosticMessage1::LampStatus lamp_status = DiagnosticMessage1::LampStatus::from_data(_broadcast_transport.data_ptr());
+                    for (int i = 0; i < num_dtc; i++) {
+                        const DiagnosticMessage1::DTC dtc = DiagnosticMessage1::DTC::from_data(_broadcast_transport.data_ptr() + (i * 4) + 2);
+                        on_diagnostic_message1_callback(DiagnosticMessage1(dtc, lamp_status));
+                    }
+                } else {
+                    // Notify the registered callback if transport data is complete
+                    on_transport_callback(_broadcast_transport);
+                }
+            }
+            break;
+
+            
+*/
+
 void AP_Ilmor::on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg)
 {
     // Handle the diagnostic message
@@ -340,18 +369,19 @@ void AP_Ilmor::on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg)
 // parse inbound frames
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
-    J1939::Id id(frame.id);
+    const J1939::Id id(frame.id);
+    const uint32_t pgn = id.pgn_raw();
 
-    switch (id.pgn_raw())
+    switch (pgn)
     {
-    case J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID):
-    {
-        // Monitor in case there are other unmanned controllers on the network
-        struct ilmor_unmanned_throttle_control_t msg;
-        ilmor_unmanned_throttle_control_unpack(&msg, frame.data, frame.dlc);
-        handle_unmanned_throttle_control(msg);
-        break;
-    }
+    // case J1939::extract_j1939_pgn(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID):
+    // {
+    //     // Monitor in case there are other unmanned controllers on the network
+    //     struct ilmor_unmanned_throttle_control_t msg;
+    //     ilmor_unmanned_throttle_control_unpack(&msg, frame.data, frame.dlc);
+    //     handle_unmanned_throttle_control(msg);
+    //     break;
+    // }
     case J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_2_FRAME_ID):
     {
         // Monitor in case there are other unmanned controllers on the network

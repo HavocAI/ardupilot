@@ -340,39 +340,11 @@ void AP_J1939_CAN::handle_frame(AP_HAL::CANFrame &frame)
     const J1939::Id id(frame.id);
     const uint32_t pgn = id.pgn_raw();
 
-    switch (J1939::PGN(pgn).type()) {
-        case J1939::PGNType::DiagnosticMessage1:
-            if (on_diagnostic_message1_callback) {
-                J1939::DiagnosticMessage1 dm1(frame);
-                on_diagnostic_message1_callback(dm1);
-            }
-            break;
-        case J1939::PGNType::TransportProtocolConnectionManagement:
-            FALLTHROUGH;
-        case J1939::PGNType::TransportProtocolDataTransfer:
-            if (_broadcast_transport.from_frame(frame)) {
-                if (_broadcast_transport.get_pgn().type() == PGNType::DiagnosticMessage1 && on_diagnostic_message1_callback) {
-                    const int num_dtc = _broadcast_transport.data_len() / 4;
-                    const DiagnosticMessage1::LampStatus lamp_status = DiagnosticMessage1::LampStatus::from_data(_broadcast_transport.data_ptr());
-                    for (int i = 0; i < num_dtc; i++) {
-                        const DiagnosticMessage1::DTC dtc = DiagnosticMessage1::DTC::from_data(_broadcast_transport.data_ptr() + (i * 4) + 2);
-                        on_diagnostic_message1_callback(DiagnosticMessage1(dtc, lamp_status));
-                    }
-                } else {
-                    // Notify the registered callback if transport data is complete
-                    on_transport_callback(_broadcast_transport);
-                }
-            }
-            break;
-
-        default:
-            if (_msg_handlers.find(pgn) != _msg_handlers.end()) {
-                for (CANSensor *handler : _msg_handlers[pgn]) {
-                    // Send the frame to all registered drivers for this PGN
-                    handler->handle_frame(frame);
-                }
-            }
-            break;
+    if (_msg_handlers.find(pgn) != _msg_handlers.end()) {
+        for (CANSensor *handler : _msg_handlers[pgn]) {
+            // Send the frame to all registered drivers for this PGN
+            handler->handle_frame(frame);
+        }
     }
 }
 
