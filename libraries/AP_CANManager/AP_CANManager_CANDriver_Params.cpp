@@ -20,6 +20,7 @@
 
 #include <AP_DroneCAN/AP_DroneCAN.h>
 #include <AP_PiccoloCAN/AP_PiccoloCAN.h>
+#include <AP_Ilmor/AP_Ilmor.h>
 
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
@@ -55,6 +56,12 @@ const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
     // @User: Advanced
     // @RebootRequired: True
     AP_GROUPINFO("PROTOCOL2", 6, AP_CANManager::CANDriver_Params, _driver_type_11bit, float(AP_CAN::Protocol::None)),
+
+#if HAL_ILMOR_ENABLED
+    // @Group: ILM_
+    // @Path: ../AP_Ilmor/AP_Ilmor.cpp
+    AP_SUBGROUPPTR(_ilmor, "ILM_", 7, AP_CANManager::CANDriver_Params, AP_Ilmor),
+#endif
     
     AP_GROUPEND
 };

@@ -2,8 +2,7 @@
 #pragma once
 
 #include <AP_HAL/AP_HAL_Boards.h>
-#include <AP_J1939_CAN/AP_J1939_CAN_config.h>
 
 #ifndef HAL_ILMOR_ENABLED
-#define HAL_ILMOR_ENABLED HAL_J1939_CAN_ENABLED
+#define HAL_ILMOR_ENABLED (HAL_MAX_CAN_PROTOCOL_DRIVERS && BOARD_FLASH_SIZE > 1024)
 #endif

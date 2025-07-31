@@ -68,6 +68,7 @@
 
   #include <AP_PiccoloCAN/AP_PiccoloCAN.h>
   #include <AP_DroneCAN/AP_DroneCAN.h>
+  #include <AP_Ilmor/AP_Ilmor.h>
 #endif
 
 #include <AP_Logger/AP_Logger.h>
@@ -1257,13 +1258,24 @@ bool AP_Arming::can_checks(bool report)
                     }
                     break;
                 }
+#if HAL_ILMOR_ENABLED
+                case AP_CAN::Protocol::Ilmor:
+                {
+                    AP_Ilmor *ap_ilmor = AP_Ilmor::get_ilmor(i);
+                    if (ap_ilmor != nullptr && !ap_ilmor->pre_arm_check(fail_msg, ARRAY_SIZE(fail_msg))) {
+                        check_failed(ARMING_CHECK_SYSTEM, report, "Ilmor: %s", fail_msg);
+                        return false;
+                    }
+                    break;
+                }
+#endif
+                
                 case AP_CAN::Protocol::EFI_NWPMU:
                 case AP_CAN::Protocol::None:
                 case AP_CAN::Protocol::Scripting:
                 case AP_CAN::Protocol::Scripting2:
                 case AP_CAN::Protocol::KDECAN:
                 case AP_CAN::Protocol::J1939:
-
                     break;
             }
         }

@@ -508,12 +508,6 @@ void SRV_Channels::push()
     }
 #endif
 
-#if HAL_ILMOR_ENABLED
-    if (AP::ilmor() != nullptr) {
-        AP::ilmor()->update();
-    }
-#endif
-
 #if HAL_ENABLE_DRONECAN_DRIVERS
     // push outputs to CAN
     uint8_t can_num_drivers = AP::can().get_num_drivers();
@@ -534,6 +528,16 @@ void SRV_Channels::push()
                     continue;
                 }
                 ap_pcan->update();
+                break;
+            }
+#endif
+#if HAL_ILMOR_ENABLED
+            case AP_CAN::Protocol::Ilmor: {
+                AP_Ilmor *ap_ilmor = AP_Ilmor::get_ilmor(i);
+                if (ap_ilmor == nullptr) {
+                    continue;
+                }
+                ap_ilmor->update();
                 break;
             }
 #endif

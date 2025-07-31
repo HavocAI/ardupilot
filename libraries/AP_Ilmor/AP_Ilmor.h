@@ -30,32 +30,29 @@
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 
-class AP_Ilmor : public CANSensor, public AP_ESC_Telem_Backend
+class AP_Ilmor : public CANSensor
+#if HAL_WITH_ESC_TELEM
+, public AP_ESC_Telem_Backend
+#endif
 {
 public:
     AP_Ilmor();
 
-    /* Do not allow copies */
     CLASS_NO_COPY(AP_Ilmor);
 
     static const struct AP_Param::GroupInfo var_info[];
 
-    void init();
+    static AP_Ilmor *get_ilmor(uint8_t driver_index);
+
+    void init(uint8_t driver_index, bool enable_filters) override;
+
+    // called from SRV_Channels
     void update();
+
+    
     bool healthy() const;
 
-    static AP_Ilmor *get_singleton() { return _singleton; }
-
-    // run pre-arm check.  returns false on failure and fills in failure_msg
-    // any failure_msg returned will not include a prefix
-    bool pre_arm_checks(char *failure_msg, uint8_t failure_msg_len);
-
-    // Method to get the values of params
-    int16_t get_min_rpm() const { return _min_rpm.get(); }
-    int16_t get_max_rpm() const { return _max_rpm.get(); }
-    int16_t get_trim_fn() const { return _trim_fn.get(); }
-    int8_t get_max_run_trim() const { return _max_run_trim.get(); }
-    int8_t get_can_port() const { return _can_port.get(); }
+    bool pre_arm_check(char *failure_msg, uint8_t failure_msg_len);
 
 private:
 
@@ -94,10 +91,6 @@ private:
         WifiOn,
     } _fw_server_state;
 
-    static AP_Ilmor *_singleton;
-
-    AP_J1939_CAN* j1939;
-
     // Parameters
     AP_Int16 _min_rpm;
     AP_Int16 _max_rpm;
@@ -134,6 +127,8 @@ private:
         int16_t motor_rpm;
         TrimCmd motor_trim;
     } _output;
+
+    char _thread_name[10];
     
     void run_io(void);
     void tick(void);
@@ -165,10 +160,6 @@ private:
     void trim_state_machine();
     void handle_fault(uint32_t spn, uint8_t fmi);
 
-};
-namespace AP
-{
-    AP_Ilmor *ilmor();
 };
 
 #endif // HAL_ILMOR_ENABLED

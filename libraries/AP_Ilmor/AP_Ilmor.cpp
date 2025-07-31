@@ -96,7 +96,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:255
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TRIM_FN", 3, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_gripper),
+    AP_GROUPINFO("TRIM_FN", 3, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_rcin6),
 
     // @Param: RUN_TRIM
     // @DisplayName: Ilmor Motor Run Trim
@@ -105,14 +105,6 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("RUN_TRIM", 4, AP_Ilmor, _max_run_trim, 127),
-
-    // @Param: CAN_PORT
-    // @DisplayName: Ilmor CAN Port
-    // @Description: Ilmor CAN Port, by default this is set to -1 (disabled)
-    // @Values: 0:1
-    // @Increment: 1
-    // @User: Advanced
-    AP_GROUPINFO("CAN_PORT", 5, AP_Ilmor, _can_port, -1),
 
     // @Param: TRIM_STP
     // @DisplayName: Soft-stop Trim position
@@ -145,65 +137,32 @@ AP_Ilmor::AP_Ilmor()
     _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
 
     AP_Param::setup_object_defaults(this, var_info);
-#if CONFIG_HAL_BOARD == HAL_BOARD_SITL
-    if (_singleton != nullptr)
-    {
-        AP_HAL::panic("AP_Ilmor must be singleton");
-    }
-#endif
-    _singleton = this;
+
+    // register_driver(AP_CAN::Protocol::Ilmor);
+
 }
 
-void AP_Ilmor::init()
+AP_Ilmor *AP_Ilmor::get_ilmor(uint8_t driver_index)
 {
-    if (_can_port.get() < 0) {
-        return;
+    if (driver_index >= AP::can().get_num_drivers() ||
+        AP::can().get_driver_type(driver_index) != AP_CAN::Protocol::Ilmor) {
+        return nullptr;
     }
-
-    j1939 = AP_J1939_CAN::get_instance(_can_port.get());
-    if (j1939 == nullptr) {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to get J1939 instance");
-        return;
-    }
-
-    // Register the driver with the J1939 CAN backend for the Ilmor specific CAN IDs
-    if (
-        // !j1939->register_frame_id(ILMOR_UNMANNED_THROTTLE_CONTROL_FRAME_ID, this) ||
-        // !j1939->register_frame_id(ILMOR_R3_STATUS_FRAME_2_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_2_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_1_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_ICU_STATUS_FRAME_7_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID, this) ||
-        !j1939->register_frame_id(ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID, this))
-    {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Failed to register with J1939");
-        // return;
-    }
-
-    // j1939->on_diagnostic_message1_callback = FUNCTOR_BIND_MEMBER(&AP_Ilmor::on_diagnostic_message1, void, const J1939::DiagnosticMessage1&);
-
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Registered with J1939 on CAN%d", _can_port.get());
-
-    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), "ilmor", 1024, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
-
-    _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
+    return static_cast<AP_Ilmor *>(AP::can().get_driver(driver_index));
 }
 
-// run pre-arm check.  returns false on failure and fills in failure_msg
-// any failure_msg returned will not include a prefix
-bool AP_Ilmor::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
+void AP_Ilmor::init(uint8_t driver_index, bool enable_filters)
 {
-    if (_can_port.get() < 0)
-    {
-        // Driver is disabled
-        return true;
-    }
+    CANSensor::init(driver_index, enable_filters);
 
-    if (!healthy())
-    {
+    hal.util->snprintf(_thread_name, sizeof(_thread_name), "ilmor%d_tx", driver_index);
+    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 1024, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
+}
+
+bool AP_Ilmor::pre_arm_check(char *failure_msg, uint8_t failure_msg_len)
+{
+
+    if (!healthy()) {
         strncpy(failure_msg, "not healthy", failure_msg_len);
         return false;
     }
@@ -656,6 +615,8 @@ bool AP_Ilmor::healthy() const
     return true;
 }
 
+#define SEND_TIMEOUT_US 1000
+
 bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
 {
     // Prepare the data
@@ -670,7 +631,8 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
     frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    return j1939->send_message(frame);
+    AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+    return write_frame(can_frame, SEND_TIMEOUT_US);
 }
 
 bool AP_Ilmor::send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg)
@@ -688,7 +650,8 @@ bool AP_Ilmor::send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &ms
     frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    return j1939->send_message(frame);
+    AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+    return write_frame(can_frame, SEND_TIMEOUT_US);
 }
 
 bool AP_Ilmor::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg)
@@ -706,7 +669,8 @@ bool AP_Ilmor::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &ms
     frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
     memcpy(frame.data, data, sizeof(data));
 
-    return j1939->send_message(frame);
+    AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+    return write_frame(can_frame, SEND_TIMEOUT_US);
 }
 
 void AP_Ilmor::handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
@@ -835,15 +799,5 @@ void AP_Ilmor::handle_inverter_status_frame_5(const struct ilmor_inverter_status
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 }
 
-// singleton instance
-AP_Ilmor *AP_Ilmor::_singleton;
-
-namespace AP
-{
-    AP_Ilmor *ilmor()
-    {
-        return AP_Ilmor::get_singleton();
-    }
-};
 
 #endif // HAL_ILMOR_ENABLED
