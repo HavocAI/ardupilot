@@ -10,8 +10,10 @@
 #include <vector>
 
 
-// Diagnostic Message 1 PGN
-#define J1939_PGN_DM1 0xFECA
+#define J1939_PGN_TP_DT 0xEB00  // Transport Protocol Data Transfer
+#define J1939_PGN_TP_CM 0xEC00  // Transport Protocol Connection Management
+#define J1939_PGN_DM1 0xFECA    // Diagnostic Message 1 PGN
+
 
 namespace J1939 {
 
@@ -28,6 +30,7 @@ namespace J1939 {
         TransportProtocolConnectionManagement,
         TransportProtocolDataTransfer,
         DiagnosticMessage1,
+        ProprietaryB,
         Other,
     };
 
@@ -142,6 +145,9 @@ namespace J1939 {
                 uint8_t fmi() const;
                 uint8_t oc() const;
                 bool cm() const;
+
+                void set_fmi(uint8_t fmi);
+                void set_oc(uint8_t oc);
 
             private:
                 uint8_t data[4];

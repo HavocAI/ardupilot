@@ -69,15 +69,15 @@ namespace J1939
     PGNType PGN::type() const
     {
         switch (pgn) {
-            case 0xEC00: // Transport Protocol Connection Management
+            case J1939_PGN_TP_CM:
                 return PGNType::TransportProtocolConnectionManagement;
-            case 0xEB00: // Transport Protocol Data Transfer
+            case J1939_PGN_TP_DT:
                 return PGNType::TransportProtocolDataTransfer;
-            case 0xFECA: // Diagnostic Message 1
+            case J1939_PGN_DM1:
                 return PGNType::DiagnosticMessage1;
             default:
                 if (65280 <= pgn && pgn <= 65535) {
-                    return PGNType::Other;
+                    return PGNType::ProprietaryB;
                 } else {
                     return PGNType::Other;
                 }
@@ -240,9 +240,19 @@ namespace J1939
         return data[2] & 0x1F; // FMI is in the lower 5 bits of byte 2
     }
 
+    void DiagnosticMessage1::DTC::set_fmi(uint8_t fmi)
+    {
+        data[2] = (data[2] & 0xE0) | (fmi & 0x1F);
+    }
+
     uint8_t DiagnosticMessage1::DTC::oc() const
     {
         return data[3] & 0x7F; // Occurrence Count is in the lower 7 bits of byte 3
+    }
+
+    void DiagnosticMessage1::DTC::set_oc(uint8_t oc)
+    {
+        data[3] = (data[3] & 0x80) | (oc & 0x7F);
     }
 
     bool DiagnosticMessage1::DTC::cm() const

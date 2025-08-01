@@ -30,6 +30,8 @@
 #include <AP_ESC_Telem/AP_ESC_Telem_Backend.h>
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 
+#define AP_ILMOR_MAX_FAULTS 4 // Maximum number of active faults we can track
+
 class AP_Ilmor : public CANSensor
 #if HAL_WITH_ESC_TELEM
 , public AP_ESC_Telem_Backend
@@ -106,6 +108,9 @@ private:
     uint32_t _last_com_wait_ms;
     uint32_t _last_trim_wait_ms;
     uint32_t _last_fault_notify_ms;
+    J1939::DiagnosticMessage1::DTC _active_faults[AP_ILMOR_MAX_FAULTS];
+    uint8_t _num_active_faults;
+    uint8_t _num_tp_packets;
 
     struct run_state {
         run_state() :
@@ -162,7 +167,8 @@ private:
     void coms_state_machine();
     void fw_server_state_machine();
 
-    void handle_fault(uint32_t spn, uint8_t fmi);
+    void active_fault(J1939::DiagnosticMessage1::DTC& dtc);
+    void report_faults();
 
 };
 

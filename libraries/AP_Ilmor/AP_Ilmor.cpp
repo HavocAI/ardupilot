@@ -65,6 +65,7 @@ extern const AP_HAL::HAL &hal;
 #define AP_ILMOR_MAX_TRIM 190        // highest setting that AP will be allowed to trim
 
 #define AP_ILMOR_SOURCE_ADDRESS 0xF2
+#define AP_ILMOR_ICU_SOURCE_ADDRESS 0xEF
 
 // J1939 Message priorities
 #define AP_ILMOR_UNMANNED_THROTTLE_CONTROL_PRIORITY 1
@@ -133,6 +134,8 @@ AP_Ilmor::AP_Ilmor()
     _run_state(),
     _output()
 {
+    _num_active_faults = 0;
+    _num_tp_packets = 0;
     _output.motor_rpm = 0;
     _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
 
@@ -323,6 +326,41 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                     if (ilmor_icu_status_frame_2_unpack(&msg, frame.data, frame.dlc) == 0) {
                         handle_icu_status_frame_2(msg);
                     }
+                } break;
+
+                case J1939_PGN_DM1: {
+                    if (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS) {
+                        J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
+                        _active_faults[0] = dtc;
+                        _num_active_faults = 1;
+                        report_faults();
+                    } else {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Received DM1 from unexpected source address %d", id.source_address());
+                    }
+
+                } break;
+
+                case J1939_PGN_TP_CM: {
+                    if (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS) {
+                        J1939::PGN tp_pgn((frame.data[5] << 8) | frame.data[4]);
+                        if (frame.data[0] == 0x20 && tp_pgn.type() == J1939::PGNType::DiagnosticMessage1) {
+                            _num_tp_packets = frame.data[3];
+                        }
+
+                    } else {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Received TP_CM from unexpected source address %d", id.source_address());
+                    }
+
+                } break;
+
+                case J1939_PGN_TP_DT: {
+                    if (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS && _num_tp_packets > 0) {
+                        _num_tp_packets--;
+                        J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
+                        active_fault(dtc);
+                        report_faults();
+                    }
+
                 } break;
 
                 default:
@@ -591,26 +629,29 @@ void AP_Ilmor::update()
 
 }
 
-void AP_Ilmor::handle_fault(uint32_t spn, uint8_t fmi)
+void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
 {
-
-    if (spn > 0) {
-
-        if (AP_HAL::millis() - _last_fault_notify_ms > 1000) {
-            _last_fault_notify_ms = AP_HAL::millis();
-            GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: SPN: %" PRIu32 " FMI: %" PRIu8, spn, fmi);
+    for (int i = 0; i < _num_active_faults; i++) {
+        if (_active_faults[i].spn() == dtc.spn()) {
+            // Fault already exists, update it
+            _active_faults[i].set_fmi(dtc.fmi());
+            _active_faults[i].set_oc(dtc.oc());
+            return;
         }
+    }
 
-        // switch (spn) {
-        //     case 4:
-        //         // high motor temperature
-        //         break;
+    if (_num_active_faults < AP_ILMOR_MAX_FAULTS) {
+        _active_faults[_num_active_faults++] = dtc;
+    }
 
-        //     case 5:
-        //         // high mosfet temperature
-        //         break;
-        // }
-        // _motor_state = MotorState::Error;
+}
+
+void AP_Ilmor::report_faults()
+{
+    // send a GCS_SEND_TEXT for each active fault
+    for (int i = 0; i < _num_active_faults; i++) {
+        const J1939::DiagnosticMessage1::DTC &dtc = _active_faults[i];
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: SPN: %" PRIu32 " FMI: %" PRIu8 " oc: %" PRIu8, dtc.spn(), dtc.fmi(), dtc.oc());
     }
 }
 
