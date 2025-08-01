@@ -215,67 +215,9 @@ void AP_Ilmor::run_io()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
-    const uint32_t now_ms = AP_HAL::millis();
-    switch (_comsState) {
-        case ComsState::Running:
-            if (healthy()) {
-                send_throttle_cmd();
-                send_trim_cmd();
-            } else {
-                _comsState = ComsState::Unhealthy;
-            }
-            break;
-
-        case ComsState::Unhealthy:
-            if (healthy()) {
-                // start a 1 second timer to wait
-                _comsState = ComsState::Waiting;
-                _last_com_wait_ms = AP_HAL::millis();
-            }
-            break;
-        
-        case ComsState::Waiting:
-            if (now_ms - _last_com_wait_ms > 3000) {
-                _comsState = ComsState::Running;
-            }
-            break;
-    }
-
-    switch (_fw_server_state) {
-        case FwServerState::WifiOff:
-            if (_fw_update.get() == 2) {
-                // send request to turn on the firmware update server
-                _fw_server_state = FwServerState::WifiOn;
-
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn on");
-
-                ilmor_r3_status_frame_1_t msg = {
-                    .server_mode = 2,
-                };
-
-                if (!send_r3_status_frame_1(msg)) {
-                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
-                }
-
-            }
-            break;
-        case FwServerState::WifiOn:
-            if (_fw_update.get() != 2) {
-                // send request to turn off firmware update server
-                _fw_server_state = FwServerState::WifiOff;
-
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn off");
-
-                ilmor_r3_status_frame_1_t msg = {
-                    .server_mode = 1,
-                };
-
-                if (!send_r3_status_frame_1(msg)) {
-                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
-                }
-            }
-            break;
-    }
+    trim_state_machine();
+    coms_state_machine();
+    fw_server_state_machine();
 }
 
 /*
@@ -433,7 +375,7 @@ void AP_Ilmor::trim_state_machine()
         {
             if (soft_stop_exceeded()) {
                 _trimState = TrimState::CmdDown;
-                _last_wait_ms = AP_HAL::millis();
+                _last_trim_wait_ms = AP_HAL::millis();
             } else {
                 _trimState = TrimState::Manual;
             }
@@ -451,7 +393,7 @@ void AP_Ilmor::trim_state_machine()
         {
             if (soft_stop_exceeded()) {
                 _trimState = TrimState::CmdDown;
-                _last_wait_ms = AP_HAL::millis();
+                _last_trim_wait_ms = AP_HAL::millis();
             } else if (trim_demand() != TrimCmd::TRIM_CMD_UP) {
                 _trimState = TrimState::CheckSoftStop;
             }
@@ -462,9 +404,9 @@ void AP_Ilmor::trim_state_machine()
         {
             _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
             const uint32_t now = AP_HAL::millis();
-            if (now - _last_wait_ms > 125) {
+            if (now - _last_trim_wait_ms > 125) {
                 _trimState = TrimState::CmdStop;
-                _last_wait_ms = now;
+                _last_trim_wait_ms = now;
             }
 
         } break;
@@ -473,7 +415,7 @@ void AP_Ilmor::trim_state_machine()
         {
             _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
             const uint32_t now = AP_HAL::millis();
-            if (now - _last_wait_ms > 1000) {
+            if (now - _last_trim_wait_ms > 1000) {
                 _trimState = TrimState::CheckRelease;
             }
         }
@@ -483,17 +425,88 @@ void AP_Ilmor::trim_state_machine()
 
 }
 
+void AP_Ilmor::coms_state_machine()
+{
+
+    const uint32_t now_ms = AP_HAL::millis();
+    switch (_comsState) {
+        case ComsState::Running:
+            if (healthy()) {
+                send_throttle_cmd();
+                send_trim_cmd();
+            } else {
+                _comsState = ComsState::Unhealthy;
+            }
+            break;
+
+        case ComsState::Unhealthy:
+            if (healthy()) {
+                // start a 1 second timer to wait
+                _comsState = ComsState::Waiting;
+                _last_com_wait_ms = AP_HAL::millis();
+            }
+            break;
+        
+        case ComsState::Waiting:
+            if (now_ms - _last_com_wait_ms > 3000) {
+                _comsState = ComsState::Running;
+            }
+            break;
+    }
+    
+}
+
+void AP_Ilmor::fw_server_state_machine()
+{
+    switch (_fw_server_state) {
+        case FwServerState::WifiOff:
+            if (_fw_update.get() == 2) {
+                // send request to turn on the firmware update server
+                _fw_server_state = FwServerState::WifiOn;
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn on");
+
+                ilmor_r3_status_frame_1_t msg = {
+                    .server_mode = 2,
+                };
+
+                if (!send_r3_status_frame_1(msg)) {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
+                }
+
+            }
+            break;
+        case FwServerState::WifiOn:
+            if (_fw_update.get() != 2) {
+                // send request to turn off firmware update server
+                _fw_server_state = FwServerState::WifiOff;
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn off");
+
+                ilmor_r3_status_frame_1_t msg = {
+                    .server_mode = 1,
+                };
+
+                if (!send_r3_status_frame_1(msg)) {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
+                }
+            }
+            break;
+    }
+
+}
+
 // update the output from the throttle servo channel
 void AP_Ilmor::update()
 {
     const uint32_t now_ms = AP_HAL::millis();
 
-    // Check if the throttle is armed
-    if (!hal.util->get_soft_armed()) {
-        _output.motor_rpm = 0;
-        _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
-        return;
-    }
+    // // Check if the throttle is armed
+    // if (!hal.util->get_soft_armed()) {
+    //     _output.motor_rpm = 0;
+    //     _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
+    //     return;
+    // }
 
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
     int16_t command_rpm = throttle * _max_rpm.get();
@@ -505,11 +518,11 @@ void AP_Ilmor::update()
             if (command_rpm > min_rpm) {
                 _output.motor_rpm = command_rpm;
                 _motor_state = MotorState::Forward;
-                _last_wait_ms = now_ms;
+                _last_motor_wait_ms = now_ms;
             } else if (command_rpm < -min_rpm) {
                 _output.motor_rpm = command_rpm;
                 _motor_state = MotorState::Reverse;
-                _last_wait_ms = now_ms;
+                _last_motor_wait_ms = now_ms;
             } else {
                 _output.motor_rpm = 0;
             }
@@ -518,7 +531,7 @@ void AP_Ilmor::update()
 
         case MotorState::Stop: {
             _output.motor_rpm = 0;
-            if (now_ms - _last_wait_ms > 3000) {
+            if (now_ms - _last_motor_wait_ms > 3000) {
                 _motor_state = MotorState::Ready;
             }
         } break;
@@ -527,18 +540,17 @@ void AP_Ilmor::update()
             if (command_rpm > min_rpm) {
                 _output.motor_rpm = command_rpm;
 
-                if (now_ms - _last_wait_ms > 5000) {
-                    _last_wait_ms = now_ms;
+                if (now_ms - _last_motor_wait_ms > 5000) {
+                    _last_motor_wait_ms = now_ms;
                     if (abs(_last_rpm) < min_rpm) {
-                        static uint16_t zero_count = 0;
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected: %d", ++zero_count);
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
                         _motor_state = MotorState::Error;
                     }
                 }
 
             } else {
                 _motor_state = MotorState::Stop;
-                _last_wait_ms = now_ms;
+                _last_motor_wait_ms = now_ms;
             }
         
         } break;
@@ -547,25 +559,24 @@ void AP_Ilmor::update()
             if (command_rpm < -min_rpm) {
                 _output.motor_rpm = command_rpm;
 
-                if (now_ms - _last_wait_ms > 5000) {
-                    _last_wait_ms = now_ms;
+                if (now_ms - _last_motor_wait_ms > 5000) {
+                    _last_motor_wait_ms = now_ms;
                     if (abs(_last_rpm) < min_rpm) {
-                        static uint16_t zero_count = 0;
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected: %d", ++zero_count);
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
                         _motor_state = MotorState::Error;
                     }
                 }
 
             } else {
                 _motor_state = MotorState::Stop;
-                _last_wait_ms = now_ms;
+                _last_motor_wait_ms = now_ms;
             }
         
         } break;
 
         case MotorState::Error: {
             _output.motor_rpm = 0;
-            if (now_ms - _last_wait_ms > 10000) {
+            if (now_ms - _last_motor_wait_ms > 10000) {
                 _motor_state = MotorState::Ready;
             }
         } break;
@@ -577,8 +588,6 @@ void AP_Ilmor::update()
     }
 
     _output.motor_rpm = command_rpm;
-
-    trim_state_machine();
 
 }
 
