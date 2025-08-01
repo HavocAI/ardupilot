@@ -59,6 +59,8 @@
 
 extern const AP_HAL::HAL &hal;
 
+#define SEND_TIMEOUT_US 1000
+
 #define AP_ILMOR_DEBUG 0
 #define AP_ILMOR_COMMAND_RATE_HZ 20
 #define AP_ILMOR_TRIM_DEADBAND 10
@@ -122,6 +124,14 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("FW_UP", 7, AP_Ilmor, _fw_update, 0),
+
+    // @Param: CLR_FLT
+    // @DisplayName: Clear Faults Request
+    // @Description: Request to clear faults, 0 = ready, 1 = clear
+    // @Values: 0:1
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("CLR_FLT", 8, AP_Ilmor, _clear_faults_request, 0),
 
     AP_GROUPEND};
 
@@ -221,6 +231,7 @@ void AP_Ilmor::tick()
     trim_state_machine();
     coms_state_machine();
     fw_server_state_machine();
+    clear_faults_state_machine();
 }
 
 /*
@@ -534,6 +545,37 @@ void AP_Ilmor::fw_server_state_machine()
 
 }
 
+void AP_Ilmor::clear_faults_state_machine()
+{
+    switch (_clear_faults_state) {
+        case ClearFaultsState::Ready:
+            if (_clear_faults_request.get() == 1) {
+                // send request to clear faults
+                _clear_faults_state = ClearFaultsState::Cleared;
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting to clear faults");
+
+                // Send a J1939 DM11 message to clear faults
+
+                AP_HAL::CANFrame can_frame;
+                can_frame.id = 0x00FED3F2;
+                can_frame.id |= AP_HAL::CANFrame::FlagEFF;
+                can_frame.dlc = 8; // J1939 frames are always 8 bytes
+                can_frame.canfd = false; // J1939 does not support CAN FD (yet)
+                memset(can_frame.data, 0xff, sizeof(can_frame.data));
+                write_frame(can_frame, SEND_TIMEOUT_US);
+
+            }
+            break;
+
+        case ClearFaultsState::Cleared:
+            if (_clear_faults_request.get() != 1) {
+                _clear_faults_state = ClearFaultsState::Ready;
+            }
+            break;
+    }
+}
+
 // update the output from the throttle servo channel
 void AP_Ilmor::update()
 {
@@ -664,8 +706,6 @@ bool AP_Ilmor::healthy() const
     }
     return true;
 }
-
-#define SEND_TIMEOUT_US 1000
 
 bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
 {

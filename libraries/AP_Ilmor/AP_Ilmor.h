@@ -93,6 +93,11 @@ private:
         WifiOn,
     } _fw_server_state;
 
+    enum class ClearFaultsState {
+        Ready,
+        Cleared,
+    } _clear_faults_state;
+
     // Parameters
     AP_Int16 _min_rpm;
     AP_Int16 _max_rpm;
@@ -101,6 +106,7 @@ private:
     AP_Int8 _can_port;
     AP_Int16 _trim_stop;
     AP_Int8 _fw_update;
+    AP_Int8 _clear_faults_request;
 
     uint8_t _current_trim_position;
     int32_t _last_rpm;
@@ -166,6 +172,7 @@ private:
     void trim_state_machine();
     void coms_state_machine();
     void fw_server_state_machine();
+    void clear_faults_state_machine();
 
     void active_fault(J1939::DiagnosticMessage1::DTC& dtc);
     void report_faults();
