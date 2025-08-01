@@ -232,53 +232,12 @@ void AP_Ilmor::tick()
     coms_state_machine();
     fw_server_state_machine();
     clear_faults_state_machine();
-}
 
-/*
-
-case J1939::PGNType::DiagnosticMessage1:
-            if (on_diagnostic_message1_callback) {
-                J1939::DiagnosticMessage1 dm1(frame);
-                on_diagnostic_message1_callback(dm1);
-            }
-            break;
-        case J1939::PGNType::TransportProtocolConnectionManagement:
-            FALLTHROUGH;
-        case J1939::PGNType::TransportProtocolDataTransfer:
-            if (_broadcast_transport.from_frame(frame)) {
-                if (_broadcast_transport.get_pgn().type() == PGNType::DiagnosticMessage1 && on_diagnostic_message1_callback) {
-                    const int num_dtc = _broadcast_transport.data_len() / 4;
-                    const DiagnosticMessage1::LampStatus lamp_status = DiagnosticMessage1::LampStatus::from_data(_broadcast_transport.data_ptr());
-                    for (int i = 0; i < num_dtc; i++) {
-                        const DiagnosticMessage1::DTC dtc = DiagnosticMessage1::DTC::from_data(_broadcast_transport.data_ptr() + (i * 4) + 2);
-                        on_diagnostic_message1_callback(DiagnosticMessage1(dtc, lamp_status));
-                    }
-                } else {
-                    // Notify the registered callback if transport data is complete
-                    on_transport_callback(_broadcast_transport);
-                }
-            }
-            break;
-
-            
-*/
-
-void AP_Ilmor::on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg)
-{
-    // Handle the diagnostic message
-    if (msg.get_lamp_status().red_stop_lamp()) {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Red stop lamp is ON");
-    }
-    if (msg.get_lamp_status().amber_warning_lamp()) {
-        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: Amber warning lamp is ON");
+    if (AP_HAL::millis() - _last_print_faults_ms >= 1000) {
+        report_faults();
+        _last_print_faults_ms = AP_HAL::millis();
     }
 
-    // Process DTCs
-    const auto &dtc = msg.get_dtc();
-    if (dtc.spn() != 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: DTC SPN %" PRIu32 " FMI %" PRIu8 " OC %" PRIu8, dtc.spn(), dtc.fmi(), dtc.oc());
-    }
-    
 }
 
 // parse inbound frames
@@ -564,6 +523,8 @@ void AP_Ilmor::clear_faults_state_machine()
                 can_frame.canfd = false; // J1939 does not support CAN FD (yet)
                 memset(can_frame.data, 0xff, sizeof(can_frame.data));
                 write_frame(can_frame, SEND_TIMEOUT_US);
+
+                _num_active_faults = 0;
 
             }
             break;

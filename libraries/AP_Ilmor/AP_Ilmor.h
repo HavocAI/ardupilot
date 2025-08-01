@@ -117,6 +117,7 @@ private:
     J1939::DiagnosticMessage1::DTC _active_faults[AP_ILMOR_MAX_FAULTS];
     uint8_t _num_active_faults;
     uint8_t _num_tp_packets;
+    uint32_t _last_print_faults_ms;
 
     struct run_state {
         run_state() :
@@ -149,7 +150,6 @@ private:
 
     // handler for incoming frames
     void handle_frame(AP_HAL::CANFrame &frame) override;
-    void on_diagnostic_message1(const J1939::DiagnosticMessage1 &msg);
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
     bool send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg);
