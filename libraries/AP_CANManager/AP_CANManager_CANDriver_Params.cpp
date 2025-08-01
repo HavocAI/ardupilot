@@ -60,7 +60,7 @@ const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
 #if HAL_ILMOR_ENABLED
     // @Group: ILM_
     // @Path: ../AP_Ilmor/AP_Ilmor.cpp
-    AP_SUBGROUPPTR(_ilmor, "ILM_", 7, AP_CANManager::CANDriver_Params, AP_Ilmor),
+    AP_SUBGROUPPTR(_ilmor, "IL_", 7, AP_CANManager::CANDriver_Params, AP_Ilmor),
 #endif
     
     AP_GROUPEND
