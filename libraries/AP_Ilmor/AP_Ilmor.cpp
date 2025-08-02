@@ -83,7 +83,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: -2000:2000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("MIN_RPM", 1, AP_Ilmor, _min_rpm, 200),
+    AP_GROUPINFO("MN_R", 1, AP_Ilmor, _min_rpm, 200),
 
     // @Param: MAX_RPM
     // @DisplayName: Ilmor Motor Maximum RPM
@@ -91,7 +91,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: -2000:2000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("MAX_RPM", 2, AP_Ilmor, _max_rpm, 2000),
+    AP_GROUPINFO("MX_R", 2, AP_Ilmor, _max_rpm, 2000),
 
     // @Param: TRIM_FN
     // @DisplayName: Ilmor Motor Trim Servo Channel
@@ -99,7 +99,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:255
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TRIM_FN", 3, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_rcin6),
+    AP_GROUPINFO("TR_FN", 3, AP_Ilmor, _trim_fn, (int16_t)SRV_Channel::k_rcin6),
 
     // @Param: RUN_TRIM
     // @DisplayName: Ilmor Motor Run Trim
@@ -107,7 +107,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:127
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("RUN_TRIM", 4, AP_Ilmor, _max_run_trim, 127),
+    AP_GROUPINFO("RN_TM", 4, AP_Ilmor, _max_run_trim, 127),
 
     // @Param: TRIM_STP
     // @DisplayName: Soft-stop Trim position
@@ -115,7 +115,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:65000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TRIM_STP", 6, AP_Ilmor, _trim_stop, 135),
+    AP_GROUPINFO("TM_ST", 6, AP_Ilmor, _trim_stop, 135),
 
     // @Param: FW_UP
     // @DisplayName: Ilmor Firmware Update Server
@@ -131,7 +131,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:1
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("CLR_FLT", 8, AP_Ilmor, _clear_faults_request, 0),
+    AP_GROUPINFO("CLR_F", 8, AP_Ilmor, _clear_faults_request, 0),
 
     AP_GROUPEND};
 
