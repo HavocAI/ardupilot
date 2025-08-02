@@ -147,7 +147,7 @@ AP_Ilmor::AP_Ilmor()
     _num_active_faults = 0;
     _num_tp_packets = 0;
     _output.motor_rpm = 0;
-    _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
+    _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
 
     AP_Param::setup_object_defaults(this, var_info);
 
@@ -244,6 +244,8 @@ void AP_Ilmor::tick()
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
 
+    bool is_from_icu = false;
+
     switch (frame.id) {
         case ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID: {
             struct ilmor_inverter_status_frame_1_t msg;
@@ -283,6 +285,8 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             const J1939::Id id(frame.id);
             const uint32_t pgn = id.pgn_raw();
 
+            is_from_icu = (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS);
+
             switch (pgn) {
                 case 0xff01: {
                     struct ilmor_icu_status_frame_1_t msg;
@@ -299,7 +303,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                 } break;
 
                 case J1939_PGN_DM1: {
-                    if (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS) {
+                    if (is_from_icu) {
                         J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                         _active_faults[0] = dtc;
                         _num_active_faults = 1;
@@ -311,7 +315,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                 } break;
 
                 case J1939_PGN_TP_CM: {
-                    if (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS) {
+                    if (is_from_icu) {
                         J1939::PGN tp_pgn((frame.data[5] << 8) | frame.data[4]);
                         if (frame.data[0] == 0x20 && tp_pgn.type() == J1939::PGNType::DiagnosticMessage1) {
                             _num_tp_packets = frame.data[3];
@@ -324,7 +328,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                 } break;
 
                 case J1939_PGN_TP_DT: {
-                    if (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS && _num_tp_packets > 0) {
+                    if (is_from_icu && _num_tp_packets > 0) {
                         _num_tp_packets--;
                         J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                         active_fault(dtc);
@@ -340,8 +344,11 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
         } break;
     }
 
-    // Update the last new message time
-    _run_state.last_received_msg_ms = AP_HAL::millis();
+    if (is_from_icu) {
+        // If the message is from the ICU, we update the last received message time
+        _run_state.last_received_msg_ms = AP_HAL::millis();
+    }
+
 }
 
 bool AP_Ilmor::soft_stop_exceeded()
@@ -370,6 +377,12 @@ AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
 
 void AP_Ilmor::trim_state_machine()
 {
+
+    if (!hal.util->get_soft_armed()) {
+        _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
+        return;
+    }
+
     switch (_trimState) {
         case TrimState::Start:
             if (_trim_fn.get() > 0) {
@@ -542,26 +555,29 @@ void AP_Ilmor::update()
 {
     const uint32_t now_ms = AP_HAL::millis();
 
-    // // Check if the throttle is armed
-    // if (!hal.util->get_soft_armed()) {
-    //     _output.motor_rpm = 0;
-    //     _output.motor_trim = AP_Ilmor::TRIM_CMD_BUTTONS;
-    //     return;
-    // }
+    // Check if the throttle is armed
+    if (!hal.util->get_soft_armed()) {
+        _output.motor_rpm = 0;
+        return;
+    }
+
+    if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
+        // If the trim position is above the maximum run trim, we need to stop the motor
+        _output.motor_rpm = 0;
+        return;
+    }
 
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    int16_t command_rpm = throttle * _max_rpm.get();
+    const int16_t command_rpm = throttle * _max_rpm.get();
     const int16_t min_rpm = abs(_min_rpm.get());
 
     switch (_motor_state) {
 
         case MotorState::Ready: {
             if (command_rpm > min_rpm) {
-                _output.motor_rpm = command_rpm;
                 _motor_state = MotorState::Forward;
                 _last_motor_wait_ms = now_ms;
             } else if (command_rpm < -min_rpm) {
-                _output.motor_rpm = command_rpm;
                 _motor_state = MotorState::Reverse;
                 _last_motor_wait_ms = now_ms;
             } else {
@@ -622,13 +638,6 @@ void AP_Ilmor::update()
             }
         } break;
     }
-
-    if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
-        // If the trim position is above the maximum run trim, we need to stop the motor
-        command_rpm = 0;
-    }
-
-    _output.motor_rpm = command_rpm;
 
 }
 
