@@ -286,6 +286,10 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             const uint32_t pgn = id.pgn_raw();
 
             is_from_icu = (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS);
+            if (!is_from_icu) {
+                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: pgn: %" PRIu32 " from unexpected sa: %" PRIu8, pgn, id.source_address());
+                break;
+            }
 
             switch (pgn) {
                 case 0xff01: {
@@ -303,37 +307,26 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                 } break;
 
                 case J1939_PGN_DM1: {
-                    if (is_from_icu) {
-                        J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
-                        _active_faults[0] = dtc;
-                        _num_active_faults = 1;
-                        report_faults();
-                    } else {
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Received DM1 from unexpected source address %d", id.source_address());
-                    }
+                    J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
+                    _active_faults[0] = dtc;
+                    _num_active_faults = 1;
+                    report_faults();
 
                 } break;
 
                 case J1939_PGN_TP_CM: {
-                    if (is_from_icu) {
-                        J1939::PGN tp_pgn((frame.data[5] << 8) | frame.data[4]);
-                        if (frame.data[0] == 0x20 && tp_pgn.type() == J1939::PGNType::DiagnosticMessage1) {
-                            _num_tp_packets = frame.data[3];
-                        }
-
-                    } else {
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Received TP_CM from unexpected source address %d", id.source_address());
+                    const J1939::PGN tp_pgn((frame.data[5] << 8) | frame.data[4]);
+                    if (frame.data[0] == 0x20 && tp_pgn.type() == J1939::PGNType::DiagnosticMessage1) {
+                        _num_tp_packets = frame.data[3];
                     }
 
                 } break;
 
                 case J1939_PGN_TP_DT: {
-                    if (is_from_icu && _num_tp_packets > 0) {
-                        _num_tp_packets--;
-                        J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
-                        active_fault(dtc);
-                        report_faults();
-                    }
+                    _num_tp_packets--;
+                    J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
+                    active_fault(dtc);
+                    report_faults();
 
                 } break;
 
@@ -643,9 +636,9 @@ void AP_Ilmor::update()
 
 void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
 {
+    // check if the fault is already active and update it if so
     for (int i = 0; i < _num_active_faults; i++) {
         if (_active_faults[i].spn() == dtc.spn()) {
-            // Fault already exists, update it
             _active_faults[i].set_fmi(dtc.fmi());
             _active_faults[i].set_oc(dtc.oc());
             return;
@@ -697,13 +690,9 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
 
 bool AP_Ilmor::send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg)
 {
-    // Prepare the data
-    // Trim demand values: 0 = stop, 1 = up, 2 = down, 255 = trim control is given to the physical buttons
     uint8_t data[ILMOR_R3_STATUS_FRAME_1_LENGTH];
     ilmor_r3_status_frame_1_pack(data, &msg, sizeof(data));
 
-    // Even though the frame ID contains the priority and source address,
-    // we set them explicitly here for clarity
     J1939::J1939Frame frame;
     frame.priority = AP_ILMOR_R3_STATUS_FRAME_1_PRIORITY;
     frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_1_FRAME_ID);
@@ -716,13 +705,9 @@ bool AP_Ilmor::send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &ms
 
 bool AP_Ilmor::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg)
 {
-    // Prepare the data
-    // Trim demand values: 0 = stop, 1 = up, 2 = down, 255 = trim control is given to the physical buttons
     uint8_t data[ILMOR_R3_STATUS_FRAME_2_LENGTH];
     ilmor_r3_status_frame_2_pack(data, &msg, sizeof(data));
 
-    // Even though the frame ID contains the priority and source address,
-    // we set them explicitly here for clarity
     J1939::J1939Frame frame;
     frame.priority = AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY;
     frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_2_FRAME_ID);
