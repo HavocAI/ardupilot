@@ -114,7 +114,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:127
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("RN_TM", 4, AP_Ilmor, _max_run_trim, 127),
+    AP_GROUPINFO("RN_TM", 4, AP_Ilmor, _max_run_trim, 90),
 
     // @Param: TRIM_STP
     // @DisplayName: Soft-stop Trim position
@@ -122,7 +122,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Values: 0:65000
     // @Increment: 1
     // @User: Advanced
-    AP_GROUPINFO("TM_ST", 6, AP_Ilmor, _trim_stop, 135),
+    AP_GROUPINFO("TM_ST", 6, AP_Ilmor, _trim_stop, 100),
 
     // @Param: FW_UP
     // @DisplayName: Ilmor Firmware Update Server
