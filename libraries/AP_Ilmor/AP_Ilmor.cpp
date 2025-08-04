@@ -302,7 +302,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 
             is_from_icu = (id.source_address() == AP_ILMOR_ICU_SOURCE_ADDRESS);
             if (!is_from_icu) {
-                GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: pgn: %" PRIu32 " from unexpected sa: %" PRIu8, pgn, id.source_address());
+                // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: pgn: %" PRIu32 " from unexpected sa: %" PRIu8, pgn, id.source_address());
                 break;
             }
 
