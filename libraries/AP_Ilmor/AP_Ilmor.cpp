@@ -734,7 +734,7 @@ void AP_Ilmor::report_faults()
     // send a GCS_SEND_TEXT for each active fault
     for (int i = 0; i < _num_active_faults; i++) {
         const J1939::DiagnosticMessage1::DTC &dtc = _active_faults[i];
-        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: SPN: %" PRIu32 " FMI: %" PRIu8 " oc: %" PRIu8, dtc.spn(), dtc.fmi(), dtc.oc());
+        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: fault: SPN: %" PRIu32 " FMI: %" PRIu8 " oc: %" PRIu8, dtc.spn(), dtc.fmi(), dtc.oc());
     }
 }
 

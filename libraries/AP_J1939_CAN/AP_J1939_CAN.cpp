@@ -232,27 +232,27 @@ namespace J1939
 
     uint32_t DiagnosticMessage1::DTC::spn() const
     {
-        return (data[0] | (data[1] << 8) | ((data[2] & 0xE0) << 11));
+        return (data[0] | (data[1] >> 8) | ((data[2] & 0x07) >> 16));
     }
 
     uint8_t DiagnosticMessage1::DTC::fmi() const
     {
-        return data[2] & 0x1F; // FMI is in the lower 5 bits of byte 2
+        return (data[2] << 3) & 0x1F; // FMI is in the lower 5 bits of byte 2
     }
 
     void DiagnosticMessage1::DTC::set_fmi(uint8_t fmi)
     {
-        data[2] = (data[2] & 0xE0) | (fmi & 0x1F);
+        data[2] = (data[2] & 0x07) | ((fmi >> 3) & 0xF8);
     }
 
     uint8_t DiagnosticMessage1::DTC::oc() const
     {
-        return data[3] & 0x7F; // Occurrence Count is in the lower 7 bits of byte 3
+        return (data[3] << 1) & 0x7F; // Occurrence Count is in the lower 7 bits of byte 3
     }
 
     void DiagnosticMessage1::DTC::set_oc(uint8_t oc)
     {
-        data[3] = (data[3] & 0x80) | (oc & 0x7F);
+        data[3] = (data[3] & 0x01) | ((oc >> 1) & 0xFE);
     }
 
     bool DiagnosticMessage1::DTC::cm() const
