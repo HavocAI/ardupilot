@@ -211,7 +211,7 @@ void AP_Ilmor::send_throttle_cmd()
 
 void AP_Ilmor::send_trim_cmd()
 {
-    if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
+    if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / 10) {
 
         ilmor_r3_status_frame_2_t r3_status_frame_2_msg = {
             .led_hue = _led_hue,
@@ -241,8 +241,7 @@ void AP_Ilmor::run_io()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
-    trim_state_machine();
-    send_trim_cmd();
+    
     
     coms_state_machine();
     fw_server_state_machine();
@@ -261,7 +260,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 
     bool is_from_icu = false;
 
-    switch (frame.id) {
+    switch ((frame.id & AP_HAL::CANFrame::MaskExtID)) {
         case ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID: {
             struct ilmor_inverter_status_frame_1_t msg;
             ilmor_inverter_status_frame_1_unpack(&msg, frame.data, frame.dlc);
@@ -346,16 +345,20 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                 case J1939_PGN_TP_CM: {
                     const J1939::PGN tp_pgn((frame.data[5] << 8) | frame.data[4]);
                     if (frame.data[0] == 0x20 && tp_pgn.type() == J1939::PGNType::DiagnosticMessage1) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X", 
+                                      frame.data[0], frame.data[1], frame.data[2], frame.data[3],
+                                      frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
                         _num_tp_packets = frame.data[3];
                     }
 
                 } break;
 
                 case J1939_PGN_TP_DT: {
-                    _num_tp_packets--;
-                    J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
-                    active_fault(dtc);
-                    // report_faults();
+                    if (_num_tp_packets > 0) {
+                        J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
+                        active_fault(dtc);
+                        _num_tp_packets--;
+                    }
 
                 } break;
 
@@ -482,8 +485,18 @@ void AP_Ilmor::coms_state_machine()
     switch (_comsState) {
         case ComsState::Running:
             if (healthy()) {
+
                 motor_state_machine();
                 send_throttle_cmd();
+
+                trim_state_machine();
+                send_trim_cmd();
+
+                if (now_ms - _last_send_frame1_ms > 1000) {
+                    send_r3_status_frame_1();
+                    _last_send_frame1_ms = now_ms;
+                }
+                            
                 
             } else {
                 _comsState = ComsState::Unhealthy;
@@ -525,14 +538,7 @@ void AP_Ilmor::fw_server_state_machine()
 
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn on");
 
-                ilmor_r3_status_frame_1_t msg = {
-                    .server_mode = 2,
-                };
-
-                if (!send_r3_status_frame_1(msg)) {
-                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
-                }
-
+                _server_mode = 2;
                 // set hue to purple
                 _led_hue = 200;
                 _led_mode = LEDMode::Sweeping;
@@ -546,14 +552,7 @@ void AP_Ilmor::fw_server_state_machine()
 
                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn off");
 
-                ilmor_r3_status_frame_1_t msg = {
-                    .server_mode = 1,
-                };
-
-                if (!send_r3_status_frame_1(msg)) {
-                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
-                }
-
+                _server_mode = 1;
                 _led_hue = 0;
                 _led_mode = LEDMode::Off;
             }
@@ -583,6 +582,7 @@ void AP_Ilmor::clear_faults_state_machine()
                 write_frame(can_frame, SEND_TIMEOUT_US);
 
                 _num_active_faults = 0;
+                _num_tp_packets = 0;
 
             }
             break;
@@ -656,12 +656,15 @@ void AP_Ilmor::motor_state_machine()
             if (_rpm_demand > min_rpm) {
                 _output.motor_rpm = _rpm_demand;
 
+                _led_hue = 85;
+                _led_mode = LEDMode::Solid;
+
                 if (now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
-                    if (abs(_last_rpm) < min_rpm) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
-                        _motor_state = MotorState::Error;
-                    }
+                    // if (abs(_last_rpm) < min_rpm) {
+                    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
+                    //     _motor_state = MotorState::Error;
+                    // }
                 }
 
             } else {
@@ -675,12 +678,16 @@ void AP_Ilmor::motor_state_machine()
             if (_rpm_demand < -min_rpm) {
                 _output.motor_rpm = _rpm_demand;
 
+                // set led to solid yellow
+                _led_hue = 40;
+                _led_mode = LEDMode::Solid;
+
                 if (now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
-                    if (abs(_last_rpm) < min_rpm) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
-                        _motor_state = MotorState::Error;
-                    }
+                    // if (abs(_last_rpm) < min_rpm) {
+                    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
+                    //     _motor_state = MotorState::Error;
+                    // }
                 }
 
             } else {
@@ -766,8 +773,17 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
     return write_frame(can_frame, SEND_TIMEOUT_US);
 }
 
-bool AP_Ilmor::send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg)
+bool AP_Ilmor::send_r3_status_frame_1()
 {
+
+    const struct ilmor_r3_status_frame_1_t msg = {
+        .system_state = 1,
+        .throttle_lockout = 0,
+        .safe_start = 1,
+        .server_mode = _server_mode,
+    };
+
+
     uint8_t data[ILMOR_R3_STATUS_FRAME_1_LENGTH];
     ilmor_r3_status_frame_1_pack(data, &msg, sizeof(data));
 

@@ -144,13 +144,15 @@ private:
     IlmorFwVersion _ilmor_fw_version;
     uint8_t _led_hue;
     int16_t _rpm_demand;
+    uint8_t _server_mode;
+    uint32_t _last_send_frame1_ms;
 
     struct run_state {
         run_state() :
             last_send_throttle_ms(0),
             last_send_trim_ms(0),
             last_received_msg_ms(0),
-            last_trim_cmd(TRIM_CMD_BUTTONS) {}
+            last_trim_cmd(TRIM_CMD_STOP) {}
 
         uint32_t last_send_throttle_ms;
         uint32_t last_send_trim_ms;
@@ -178,7 +180,7 @@ private:
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
-    bool send_r3_status_frame_1(const struct ilmor_r3_status_frame_1_t &msg);
+    bool send_r3_status_frame_1();
     bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
 
     void handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
