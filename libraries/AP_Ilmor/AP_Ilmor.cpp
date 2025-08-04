@@ -248,7 +248,7 @@ void AP_Ilmor::tick()
     fw_server_state_machine();
     clear_faults_state_machine();
 
-    if (AP_HAL::millis() - _last_print_faults_ms >= 1000) {
+    if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
         report_faults();
         _last_print_faults_ms = AP_HAL::millis();
     }
@@ -339,7 +339,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                     J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                     _active_faults[0] = dtc;
                     _num_active_faults = 1;
-                    report_faults();
+                    // report_faults();
 
                 } break;
 
@@ -355,7 +355,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                     _num_tp_packets--;
                     J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                     active_fault(dtc);
-                    report_faults();
+                    // report_faults();
 
                 } break;
 
