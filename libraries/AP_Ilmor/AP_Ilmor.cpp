@@ -74,6 +74,13 @@ extern const AP_HAL::HAL &hal;
 #define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
 #define AP_ILMOR_R3_STATUS_FRAME_1_PRIORITY 3
 
+void IlmorFwVersion::print() const
+{
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor Firmware Version: %d.%d.%d-%d.%d\n",
+                                major, minor, patch, dev_stage, dev_stage_rev);
+
+}
+
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
@@ -137,6 +144,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
 AP_Ilmor::AP_Ilmor()
     : CANSensor("Ilmor"),
+    _led_mode(LEDMode::Off),
     _trimState(TrimState::Start),
     _motor_state(MotorState::Ready),
     _comsState(ComsState::Unhealthy),
@@ -206,6 +214,11 @@ void AP_Ilmor::send_trim_cmd()
     if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
 
         ilmor_r3_status_frame_2_t r3_status_frame_2_msg = {
+            .led_hue = _led_hue,
+            .led_saturation = _led_hue == 255 ? static_cast<uint8_t>(0U) : static_cast<uint8_t>(255U), // special handling for 255 (white), otherwise full saturation
+            .led_value = 255, // full brightness
+            .led_rainbow_mode = 1,
+            .led_pattern = static_cast<uint8_t>(_led_mode),
             .trim_demand_request_from_r3 = static_cast<uint8_t>(_output.motor_trim),
         };
 
@@ -229,6 +242,8 @@ void AP_Ilmor::run_io()
 void AP_Ilmor::tick()
 {
     trim_state_machine();
+    send_trim_cmd();
+    
     coms_state_machine();
     fw_server_state_machine();
     clear_faults_state_machine();
@@ -306,6 +321,20 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                     }
                 } break;
 
+                case 0xff04: {
+                    struct ilmor_icu_status_frame_4_t msg;
+                    if (ilmor_icu_status_frame_4_unpack(&msg, frame.data, frame.dlc) == 0) {
+                        _ilmor_fw_version.dev_stage = msg.software_version_dev_stage;
+                    }
+                } break;
+
+                case 0xff06: {
+                    struct ilmor_icu_status_frame_6_t msg;
+                    if (ilmor_icu_status_frame_6_unpack(&msg, frame.data, frame.dlc) == 0) {
+                        _ilmor_fw_version.dev_stage_rev = msg.software_ver_dev_stage_rev;
+                    }
+                } break;
+
                 case J1939_PGN_DM1: {
                     J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                     _active_faults[0] = dtc;
@@ -371,9 +400,8 @@ AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
 void AP_Ilmor::trim_state_machine()
 {
 
-    if (!hal.util->get_soft_armed()) {
-        _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
-        return;
+    if (SRV_Channels::get_emergency_stop()) {
+        _trimState = TrimState::EStop;
     }
 
     switch (_trimState) {
@@ -432,10 +460,18 @@ void AP_Ilmor::trim_state_machine()
             if (now - _last_trim_wait_ms > 1000) {
                 _trimState = TrimState::CheckRelease;
             }
-        }
+        } break;
+
+        case TrimState::EStop:
+        {
+            _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
+            if (!SRV_Channels::get_emergency_stop()) {
+                // If the emergency stop is released, we go back to the start state
+                _trimState = TrimState::Start;
+                _last_trim_wait_ms = AP_HAL::millis();
+            }
+        } break;
     }
-
-
 
 }
 
@@ -446,10 +482,12 @@ void AP_Ilmor::coms_state_machine()
     switch (_comsState) {
         case ComsState::Running:
             if (healthy()) {
+                motor_state_machine();
                 send_throttle_cmd();
-                send_trim_cmd();
+                
             } else {
                 _comsState = ComsState::Unhealthy;
+                _led_mode = LEDMode::Off;
             }
             break;
 
@@ -458,12 +496,19 @@ void AP_Ilmor::coms_state_machine()
                 // start a 1 second timer to wait
                 _comsState = ComsState::Waiting;
                 _last_com_wait_ms = AP_HAL::millis();
+
+                // set the LED to flashing green
+                _led_hue = 85;
+                _led_mode = LEDMode::Flashing;
             }
             break;
         
         case ComsState::Waiting:
             if (now_ms - _last_com_wait_ms > 3000) {
                 _comsState = ComsState::Running;
+                _ilmor_fw_version.print();
+
+                
             }
             break;
     }
@@ -488,6 +533,10 @@ void AP_Ilmor::fw_server_state_machine()
                     // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
                 }
 
+                // set hue to purple
+                _led_hue = 200;
+                _led_mode = LEDMode::Sweeping;
+
             }
             break;
         case FwServerState::WifiOn:
@@ -504,6 +553,9 @@ void AP_Ilmor::fw_server_state_machine()
                 if (!send_r3_status_frame_1(msg)) {
                     // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send trim control message");
                 }
+
+                _led_hue = 0;
+                _led_mode = LEDMode::Off;
             }
             break;
     }
@@ -543,34 +595,43 @@ void AP_Ilmor::clear_faults_state_machine()
     }
 }
 
-// update the output from the throttle servo channel
-void AP_Ilmor::update()
+void AP_Ilmor::motor_state_machine()
 {
+
     const uint32_t now_ms = AP_HAL::millis();
 
-    // Check if the throttle is armed
-    if (!hal.util->get_soft_armed()) {
-        _output.motor_rpm = 0;
-        return;
-    }
-
-    if (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) {
+    if (!hal.util->get_soft_armed() || (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get())) {
         // If the trim position is above the maximum run trim, we need to stop the motor
         _output.motor_rpm = 0;
+
+        // set LED to solid orange
+        _led_hue = 18;
+        _led_mode = LEDMode::Solid;
         return;
     }
 
-    const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    const int16_t command_rpm = throttle * _max_rpm.get();
+    if (SRV_Channels::get_emergency_stop()) {
+        _output.motor_rpm = 0;
+
+        // set to solid red
+        _led_hue = 0;
+        _led_mode = LEDMode::Solid;
+        return;
+    }
+
+    // set the LED to solid white
+    _led_hue = 255;
+    _led_mode = LEDMode::Solid;
+
     const int16_t min_rpm = abs(_min_rpm.get());
 
     switch (_motor_state) {
 
         case MotorState::Ready: {
-            if (command_rpm > min_rpm) {
+            if (_rpm_demand > min_rpm) {
                 _motor_state = MotorState::Forward;
                 _last_motor_wait_ms = now_ms;
-            } else if (command_rpm < -min_rpm) {
+            } else if (_rpm_demand < -min_rpm) {
                 _motor_state = MotorState::Reverse;
                 _last_motor_wait_ms = now_ms;
             } else {
@@ -581,14 +642,19 @@ void AP_Ilmor::update()
 
         case MotorState::Stop: {
             _output.motor_rpm = 0;
+
+            // set to flashing white
+            _led_hue = 255;
+            _led_mode = LEDMode::Flashing;
+
             if (now_ms - _last_motor_wait_ms > 3000) {
                 _motor_state = MotorState::Ready;
             }
         } break;
 
         case MotorState::Forward: {
-            if (command_rpm > min_rpm) {
-                _output.motor_rpm = command_rpm;
+            if (_rpm_demand > min_rpm) {
+                _output.motor_rpm = _rpm_demand;
 
                 if (now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
@@ -606,8 +672,8 @@ void AP_Ilmor::update()
         } break;
 
         case MotorState::Reverse: {
-            if (command_rpm < -min_rpm) {
-                _output.motor_rpm = command_rpm;
+            if (_rpm_demand < -min_rpm) {
+                _output.motor_rpm = _rpm_demand;
 
                 if (now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
@@ -626,12 +692,24 @@ void AP_Ilmor::update()
 
         case MotorState::Error: {
             _output.motor_rpm = 0;
+
+            // set led to flashing blue
+            _led_hue = 155;
+            _led_mode = LEDMode::Flashing;
+
             if (now_ms - _last_motor_wait_ms > 10000) {
                 _motor_state = MotorState::Ready;
             }
         } break;
     }
 
+}
+
+// update the output from the throttle servo channel
+void AP_Ilmor::update()
+{
+    const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
+    _rpm_demand = throttle * _max_rpm.get();
 }
 
 void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
@@ -740,6 +818,10 @@ void AP_Ilmor::handle_icu_status_frame_1(const struct ilmor_icu_status_frame_1_t
 
 void AP_Ilmor::handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t &msg)
 {
+    _ilmor_fw_version.major = msg.software_version_major;
+    _ilmor_fw_version.minor = msg.software_version_minor;
+    _ilmor_fw_version.patch = msg.software_version_patch;
+
     static uint16_t counter = 0;
     if (counter++ % 100 == 0) {
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: t: %" PRIi32 " s:%d v%d.%d.%d", msg.throttle_demand, msg.shift_position,

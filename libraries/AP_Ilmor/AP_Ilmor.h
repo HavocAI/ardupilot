@@ -32,6 +32,19 @@
 
 #define AP_ILMOR_MAX_FAULTS 4 // Maximum number of active faults we can track
 
+
+class IlmorFwVersion {
+    public:
+        IlmorFwVersion() : major(0), minor(0), patch(0), dev_stage(0), dev_stage_rev(0) {}
+
+        void print() const;
+
+        uint8_t major;  // Major version
+        uint8_t minor;  // Minor version
+        uint8_t patch;  // Patch version
+        uint8_t dev_stage;
+        uint8_t dev_stage_rev;
+};
 class AP_Ilmor : public CANSensor
 #if HAL_WITH_ESC_TELEM
 , public AP_ESC_Telem_Backend
@@ -58,6 +71,15 @@ public:
 
 private:
 
+    enum class LEDMode : uint8_t {
+        Off = 1,
+        Solid = 3,
+        Flashing = 4,
+        Sweeping = 5,
+        Random = 6,
+        Fireworks = 7,
+    } _led_mode;
+
     enum TrimCmd : uint8_t {
         TRIM_CMD_STOP = 0,
         TRIM_CMD_UP = 1,
@@ -72,6 +94,7 @@ private:
         CheckRelease,
         CmdDown,
         CmdStop,
+        EStop,
     } _trimState;
 
     enum class MotorState {
@@ -118,6 +141,9 @@ private:
     uint8_t _num_active_faults;
     uint8_t _num_tp_packets;
     uint32_t _last_print_faults_ms;
+    IlmorFwVersion _ilmor_fw_version;
+    uint8_t _led_hue;
+    int16_t _rpm_demand;
 
     struct run_state {
         run_state() :
@@ -171,6 +197,7 @@ private:
 
     void trim_state_machine();
     void coms_state_machine();
+    void motor_state_machine();
     void fw_server_state_machine();
     void clear_faults_state_machine();
 
