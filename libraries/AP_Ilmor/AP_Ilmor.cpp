@@ -156,6 +156,7 @@ AP_Ilmor::AP_Ilmor()
     _num_tp_packets = 0;
     _output.motor_rpm = 0;
     _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
+    _last_trim_wait_ms = 0;
 
     AP_Param::setup_object_defaults(this, var_info);
 
@@ -661,10 +662,10 @@ void AP_Ilmor::motor_state_machine()
 
                 if (now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
-                    // if (abs(_last_rpm) < min_rpm) {
-                    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
-                    //     _motor_state = MotorState::Error;
-                    // }
+                    if (abs(_last_rpm) < min_rpm) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
+                        _motor_state = MotorState::Error;
+                    }
                 }
 
             } else {
@@ -684,10 +685,10 @@ void AP_Ilmor::motor_state_machine()
 
                 if (now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
-                    // if (abs(_last_rpm) < min_rpm) {
-                    //     GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
-                    //     _motor_state = MotorState::Error;
-                    // }
+                    if (abs(_last_rpm) < min_rpm) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
+                        _motor_state = MotorState::Error;
+                    }
                 }
 
             } else {
