@@ -260,8 +260,9 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
 
     bool is_from_icu = false;
+    const uint32_t frame_id = frame.id & AP_HAL::CANFrame::MaskExtID;
 
-    switch ((frame.id & AP_HAL::CANFrame::MaskExtID)) {
+    switch (frame_id) {
         case ILMOR_INVERTER_STATUS_FRAME_1_FRAME_ID: {
             struct ilmor_inverter_status_frame_1_t msg;
             ilmor_inverter_status_frame_1_unpack(&msg, frame.data, frame.dlc);
