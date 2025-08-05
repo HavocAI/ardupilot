@@ -647,7 +647,7 @@ void AP_Ilmor::motor_state_machine()
             _led_hue = 255;
             _led_mode = LEDMode::Flashing;
 
-            if (now_ms - _last_motor_wait_ms > 3000) {
+            if (now_ms - _last_motor_wait_ms > 500) {
                 _motor_state = MotorState::Ready;
             }
         } break;
