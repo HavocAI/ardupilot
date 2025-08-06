@@ -61,7 +61,6 @@ extern const AP_HAL::HAL &hal;
 
 #define SEND_TIMEOUT_US 1000
 
-#define AP_ILMOR_DEBUG 0
 #define AP_ILMOR_COMMAND_RATE_HZ 20
 #define AP_ILMOR_TRIM_DEADBAND 10
 #define AP_ILMOR_MAX_TRIM 190        // highest setting that AP will be allowed to trim
@@ -71,8 +70,10 @@ extern const AP_HAL::HAL &hal;
 
 // J1939 Message priorities
 #define AP_ILMOR_UNMANNED_THROTTLE_CONTROL_PRIORITY 1
-#define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
 #define AP_ILMOR_R3_STATUS_FRAME_1_PRIORITY 3
+#define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
+#define AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY 3
+
 
 void IlmorFwVersion::print() const
 {
@@ -140,6 +141,16 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("CLR_F", 8, AP_Ilmor, _clear_faults_request, 0),
 
+#ifdef AP_ILMOR_DEBUG
+    // @Param: ICU_L
+    // @DisplayName: ICU Logging
+    // @Description: Enable ICU logging, 0 = off, 1 = start logging, 2 = wipe logs
+    // @Values: 0:2
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("ICU_L", 9, AP_Ilmor, _icu_logging, 0),
+#endif
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -149,6 +160,9 @@ AP_Ilmor::AP_Ilmor()
     _motor_state(MotorState::Ready),
     _comsState(ComsState::Unhealthy),
     _fw_server_state(FwServerState::WifiOff),
+#ifdef AP_ILMOR_DEBUG
+    _icu_logging_state(ICULoggingState::Idle),
+#endif
     _run_state(),
     _output()
 {
@@ -247,6 +261,9 @@ void AP_Ilmor::tick()
     coms_state_machine();
     fw_server_state_machine();
     clear_faults_state_machine();
+#ifdef AP_ILMOR_DEBUG
+    icu_logging_state_machine();
+#endif
 
     if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
         report_faults();
@@ -597,6 +614,116 @@ void AP_Ilmor::clear_faults_state_machine()
     }
 }
 
+#ifdef AP_ILMOR_DEBUG
+void AP_Ilmor::icu_logging_state_machine()
+{
+    switch (_icu_logging_state) {
+        case ICULoggingState::Idle:
+            switch (_icu_logging.get()) {
+                case 1: {
+                    // start logging
+                    _icu_logging_state = ICULoggingState::StartLogging;
+                    
+                } break;
+
+                case 2: {
+                    // clear the log
+                    _icu_logging_state = ICULoggingState::Wipe;
+
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Wiping ICU log");
+
+                    // Send a r3_status_frame_3 message with byte 2 set to 0x03. This will clear the log.
+                    ilmor_r3_status_frame_3_t msg = {
+                        .logging_mode = 0x03, // wipe log
+                    };
+
+                    uint8_t data[ILMOR_R3_STATUS_FRAME_3_LENGTH];
+                    ilmor_r3_status_frame_3_pack(data, &msg, sizeof(data));
+
+                    J1939::J1939Frame frame;
+                    frame.priority = AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY;
+                    frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_3_FRAME_ID);
+                    frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+                    memcpy(frame.data, data, sizeof(data));
+
+                    AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+                    write_frame(can_frame, SEND_TIMEOUT_US);
+
+                } break;
+
+
+            }
+            break;
+
+        case ICULoggingState::StartLogging: {
+
+            _icu_logging_state = ICULoggingState::Logging;
+
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Starting ICU logging");
+                    
+            // Send a r3_status_frame_3 message with byte 2 set to 0x02 (all other bytes 0x00). This will start a internal data log within the ICU.
+            ilmor_r3_status_frame_3_t msg = {
+                .logging_mode = 0x02, // start logging
+            };
+
+            uint8_t data[ILMOR_R3_STATUS_FRAME_3_LENGTH];
+            ilmor_r3_status_frame_3_pack(data, &msg, sizeof(data));
+
+            J1939::J1939Frame frame;
+            frame.priority = AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY;
+            frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_3_FRAME_ID);
+            frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+            memcpy(frame.data, data, sizeof(data));
+
+            AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+            write_frame(can_frame, SEND_TIMEOUT_US);
+
+
+        } break;
+
+        case ICULoggingState::StopLogging: {
+
+            _icu_logging_state = ICULoggingState::Idle;
+
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Stopping ICU logging");
+                
+            // Then send a r3_status_frame_3 message with byte 2 set to 0x01 (all other bytes 0x00). This will stop logging.
+            ilmor_r3_status_frame_3_t msg = {
+                .logging_mode = 0x01, // stop logging
+            };
+
+            uint8_t data[ILMOR_R3_STATUS_FRAME_3_LENGTH];
+            ilmor_r3_status_frame_3_pack(data, &msg, sizeof(data));
+
+            J1939::J1939Frame frame;
+            frame.priority = AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY;
+            frame.pgn = J1939::extract_j1939_pgn(ILMOR_R3_STATUS_FRAME_3_FRAME_ID);
+            frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+            memcpy(frame.data, data, sizeof(data));
+
+            AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+            write_frame(can_frame, SEND_TIMEOUT_US);
+            
+        } break;
+
+        case ICULoggingState::Logging:
+            if (_icu_logging.get() == 0) {
+                _icu_logging_state = ICULoggingState::StopLogging;
+            }
+            break;
+        
+        case ICULoggingState::Wipe: {
+            if (_icu_logging.get() == 0) {
+                _icu_logging_state = ICULoggingState::Idle;
+            }
+
+        } break;
+            
+    }
+}
+#endif // AP_ILMOR_DEBUG
+    
+
 void AP_Ilmor::motor_state_machine()
 {
 
@@ -929,10 +1056,6 @@ void AP_Ilmor::handle_inverter_status_frame_4(const struct ilmor_inverter_status
     update_telem_data(1, t2,
                       AP_ESC_Telem_Backend::TelemetryType::TEMPERATURE);
 
-#if AP_ILMOR_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: MOSFET Temp %d, Motor Temp %d, Battery Current %f",
-                  (int)msg.mosfet_temperature * 100, (int)msg.motor_temperature * 100, float(msg.battery_current));
-#endif
 }
 
 void AP_Ilmor::handle_inverter_status_frame_5(const struct ilmor_inverter_status_frame_5_t &msg)

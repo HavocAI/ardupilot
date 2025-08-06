@@ -23,6 +23,9 @@
 #include <AP_Ilmor/AP_Ilmor_config.h>
 
 #if HAL_ILMOR_ENABLED
+
+#define AP_ILMOR_DEBUG 1
+
 #include <AP_Ilmor/ilmor.h>
 #include <AP_HAL/AP_HAL.h>
 #include <AP_CANManager/AP_CANSensor.h>
@@ -121,6 +124,17 @@ private:
         Cleared,
     } _clear_faults_state;
 
+#ifdef AP_ILMOR_DEBUG
+    enum class ICULoggingState {
+        Idle,
+        StartLogging,
+        StopLogging,
+        Logging,
+        Wipe,
+    } _icu_logging_state;
+#endif
+
+
     // Parameters
     AP_Int16 _min_rpm;
     AP_Int16 _max_rpm;
@@ -130,6 +144,9 @@ private:
     AP_Int16 _trim_stop;
     AP_Int8 _fw_update;
     AP_Int8 _clear_faults_request;
+#ifdef AP_ILMOR_DEBUG
+    AP_Int8 _icu_logging;
+#endif
 
     uint8_t _current_trim_position;
     int32_t _last_rpm;
@@ -202,6 +219,10 @@ private:
     void motor_state_machine();
     void fw_server_state_machine();
     void clear_faults_state_machine();
+
+#ifdef AP_ILMOR_DEBUG
+    void icu_logging_state_machine();
+#endif
 
     void active_fault(J1939::DiagnosticMessage1::DTC& dtc);
     void report_faults();
