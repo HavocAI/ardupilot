@@ -765,6 +765,10 @@ void AP_Ilmor::motor_state_machine()
                 _last_motor_wait_ms = now_ms;
             } else {
                 _output.motor_rpm = 0;
+
+                // set LED to solid white
+                _led_hue = 255;
+                _led_mode = LEDMode::Solid;
             }
 
         } break;
@@ -785,6 +789,7 @@ void AP_Ilmor::motor_state_machine()
             if (_rpm_demand > min_rpm) {
                 _output.motor_rpm = _rpm_demand;
 
+                // set LED to solid green
                 _led_hue = 85;
                 _led_mode = LEDMode::Solid;
 
@@ -807,7 +812,7 @@ void AP_Ilmor::motor_state_machine()
             if (_rpm_demand < -min_rpm) {
                 _output.motor_rpm = _rpm_demand;
 
-                // set led to solid yellow
+                // set LED to solid yellow
                 _led_hue = 40;
                 _led_mode = LEDMode::Solid;
 
@@ -829,7 +834,7 @@ void AP_Ilmor::motor_state_machine()
         case MotorState::Error: {
             _output.motor_rpm = 0;
 
-            // set led to flashing blue
+            // set LED to flashing blue
             _led_hue = 155;
             _led_mode = LEDMode::Flashing;
 
