@@ -159,7 +159,6 @@ AP_Ilmor::AP_Ilmor()
     _trimState(TrimState::Start),
     _motor_state(MotorState::Ready),
     _comsState(ComsState::Unhealthy),
-    _fw_server_state(FwServerState::WifiOff),
 #ifdef AP_ILMOR_DEBUG
     _icu_logging_state(ICULoggingState::Idle),
 #endif
@@ -256,10 +255,8 @@ void AP_Ilmor::run_io()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
-    
-    
+
     coms_state_machine();
-    fw_server_state_machine();
     clear_faults_state_machine();
 #ifdef AP_ILMOR_DEBUG
     icu_logging_state_machine();
@@ -507,8 +504,6 @@ void AP_Ilmor::coms_state_machine()
 
                 motor_state_machine();
                 send_throttle_cmd();
-
-                trim_state_machine();
                 send_trim_cmd();
 
                 if (now_ms - _last_send_frame1_ms > 1000) {
@@ -545,39 +540,6 @@ void AP_Ilmor::coms_state_machine()
             break;
     }
     
-}
-
-void AP_Ilmor::fw_server_state_machine()
-{
-    switch (_fw_server_state) {
-        case FwServerState::WifiOff:
-            if (_fw_update.get() == 2) {
-                // send request to turn on the firmware update server
-                _fw_server_state = FwServerState::WifiOn;
-
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn on");
-
-                _server_mode = 2;
-                // set hue to purple
-                _led_hue = 200;
-                _led_mode = LEDMode::Sweeping;
-
-            }
-            break;
-        case FwServerState::WifiOn:
-            if (_fw_update.get() != 2) {
-                // send request to turn off firmware update server
-                _fw_server_state = FwServerState::WifiOff;
-
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Requesting firmware update server to turn off");
-
-                _server_mode = 1;
-                _led_hue = 0;
-                _led_mode = LEDMode::Off;
-            }
-            break;
-    }
-
 }
 
 void AP_Ilmor::clear_faults_state_machine()
@@ -722,72 +684,108 @@ void AP_Ilmor::icu_logging_state_machine()
     }
 }
 #endif // AP_ILMOR_DEBUG
-    
+
+bool AP_Ilmor::is_locked_out()
+{
+    return !hal.util->get_soft_armed() ||
+        (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) ||
+        SRV_Channels::get_emergency_stop();
+
+}
 
 void AP_Ilmor::motor_state_machine()
 {
 
     const uint32_t now_ms = AP_HAL::millis();
-
-    if (!hal.util->get_soft_armed() || (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get())) {
-        // If the trim position is above the maximum run trim, we need to stop the motor
-        _output.motor_rpm = 0;
-
-        // set LED to solid orange
-        _led_hue = 18;
-        _led_mode = LEDMode::Solid;
-        return;
-    }
-
-    if (SRV_Channels::get_emergency_stop()) {
-        _output.motor_rpm = 0;
-
-        // set to solid red
-        _led_hue = 0;
-        _led_mode = LEDMode::Solid;
-        return;
-    }
-
-    // set the LED to solid white
-    _led_hue = 255;
-    _led_mode = LEDMode::Solid;
-
     const int16_t min_rpm = abs(_min_rpm.get());
+
+    if (_fw_update.get() == 2 && _motor_state != MotorState::WifiOn) {
+        _motor_state = MotorState::WifiOn;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: WiFi server on");
+    }
+    
 
     switch (_motor_state) {
 
         case MotorState::Ready: {
+
+            _output.motor_rpm = 0;
+            trim_state_machine();
+
+            // set to solid red
+            _led_hue = 0;
+            _led_mode = LEDMode::Solid;
+
+            if (!is_locked_out()) {
+                // if we are not locked out, we can start the motor
+                _motor_state = MotorState::Init;
+                _last_motor_wait_ms = now_ms;
+            }
+
+        } break;
+
+        case MotorState::Init: {
+
+            trim_state_machine();
+
+            // set LED to flashing green for 3 seconds
+            _led_hue = 85;
+            _led_mode = LEDMode::Flashing;
+
+            // move to stop state after 3 seconds
+            if (now_ms - _last_motor_wait_ms > 3000) {
+                _motor_state = MotorState::StopWait;
+                _last_motor_wait_ms = now_ms;
+            }
+
+        } break;
+
+        case MotorState::StopWait: {
+             _output.motor_rpm = 0;
+             trim_state_machine();
+
+            // set to solid white
+            _led_hue = 255;
+            _led_mode = LEDMode::Solid;
+
+            // wait for 0.5 second before going to stop state
+            if (now_ms - _last_motor_wait_ms > 500) {
+                _motor_state = MotorState::Stop;
+                _last_motor_wait_ms = now_ms;
+            }
+        } break;
+
+        case MotorState::Stop: {
+            _output.motor_rpm = 0;
+            trim_state_machine();
+
+            if (is_locked_out()) {
+                _motor_state = MotorState::Ready;
+                _last_motor_wait_ms = now_ms;
+            }
+
+            // set to solid white
+            _led_hue = 255;
+            _led_mode = LEDMode::Solid;
+
             if (_rpm_demand > min_rpm) {
                 _motor_state = MotorState::Forward;
                 _last_motor_wait_ms = now_ms;
             } else if (_rpm_demand < -min_rpm) {
                 _motor_state = MotorState::Reverse;
                 _last_motor_wait_ms = now_ms;
-            } else {
-                _output.motor_rpm = 0;
-
-                // set LED to solid white
-                _led_hue = 255;
-                _led_mode = LEDMode::Solid;
-            }
-
-        } break;
-
-        case MotorState::Stop: {
-            _output.motor_rpm = 0;
-
-            // set to flashing white
-            _led_hue = 255;
-            _led_mode = LEDMode::Flashing;
-
-            if (now_ms - _last_motor_wait_ms > 500) {
-                _motor_state = MotorState::Ready;
             }
         } break;
 
         case MotorState::Forward: {
             if (_rpm_demand > min_rpm) {
                 _output.motor_rpm = _rpm_demand;
+                trim_state_machine();
+
+                if (is_locked_out()) {
+                    _motor_state = MotorState::Ready;
+                    _last_motor_wait_ms = now_ms;
+                }
 
                 // set LED to solid green
                 _led_hue = 85;
@@ -797,12 +795,12 @@ void AP_Ilmor::motor_state_machine()
                     _last_motor_wait_ms = now_ms;
                     if (abs(_last_rpm) < min_rpm) {
                         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
-                        _motor_state = MotorState::Error;
+                        _motor_state = MotorState::Fault;
                     }
                 }
 
             } else {
-                _motor_state = MotorState::Stop;
+                _motor_state = MotorState::StopWait;
                 _last_motor_wait_ms = now_ms;
             }
         
@@ -811,6 +809,12 @@ void AP_Ilmor::motor_state_machine()
         case MotorState::Reverse: {
             if (_rpm_demand < -min_rpm) {
                 _output.motor_rpm = _rpm_demand;
+                trim_state_machine();
+
+                if (is_locked_out()) {
+                    _motor_state = MotorState::Ready;
+                    _last_motor_wait_ms = now_ms;
+                }
 
                 // set LED to solid yellow
                 _led_hue = 40;
@@ -820,19 +824,20 @@ void AP_Ilmor::motor_state_machine()
                     _last_motor_wait_ms = now_ms;
                     if (abs(_last_rpm) < min_rpm) {
                         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
-                        _motor_state = MotorState::Error;
+                        _motor_state = MotorState::Fault;
                     }
                 }
 
             } else {
-                _motor_state = MotorState::Stop;
+                _motor_state = MotorState::StopWait;
                 _last_motor_wait_ms = now_ms;
             }
         
         } break;
 
-        case MotorState::Error: {
+        case MotorState::Fault: {
             _output.motor_rpm = 0;
+            trim_state_machine();
 
             // set LED to flashing blue
             _led_hue = 155;
@@ -841,6 +846,25 @@ void AP_Ilmor::motor_state_machine()
             if (now_ms - _last_motor_wait_ms > 10000) {
                 _motor_state = MotorState::Ready;
             }
+        } break;
+
+        case MotorState::WifiOn: {
+            _output.motor_rpm = 0;
+            _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
+
+            // set LED to solid purple
+            _led_hue = 200;
+            _led_mode = LEDMode::Solid;
+
+            _server_mode = 2;
+
+            if (_fw_update.get() == 0) {
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: WiFi server off");
+
+                _server_mode = 1;
+                _motor_state = MotorState::Ready;
+            }
+
         } break;
     }
 

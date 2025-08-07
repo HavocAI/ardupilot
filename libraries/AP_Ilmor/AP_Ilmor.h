@@ -102,10 +102,13 @@ private:
 
     enum class MotorState {
         Ready,
+        Init,
+        StopWait,
         Stop,
         Forward,
         Reverse,
-        Error,
+        Fault,
+        WifiOn,
     } _motor_state;
 
     enum class ComsState {
@@ -114,10 +117,6 @@ private:
         Unhealthy,
     } _comsState;
 
-    enum class FwServerState {
-        WifiOff,
-        WifiOn,
-    } _fw_server_state;
 
     enum class ClearFaultsState {
         Ready,
@@ -217,7 +216,6 @@ private:
     void trim_state_machine();
     void coms_state_machine();
     void motor_state_machine();
-    void fw_server_state_machine();
     void clear_faults_state_machine();
 
 #ifdef AP_ILMOR_DEBUG
@@ -226,6 +224,10 @@ private:
 
     void active_fault(J1939::DiagnosticMessage1::DTC& dtc);
     void report_faults();
+
+    /// @brief is the motor allowed to run?
+    /// @return true if the motor is locked out, false otherwise
+    bool is_locked_out();
 
 };
 
