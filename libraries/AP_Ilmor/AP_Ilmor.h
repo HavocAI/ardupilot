@@ -24,7 +24,7 @@
 
 #if HAL_ILMOR_ENABLED
 
-#define AP_ILMOR_DEBUG 1
+// #define AP_ILMOR_DEBUG 1
 
 #include <AP_Ilmor/ilmor.h>
 #include <AP_HAL/AP_HAL.h>

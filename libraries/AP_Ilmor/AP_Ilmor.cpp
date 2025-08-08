@@ -59,7 +59,7 @@
 
 extern const AP_HAL::HAL &hal;
 
-#define SEND_TIMEOUT_US 1000
+#define SEND_TIMEOUT_US 50
 
 #define AP_ILMOR_COMMAND_RATE_HZ 20
 #define AP_ILMOR_TRIM_DEADBAND 10
@@ -192,7 +192,7 @@ void AP_Ilmor::init(uint8_t driver_index, bool enable_filters)
     CANSensor::init(driver_index, enable_filters);
 
     hal.util->snprintf(_thread_name, sizeof(_thread_name), "ilmor%d_tx", driver_index);
-    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 1024, AP_HAL::Scheduler::PRIORITY_CAN, 0);
+    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 2048, AP_HAL::Scheduler::PRIORITY_CAN, 0);
 }
 
 bool AP_Ilmor::pre_arm_check(char *failure_msg, uint8_t failure_msg_len)
@@ -258,7 +258,7 @@ void AP_Ilmor::tick()
 {
 
     coms_state_machine();
-    clear_faults_state_machine();
+    // clear_faults_state_machine();
 #ifdef AP_ILMOR_DEBUG
     icu_logging_state_machine();
 #endif
@@ -939,12 +939,12 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
 
 void AP_Ilmor::send_direct_inverter()
 {
-    uint8_t data[8];
+    AP_HAL::CANFrame can_frame;
 
     // send THR_DEMAND_LISP message to the Ilmor inverter
     // this message must be sent at 20Hz
 
-    const int32_t throttle_demand_lisp = _output.motor_rpm * 5000;
+    const int32_t throttle_demand_lisp = (int32_t)_output.motor_rpm * 5000;
     const uint8_t throttle_demand_type = 0x3f; // 0x3f = RPM demand
     uint8_t shift_position;
 
@@ -956,17 +956,21 @@ void AP_Ilmor::send_direct_inverter()
         shift_position = 0x1f; // neutral
     }
 
-    data[0] = (throttle_demand_lisp >> 24) & 0xFF;
-    data[1] = (throttle_demand_lisp >> 16) & 0xFF;
-    data[2] = (throttle_demand_lisp >> 8) & 0xFF;
-    data[3] = throttle_demand_lisp & 0xFF;
-    data[4] = throttle_demand_type;
-    data[5] = shift_position;
-    data[6] = 0x00;
-    data[7] = 0x00;
+    can_frame.data[0] = (throttle_demand_lisp >> 24) & 0xFF;
+    can_frame.data[1] = (throttle_demand_lisp >> 16) & 0xFF;
+    can_frame.data[2] = (throttle_demand_lisp >> 8) & 0xFF;
+    can_frame.data[3] = throttle_demand_lisp & 0xFF;
+    can_frame.data[4] = throttle_demand_type;
+    can_frame.data[5] = shift_position;
+    can_frame.data[6] = 0x00;
+    can_frame.data[7] = 0x00;
 
-    AP_HAL::CANFrame can_frame(0x00FFC0EF | AP_HAL::CANFrame::FlagEFF,
-        data, sizeof(data));
+    // AP_HAL::CANFrame can_frame(0x00FFC0EF | AP_HAL::CANFrame::FlagEFF,
+    //    data, sizeof(data));
+
+    can_frame.id = 0x00FFC0EF | AP_HAL::CANFrame::FlagEFF;
+    can_frame.dlc = 8; // J1939 frames are always 8 bytes
+    can_frame.canfd = false; // J1939 does not support CAN FD (yet
 
     write_frame(can_frame, SEND_TIMEOUT_US);
 
