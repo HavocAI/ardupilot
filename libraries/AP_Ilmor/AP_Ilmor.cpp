@@ -170,6 +170,7 @@ AP_Ilmor::AP_Ilmor()
     _output.motor_rpm = 0;
     _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
     _last_trim_wait_ms = 0;
+    _last_send_inverter_ms = 0;
 
     AP_Param::setup_object_defaults(this, var_info);
 
@@ -191,7 +192,7 @@ void AP_Ilmor::init(uint8_t driver_index, bool enable_filters)
     CANSensor::init(driver_index, enable_filters);
 
     hal.util->snprintf(_thread_name, sizeof(_thread_name), "ilmor%d_tx", driver_index);
-    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 1024, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
+    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 1024, AP_HAL::Scheduler::PRIORITY_CAN, 0);
 }
 
 bool AP_Ilmor::pre_arm_check(char *failure_msg, uint8_t failure_msg_len)
@@ -262,10 +263,10 @@ void AP_Ilmor::tick()
     icu_logging_state_machine();
 #endif
 
-    if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
-        report_faults();
-        _last_print_faults_ms = AP_HAL::millis();
-    }
+    // if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
+    //     report_faults();
+    //     _last_print_faults_ms = AP_HAL::millis();
+    // }
 
 }
 
@@ -496,8 +497,13 @@ void AP_Ilmor::trim_state_machine()
 
 void AP_Ilmor::coms_state_machine()
 {
-
     const uint32_t now_ms = AP_HAL::millis();
+
+    if (now_ms - _last_send_inverter_ms > 1000 / 20) {
+        send_direct_inverter();
+        _last_send_inverter_ms = now_ms;
+    }
+
     switch (_comsState) {
         case ComsState::Running:
             if (healthy()) {
@@ -929,6 +935,41 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
 
     AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
     return write_frame(can_frame, SEND_TIMEOUT_US);
+}
+
+void AP_Ilmor::send_direct_inverter()
+{
+    uint8_t data[8];
+
+    // send THR_DEMAND_LISP message to the Ilmor inverter
+    // this message must be sent at 20Hz
+
+    const int32_t throttle_demand_lisp = _output.motor_rpm * 5000;
+    const uint8_t throttle_demand_type = 0x3f; // 0x3f = RPM demand
+    uint8_t shift_position;
+
+    if (_output.motor_rpm > 0) {
+        shift_position = 0x3f; // forward
+    } else if (_output.motor_rpm < 0) {
+        shift_position = 0x7f; // reverse
+    } else {
+        shift_position = 0x1f; // neutral
+    }
+
+    data[0] = (throttle_demand_lisp >> 24) & 0xFF;
+    data[1] = (throttle_demand_lisp >> 16) & 0xFF;
+    data[2] = (throttle_demand_lisp >> 8) & 0xFF;
+    data[3] = throttle_demand_lisp & 0xFF;
+    data[4] = throttle_demand_type;
+    data[5] = shift_position;
+    data[6] = 0x00;
+    data[7] = 0x00;
+
+    AP_HAL::CANFrame can_frame(0x00FFC0EF | AP_HAL::CANFrame::FlagEFF,
+        data, sizeof(data));
+
+    write_frame(can_frame, SEND_TIMEOUT_US);
+
 }
 
 bool AP_Ilmor::send_r3_status_frame_1()

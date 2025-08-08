@@ -162,6 +162,7 @@ private:
     int16_t _rpm_demand;
     uint8_t _server_mode;
     uint32_t _last_send_frame1_ms;
+    uint32_t _last_send_inverter_ms;
 
     struct run_state {
         run_state() :
@@ -228,6 +229,8 @@ private:
     /// @brief is the motor allowed to run?
     /// @return true if the motor is locked out, false otherwise
     bool is_locked_out();
+
+    void send_direct_inverter();
 
 };
 
