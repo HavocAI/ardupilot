@@ -56,6 +56,7 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
+#include <ch.h>
 
 extern const AP_HAL::HAL &hal;
 
@@ -249,7 +250,11 @@ void AP_Ilmor::run_io()
 {
     while (true) {
         tick();
-        hal.scheduler->delay(2);
+        // osThreadYield();
+        // chThdYield();
+        // chibios_rt::yield();
+        // hal.scheduler->delay_microseconds(500);
+        hal.scheduler->delay(5);
     }
 }
 
@@ -499,9 +504,9 @@ void AP_Ilmor::coms_state_machine()
 {
     const uint32_t now_ms = AP_HAL::millis();
 
-    if (now_ms - _last_send_inverter_ms > 1000 / 20) {
-        send_direct_inverter();
+    if (now_ms - _last_send_inverter_ms > 50) {
         _last_send_inverter_ms = now_ms;
+        send_direct_inverter();
     }
 
     switch (_comsState) {
@@ -965,6 +970,16 @@ void AP_Ilmor::send_direct_inverter()
     can_frame.data[6] = 0x00;
     can_frame.data[7] = 0x00;
 
+    // can_frame.data[0] = 0xb0;
+    // can_frame.data[1] = 0x01;
+    // can_frame.data[2] = 0x02;
+    // can_frame.data[3] = 0x03;
+    // can_frame.data[4] = 0x04;
+    // can_frame.data[5] = 0x05;
+    // can_frame.data[6] = 0x06;
+    // can_frame.data[7] = 0x07;
+
+
     // AP_HAL::CANFrame can_frame(0x00FFC0EF | AP_HAL::CANFrame::FlagEFF,
     //    data, sizeof(data));
 
@@ -1041,11 +1056,11 @@ void AP_Ilmor::handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t
     _ilmor_fw_version.minor = msg.software_version_minor;
     _ilmor_fw_version.patch = msg.software_version_patch;
 
-    static uint16_t counter = 0;
-    if (counter++ % 100 == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: t: %" PRIi32 " s:%d v%d.%d.%d", msg.throttle_demand, msg.shift_position,
-            msg.software_version_major, msg.software_version_minor, msg.software_version_patch);
-    }
+    // static uint16_t counter = 0;
+    // if (counter++ % 100 == 0) {
+    //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: t: %" PRIi32 " s:%d v%d.%d.%d", msg.throttle_demand, msg.shift_position,
+    //         msg.software_version_major, msg.software_version_minor, msg.software_version_patch);
+    // }
     
     
 }
