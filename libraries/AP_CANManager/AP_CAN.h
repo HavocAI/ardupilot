@@ -30,5 +30,6 @@ public:
         TOFSenseP = 13,
         NanoRadar = 14,
         J1939 = 15,
+        Ilmor = 16,
     };
 };
