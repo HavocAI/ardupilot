@@ -111,13 +111,6 @@ private:
         WifiOn,
     } _motor_state;
 
-    enum class ComsState {
-        Waiting,
-        Running,
-        Unhealthy,
-    } _comsState;
-
-
     enum class ClearFaultsState {
         Ready,
         Cleared,
@@ -150,7 +143,6 @@ private:
     uint8_t _current_trim_position;
     int32_t _last_rpm;
     uint32_t _last_motor_wait_ms;
-    uint32_t _last_com_wait_ms;
     uint32_t _last_trim_wait_ms;
     uint32_t _last_fault_notify_ms;
     J1939::DiagnosticMessage1::DTC _active_faults[AP_ILMOR_MAX_FAULTS];
@@ -167,12 +159,13 @@ private:
         run_state() :
             last_send_throttle_ms(0),
             last_send_trim_ms(0),
-            last_received_msg_ms(0),
+            last_received_icu_ms(0),
             last_trim_cmd(TRIM_CMD_STOP) {}
 
         uint32_t last_send_throttle_ms;
         uint32_t last_send_trim_ms;
-        uint32_t last_received_msg_ms;
+        uint32_t last_received_icu_ms;
+        uint32_t last_received_inverter_msg_ms;
         TrimCmd last_trim_cmd;
     } _run_state;
 
@@ -196,6 +189,7 @@ private:
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
+    void send_direct_inverter();
     bool send_r3_status_frame_1();
     bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
 
@@ -214,7 +208,6 @@ private:
     TrimCmd trim_demand();
 
     void trim_state_machine();
-    void coms_state_machine();
     void motor_state_machine();
     void clear_faults_state_machine();
 
@@ -228,6 +221,16 @@ private:
     /// @brief is the motor allowed to run?
     /// @return true if the motor is locked out, false otherwise
     bool is_locked_out();
+
+    /// @brief is the ICU healthy?
+    /// Healthy is determined if we have seen a CAN message from the ICU within the past 1 second.
+    /// @return true if the ICU is healthy, false otherwise
+    bool icu_healthy() const;
+
+    /// @brief is the inverter healthy?
+    /// Healthy is determined if we have seen a CAN message from the inverter within the past 1 second.
+    /// @return true if the inverter is healthy, false otherwise
+    bool inverter_healthy() const;
 
 };
 
