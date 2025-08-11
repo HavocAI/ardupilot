@@ -286,6 +286,12 @@ void Mode::handle_tack_request()
 
 void Mode::calc_throttle(float target_speed, bool avoidance_enabled)
 {
+    // Limit to SPEED_MAX parameter
+    if (is_positive(g2.speed_max)) {
+        if (fabsf(target_speed) > g2.speed_max) {
+            target_speed = copysignf(g2.speed_max, target_speed);
+        }
+    }
     // get acceleration limited target speed
     target_speed = attitude_control.get_desired_speed_accel_limited(target_speed, rover.G_Dt);
 
