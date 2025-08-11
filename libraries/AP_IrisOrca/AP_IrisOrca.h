@@ -127,6 +127,8 @@ private:
 
     uint32_t _counter;
     uint8_t _num_timeouts;
+    uint16_t _board_temp;
+
 
     orca::OperatingMode _operating_mode;
     orca::ActuatorState _actuator_state;
