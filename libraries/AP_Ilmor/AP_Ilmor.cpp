@@ -405,12 +405,22 @@ bool AP_Ilmor::soft_stop_exceeded()
 AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
 {
     AP_Ilmor::TrimCmd retval;
-    const float trim_servo = SRV_Channels::get_output_norm((SRV_Channel::Aux_servo_function_t)_trim_fn.get());
-    if (trim_servo == 0) {
+
+    SRV_Channel* channel = SRV_Channels::get_channel_for(SRV_Channel::k_motor_trim);
+    if (channel == nullptr) {
         retval = AP_Ilmor::TRIM_CMD_BUTTONS;
-    } else if (trim_servo < -0.3f) {
+        return retval;
+    }
+
+    const uint16_t pwm = channel->get_output_pwm();
+    if (pwm == 0) {
+        retval = AP_Ilmor::TRIM_CMD_BUTTONS;
+        return retval;
+    }
+
+    if (pwm <= 1300) {
         retval = AP_Ilmor::TRIM_CMD_DOWN;
-    } else if (trim_servo > 0.3f) {
+    } else if (pwm >= 1700) {
         retval = AP_Ilmor::TRIM_CMD_UP;
     } else {
         retval = AP_Ilmor::TRIM_CMD_BUTTONS;
