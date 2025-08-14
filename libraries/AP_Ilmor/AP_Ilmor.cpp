@@ -406,7 +406,7 @@ AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
 {
     AP_Ilmor::TrimCmd retval;
 
-    SRV_Channel* channel = SRV_Channels::get_channel_for(SRV_Channel::k_motor_trim);
+    SRV_Channel* channel = SRV_Channels::get_channel_for((SRV_Channel::Aux_servo_function_t)_trim_fn.get());
     if (channel == nullptr) {
         retval = AP_Ilmor::TRIM_CMD_BUTTONS;
         return retval;
