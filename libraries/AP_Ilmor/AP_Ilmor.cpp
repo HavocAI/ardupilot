@@ -373,22 +373,29 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                     J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                     _active_faults[0] = dtc;
                     _num_active_faults = 1;
-                    // report_faults();
-
                 } break;
 
                 case J1939_PGN_TP_CM: {
-                    const J1939::PGN tp_pgn((frame.data[5] << 8) | frame.data[4]);
-                    if (frame.data[0] == 0x20 && tp_pgn.type() == J1939::PGNType::DiagnosticMessage1) {
-                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X", 
-                                      frame.data[0], frame.data[1], frame.data[2], frame.data[3],
-                                      frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: TP_CM");
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X", 
+                    //                   frame.data[0], frame.data[1], frame.data[2], frame.data[3],
+                    //                   frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+                        
+
+                    const uint16_t tp_pgn((frame.data[5] << 8) | frame.data[4]);
+                    if (frame.data[0] == 0x20 && tp_pgn == J1939_PGN_DM1) {
                         _num_tp_packets = frame.data[3];
                     }
 
                 } break;
 
                 case J1939_PGN_TP_DT: {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: TP_DT");
+                    // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X 0x%02X", 
+                    //                   frame.data[0], frame.data[1], frame.data[2], frame.data[3],
+                    //                   frame.data[4], frame.data[5], frame.data[6], frame.data[7]);
+                    
                     if (_num_tp_packets > 0) {
                         J1939::DiagnosticMessage1::DTC dtc = J1939::DiagnosticMessage1::DTC::from_data(&frame.data[2]);
                         active_fault(dtc);
@@ -936,11 +943,11 @@ void AP_Ilmor::update()
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
     _rpm_demand = throttle * _max_rpm.get();
 
-    // if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
-    //     report_faults();
-    //     _ilmor_fw_version.print();
-    //     _last_print_faults_ms = AP_HAL::millis();
-    // }
+    if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
+        report_faults();
+        // _ilmor_fw_version.print();
+        _last_print_faults_ms = AP_HAL::millis();
+    }
 
 }
 
