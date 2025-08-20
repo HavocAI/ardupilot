@@ -225,7 +225,7 @@ void AP_Ilmor::send_throttle_cmd()
 
 void AP_Ilmor::send_trim_cmd()
 {
-    if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / 10) {
+    if (AP_HAL::millis() - _run_state.last_send_trim_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
 
         ilmor_r3_status_frame_2_t r3_status_frame_2_msg = {
             .led_hue = _led_hue,
