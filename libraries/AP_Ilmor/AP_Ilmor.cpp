@@ -77,7 +77,7 @@ extern const AP_HAL::HAL &hal;
 
 void IlmorFwVersion::print() const
 {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor Firmware Version: %d.%d.%d-%d.%d\n",
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Fw v%d.%d.%d-%d.%d",
                                 major, minor, patch, dev_stage, dev_stage_rev);
 
 }
@@ -264,6 +264,7 @@ void AP_Ilmor::tick()
 
     if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
         report_faults();
+        _ilmor_fw_version.print();
         _last_print_faults_ms = AP_HAL::millis();
     }
 
@@ -1008,11 +1009,11 @@ void AP_Ilmor::handle_icu_status_frame_2(const struct ilmor_icu_status_frame_2_t
     _ilmor_fw_version.minor = msg.software_version_minor;
     _ilmor_fw_version.patch = msg.software_version_patch;
 
-    static uint16_t counter = 0;
-    if (counter++ % 100 == 0) {
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: t: %" PRIi32 " s:%d v%d.%d.%d", msg.throttle_demand, msg.shift_position,
-            msg.software_version_major, msg.software_version_minor, msg.software_version_patch);
-    }
+    // static uint16_t counter = 0;
+    // if (counter++ % 100 == 0) {
+    //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: t: %" PRIi32 " s:%d v%d.%d.%d", msg.throttle_demand, msg.shift_position,
+    //         msg.software_version_major, msg.software_version_minor, msg.software_version_patch);
+    // }
     
     
 }
