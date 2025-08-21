@@ -159,6 +159,21 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TR_DWN", 10, AP_Ilmor, _auto_trim_down, 0),
 
+    // @Param: TR_THR
+    // @DisplayName: Auto Trim Down Threshold
+    // @Description: The threshold for automatically trimming down, by default this is set to 12
+    // @Values: 0:255
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TR_THR", 11, AP_Ilmor, _auto_trim_down_threshold, 12),
+
+    // @Param: TR_PRD
+    // @DisplayName: Auto Trim Down period
+    // @Description: The time period (ms) to automatically trim down, by default this is set to 60000
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TR_PRD", 12, AP_Ilmor, _auto_trim_down_period, 60000),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -467,7 +482,7 @@ void AP_Ilmor::trim_state_machine()
         case TrimState::Manual:
         {
 
-            if (_auto_trim_down.get() == 1 && _current_trim_position > 12 && AP_HAL::millis() - _last_auto_trim_down_ms > 60000) {
+            if (_auto_trim_down.get() == 1 && _current_trim_position > _auto_trim_down_threshold.get() && AP_HAL::millis() - _last_auto_trim_down_ms > _auto_trim_down_period.get()) {
                 // auto trim down every minute
                 _trimState = TrimState::AutoDown;
                 _last_trim_wait_ms = AP_HAL::millis();
