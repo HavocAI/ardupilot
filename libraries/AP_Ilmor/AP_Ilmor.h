@@ -98,6 +98,7 @@ private:
         CmdDown,
         CmdStop,
         EStop,
+        AutoDown,
     } _trimState;
 
     enum class MotorState {
@@ -146,6 +147,7 @@ private:
 #ifdef AP_ILMOR_DEBUG
     AP_Int8 _icu_logging;
 #endif
+    AP_Int8 _auto_trim_down;
 
     uint8_t _current_trim_position;
     int32_t _last_rpm;
@@ -162,6 +164,7 @@ private:
     int16_t _rpm_demand;
     uint8_t _server_mode;
     uint32_t _last_send_frame1_ms;
+    uint32_t _last_auto_trim_down_ms;
 
     struct run_state {
         run_state() :

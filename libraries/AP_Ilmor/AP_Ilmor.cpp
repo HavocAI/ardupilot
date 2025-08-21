@@ -151,6 +151,14 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     AP_GROUPINFO("ICU_L", 9, AP_Ilmor, _icu_logging, 0),
 #endif
 
+    // @Param: TR_DWN
+    // @DisplayName: Auto Trim Down
+    // @Description: Automatically trim down every minute, 0 = off, 1 = on
+    // @Values: 0:1
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("TR_DWN", 10, AP_Ilmor, _auto_trim_down, 0),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -170,6 +178,7 @@ AP_Ilmor::AP_Ilmor()
     _output.motor_rpm = 0;
     _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
     _last_trim_wait_ms = 0;
+    _last_auto_trim_down_ms = 0;
 
     AP_Param::setup_object_defaults(this, var_info);
 
@@ -452,8 +461,29 @@ void AP_Ilmor::trim_state_machine()
         
         case TrimState::Manual:
         {
-            _output.motor_trim = trim_demand();
-            _trimState = TrimState::CheckSoftStop;
+
+            if (_auto_trim_down.get() == 1 && AP_HAL::millis() - _last_auto_trim_down_ms > 60000) {
+                // auto trim down every minute
+                _trimState = TrimState::AutoDown;
+                _last_trim_wait_ms = AP_HAL::millis();
+                _last_auto_trim_down_ms = AP_HAL::millis();
+            } else {
+                _output.motor_trim = trim_demand();
+                _trimState = TrimState::CheckSoftStop;
+            }
+
+
+        } break;
+
+        case TrimState::AutoDown:
+        {
+            _output.motor_trim = AP_Ilmor::TRIM_CMD_DOWN;
+
+            const uint32_t now = AP_HAL::millis();
+            if (now - _last_trim_wait_ms > 500) {
+                _trimState = TrimState::CheckSoftStop;
+                _last_trim_wait_ms = now;
+            }
 
         } break;
 
