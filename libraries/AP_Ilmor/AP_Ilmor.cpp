@@ -262,12 +262,6 @@ void AP_Ilmor::tick()
     icu_logging_state_machine();
 #endif
 
-    if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
-        report_faults();
-        _ilmor_fw_version.print();
-        _last_print_faults_ms = AP_HAL::millis();
-    }
-
 }
 
 // parse inbound frames
@@ -888,6 +882,13 @@ void AP_Ilmor::update()
 {
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
     _rpm_demand = throttle * _max_rpm.get();
+
+    // if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
+    //     report_faults();
+    //     _ilmor_fw_version.print();
+    //     _last_print_faults_ms = AP_HAL::millis();
+    // }
+
 }
 
 void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
@@ -965,7 +966,7 @@ bool AP_Ilmor::send_r3_status_frame_1()
     memcpy(frame.data, data, sizeof(data));
 
     AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
-    return write_frame(can_frame, SEND_TIMEOUT_US);
+    return write_frame(can_frame, 50);
 }
 
 bool AP_Ilmor::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg)
@@ -980,7 +981,7 @@ bool AP_Ilmor::send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &ms
     memcpy(frame.data, data, sizeof(data));
 
     AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
-    return write_frame(can_frame, SEND_TIMEOUT_US);
+    return write_frame(can_frame, 50);
 }
 
 void AP_Ilmor::handle_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
