@@ -153,7 +153,7 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
     // @Param: TR_DWN
     // @DisplayName: Auto Trim Down
-    // @Description: Automatically trim down every minute, 0 = off, 1 = on
+    // @Description: Automatically trim down every minute, 0 = off, 1 = on, 2 = disable all trim
     // @Values: 0:1
     // @Increment: 1
     // @User: Advanced
@@ -434,6 +434,11 @@ AP_Ilmor::TrimCmd AP_Ilmor::trim_demand()
 
 void AP_Ilmor::trim_state_machine()
 {
+
+    if (_auto_trim_down.get() == 2) {
+        _output.motor_trim = TrimCmd::TRIM_CMD_STOP;
+        return;
+    }
 
     if (SRV_Channels::get_emergency_stop()) {
         _trimState = TrimState::EStop;
