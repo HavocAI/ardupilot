@@ -56,6 +56,7 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
+#include <AP_Common/ExpandingString.h>
 
 extern const AP_HAL::HAL &hal;
 
@@ -933,11 +934,17 @@ void AP_Ilmor::update()
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
     _rpm_demand = throttle * _max_rpm.get();
 
-    // if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
-    //     report_faults();
-    //     _ilmor_fw_version.print();
-    //     _last_print_faults_ms = AP_HAL::millis();
-    // }
+    if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
+        report_faults();
+        _ilmor_fw_version.print();
+
+        auto str = NEW_NOTHROW ExpandingString;
+        _can_iface->get_stats(*str);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: CAN stats: %s", str->get_string());
+        delete str;
+
+        _last_print_faults_ms = AP_HAL::millis();
+    }
 
 }
 

@@ -67,6 +67,7 @@ public:
 
 protected:
     void register_driver(AP_CAN::Protocol dtype);
+    AP_HAL::CANIface* _can_iface;
 
 private:
     void loop();
@@ -81,7 +82,7 @@ private:
 
     AP_CANDriver *_can_driver;
     HAL_BinarySemaphore sem_handle;
-    AP_HAL::CANIface* _can_iface;
+    
 
 #ifdef HAL_BUILD_AP_PERIPH
     void register_driver_periph(const AP_CAN::Protocol dtype);
