@@ -251,10 +251,7 @@ void AP_Ilmor::run_io()
 
         send_trim_cmd();
         send_throttle_cmd();
-
-        if (!icu_healthy()) {
-            send_direct_inverter();
-        }
+        send_direct_inverter();
 
         if (now_ms - _last_send_frame1_ms > 1000) {
             send_r3_status_frame_1();
