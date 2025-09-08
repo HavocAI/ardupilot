@@ -1099,8 +1099,10 @@ void AP_Ilmor::handle_icu_status_frame_7(const struct ilmor_icu_status_frame_7_t
 
 void AP_Ilmor::handle_inverter_status_frame_1(const struct ilmor_inverter_status_frame_1_t &msg)
 {
-    // Divide by 5 to get Prop RPM
-    _last_rpm = msg.e_rpm / 5;
+    // Divide by 5 to get Prop RPM.
+    // Add 10000 because because the data reporting in mavlink is constrained to a uint16_t type.
+    // We still want to be able to report negative RPM for reverse.
+    _last_rpm = (msg.e_rpm / 5) + 10000.0f;
     update_rpm(0, int32_t(_last_rpm));
     // Hack the motor current into the next ESC telemetry slot
     const TelemetryData t = {
