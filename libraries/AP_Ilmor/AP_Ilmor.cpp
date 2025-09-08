@@ -579,11 +579,14 @@ void AP_Ilmor::coms_state_machine()
             if (healthy()) {
                 // start a 1 second timer to wait
                 _comsState = ComsState::Waiting;
-                _last_com_wait_ms = AP_HAL::millis();
+                _last_com_wait_ms = now_ms;
 
                 // set the LED to flashing green
                 _led_hue = 85;
                 _led_mode = LEDMode::Flashing;
+            } else if (now_ms - _last_print_faults_ms >= 10000) {
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from ICU");
+                _last_print_faults_ms = now_ms;
             }
             break;
         
