@@ -214,8 +214,10 @@ void AP_Ilmor::init(uint8_t driver_index, bool enable_filters)
 {
     CANSensor::init(driver_index, enable_filters);
 
+    hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Ilmor::tick, void));
+
     hal.util->snprintf(_thread_name, sizeof(_thread_name), "ilmor%d_tx", driver_index);
-    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 1024, AP_HAL::Scheduler::PRIORITY_TIMER, 0);
+    hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_Ilmor::run_io, void), _thread_name, 1024, AP_HAL::Scheduler::PRIORITY_CAN, 0);
 }
 
 bool AP_Ilmor::pre_arm_check(char *failure_msg, uint8_t failure_msg_len)
@@ -271,7 +273,15 @@ void AP_Ilmor::send_trim_cmd()
 void AP_Ilmor::run_io()
 {
     while (true) {
-        tick();
+        const uint32_t now_ms = AP_HAL::millis();
+
+        send_throttle_cmd();
+        send_trim_cmd();
+
+        if (now_ms - _last_send_frame1_ms > 1000) {
+            send_r3_status_frame_1();
+            _last_send_frame1_ms = now_ms;
+        }
         hal.scheduler->delay(2);
     }
 }
@@ -279,6 +289,7 @@ void AP_Ilmor::run_io()
 // called periodically from the IO thread
 void AP_Ilmor::tick()
 {
+    const uint32_t now_ms = AP_HAL::millis();
 
     coms_state_machine();
     clear_faults_state_machine();
@@ -286,12 +297,27 @@ void AP_Ilmor::tick()
     icu_logging_state_machine();
 #endif
 
+    if (now_ms - _last_print_faults_ms >= 10000) {
+        report_faults();
+
+        if (!icu_healthy()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from ICU");
+        }
+        if (!inverter_healthy()) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from Inverter");
+        }
+
+        // _ilmor_fw_version.print();
+        _last_print_faults_ms = now_ms;
+    }
+
 }
 
 // parse inbound frames
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
 
+    const uint32_t now = AP_HAL::millis();
     bool is_from_icu = false;
     const uint32_t frame_id = frame.id & AP_HAL::CANFrame::MaskExtID;
 
@@ -300,6 +326,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             struct ilmor_inverter_status_frame_1_t msg;
             ilmor_inverter_status_frame_1_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_1(msg);
+            _run_state.last_received_inverter_msg_ms = now;
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID: {
@@ -307,7 +334,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             struct ilmor_inverter_status_frame_2_t msg;
             ilmor_inverter_status_frame_2_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_2(msg);
-            
+            _run_state.last_received_inverter_msg_ms = now;
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID: {
@@ -315,19 +342,21 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             struct ilmor_inverter_status_frame_3_t msg;
             ilmor_inverter_status_frame_3_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_3(msg);
-            
+            _run_state.last_received_inverter_msg_ms = now;
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID: {
             struct ilmor_inverter_status_frame_4_t msg;
             ilmor_inverter_status_frame_4_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_4(msg);
+            _run_state.last_received_inverter_msg_ms = now;
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID: {
             struct ilmor_inverter_status_frame_5_t msg;
             ilmor_inverter_status_frame_5_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_5(msg);
+            _run_state.last_received_inverter_msg_ms = now;
         } break;
 
         default: {
@@ -413,7 +442,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 
     if (is_from_icu) {
         // If the message is from the ICU, we update the last received message time
-        _run_state.last_received_msg_ms = AP_HAL::millis();
+        _run_state.last_received_icu_ms = now;
     }
 
 }
@@ -567,13 +596,7 @@ void AP_Ilmor::coms_state_machine()
             if (healthy()) {
 
                 motor_state_machine();
-                send_throttle_cmd();
-                send_trim_cmd();
-
-                if (now_ms - _last_send_frame1_ms > 1000) {
-                    send_r3_status_frame_1();
-                    _last_send_frame1_ms = now_ms;
-                }
+                
                             
                 
             } else {
@@ -591,9 +614,6 @@ void AP_Ilmor::coms_state_machine()
                 // set the LED to flashing green
                 _led_hue = 85;
                 _led_mode = LEDMode::Flashing;
-            } else if (now_ms - _last_print_faults_ms >= 10000) {
-                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from ICU");
-                _last_print_faults_ms = now_ms;
             }
             break;
         
@@ -943,11 +963,7 @@ void AP_Ilmor::update()
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
     _rpm_demand = throttle * _max_rpm.get();
 
-    if (AP_HAL::millis() - _last_print_faults_ms >= 10000) {
-        report_faults();
-        // _ilmor_fw_version.print();
-        _last_print_faults_ms = AP_HAL::millis();
-    }
+    
 
 }
 
@@ -979,9 +995,22 @@ void AP_Ilmor::report_faults()
 
 bool AP_Ilmor::healthy() const
 {
-    // Check if we have received any messages in the last second
+    return icu_healthy() && inverter_healthy();
+}
+
+bool AP_Ilmor::icu_healthy() const
+{
     const uint32_t now_ms = AP_HAL::millis();
-    if (_run_state.last_received_msg_ms == 0 || now_ms - _run_state.last_received_msg_ms > 1000) {
+    if (_run_state.last_received_icu_ms == 0 || now_ms - _run_state.last_received_icu_ms > 1000) {
+        return false;
+    }
+    return true;
+}
+
+bool AP_Ilmor::inverter_healthy() const
+{
+    const uint32_t now_ms = AP_HAL::millis();
+    if (_run_state.last_received_inverter_msg_ms == 0 || now_ms - _run_state.last_received_inverter_msg_ms > 1000) {
         return false;
     }
     return true;
