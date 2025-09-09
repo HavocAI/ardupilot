@@ -181,7 +181,6 @@ AP_Ilmor::AP_Ilmor()
     _led_mode(LEDMode::Off),
     _trimState(TrimState::Start),
     _motor_state(MotorState::Ready),
-    _comsState(ComsState::Unhealthy),
 #ifdef AP_ILMOR_DEBUG
     _icu_logging_state(ICULoggingState::Idle),
 #endif
@@ -275,14 +274,18 @@ void AP_Ilmor::run_io()
     while (true) {
         const uint32_t now_ms = AP_HAL::millis();
 
-        send_throttle_cmd();
         send_trim_cmd();
+        send_throttle_cmd();
+
+        if (!icu_healthy()) {
+            send_direct_inverter();
+        }
 
         if (now_ms - _last_send_frame1_ms > 1000) {
             send_r3_status_frame_1();
             _last_send_frame1_ms = now_ms;
         }
-        hal.scheduler->delay(2);
+        hal.scheduler->delay(5);
     }
 }
 
@@ -291,7 +294,7 @@ void AP_Ilmor::tick()
 {
     const uint32_t now_ms = AP_HAL::millis();
 
-    coms_state_machine();
+    motor_state_machine();
     clear_faults_state_machine();
 #ifdef AP_ILMOR_DEBUG
     icu_logging_state_machine();
@@ -367,6 +370,8 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             if (!is_from_icu) {
                 // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: pgn: %" PRIu32 " from unexpected sa: %" PRIu8, pgn, id.source_address());
                 break;
+            } else {
+                _run_state.last_received_icu_ms = now;
             }
 
             switch (pgn) {
@@ -438,11 +443,6 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             }
 
         } break;
-    }
-
-    if (is_from_icu) {
-        // If the message is from the ICU, we update the last received message time
-        _run_state.last_received_icu_ms = now;
     }
 
 }
@@ -585,48 +585,6 @@ void AP_Ilmor::trim_state_machine()
         } break;
     }
 
-}
-
-void AP_Ilmor::coms_state_machine()
-{
-
-    const uint32_t now_ms = AP_HAL::millis();
-    switch (_comsState) {
-        case ComsState::Running:
-            if (healthy()) {
-
-                motor_state_machine();
-                
-                            
-                
-            } else {
-                _comsState = ComsState::Unhealthy;
-                _led_mode = LEDMode::Off;
-            }
-            break;
-
-        case ComsState::Unhealthy:
-            if (healthy()) {
-                // start a 1 second timer to wait
-                _comsState = ComsState::Waiting;
-                _last_com_wait_ms = now_ms;
-
-                // set the LED to flashing green
-                _led_hue = 85;
-                _led_mode = LEDMode::Flashing;
-            }
-            break;
-        
-        case ComsState::Waiting:
-            if (now_ms - _last_com_wait_ms > 3000) {
-                _comsState = ComsState::Running;
-                _ilmor_fw_version.print();
-
-                
-            }
-            break;
-    }
-    
 }
 
 void AP_Ilmor::clear_faults_state_machine()
@@ -774,10 +732,15 @@ void AP_Ilmor::icu_logging_state_machine()
 
 bool AP_Ilmor::is_locked_out()
 {
-    return !hal.util->get_soft_armed() ||
-        (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get()) ||
-        SRV_Channels::get_emergency_stop();
+    bool retval = !hal.util->get_soft_armed() ||
+                  SRV_Channels::get_emergency_stop();
 
+    // if the ICU is healthy, we also check the trim limit
+    if (icu_healthy()) {
+        retval |= (_max_run_trim.get() > 0 && _current_trim_position > _max_run_trim.get());
+    }
+
+    return retval;
 }
 
 void AP_Ilmor::motor_state_machine()
@@ -878,7 +841,7 @@ void AP_Ilmor::motor_state_machine()
                 _led_hue = 85;
                 _led_mode = LEDMode::Solid;
 
-                if (now_ms - _last_motor_wait_ms > 5000) {
+                if (icu_healthy() && now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
                     if (abs(_last_rpm) < min_rpm) {
                         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
@@ -907,7 +870,7 @@ void AP_Ilmor::motor_state_machine()
                 _led_hue = 40;
                 _led_mode = LEDMode::Solid;
 
-                if (now_ms - _last_motor_wait_ms > 5000) {
+                if (icu_healthy() && now_ms - _last_motor_wait_ms > 5000) {
                     _last_motor_wait_ms = now_ms;
                     if (abs(_last_rpm) < min_rpm) {
                         GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: Zero RPM detected");
@@ -1031,7 +994,43 @@ bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_thrott
     memcpy(frame.data, data, sizeof(data));
 
     AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
-    return write_frame(can_frame, SEND_TIMEOUT_US);
+    return write_frame(can_frame, 50);
+}
+
+void AP_Ilmor::send_direct_inverter()
+{
+    AP_HAL::CANFrame can_frame;
+
+    // send THR_DEMAND_LISP message to the Ilmor inverter
+    // this message must be sent at 20Hz
+
+    const int32_t throttle_demand_lisp = (int32_t)_output.motor_rpm * 5000;
+    const uint8_t throttle_demand_type = 0x3f; // 0x3f = RPM demand
+    uint8_t shift_position;
+
+    if (_output.motor_rpm > 0) {
+        shift_position = 0x3f; // forward
+    } else if (_output.motor_rpm < 0) {
+        shift_position = 0x7f; // reverse
+    } else {
+        shift_position = 0x1f; // neutral
+    }
+
+    can_frame.data[0] = (throttle_demand_lisp >> 24) & 0xFF;
+    can_frame.data[1] = (throttle_demand_lisp >> 16) & 0xFF;
+    can_frame.data[2] = (throttle_demand_lisp >> 8) & 0xFF;
+    can_frame.data[3] = throttle_demand_lisp & 0xFF;
+    can_frame.data[4] = throttle_demand_type;
+    can_frame.data[5] = shift_position;
+    can_frame.data[6] = 0x00;
+    can_frame.data[7] = 0x00;
+
+    can_frame.id = 0x00FFC0EF | AP_HAL::CANFrame::FlagEFF;
+    can_frame.dlc = 8; // J1939 frames are always 8 bytes
+    can_frame.canfd = false; // J1939 does not support CAN FD
+
+    write_frame(can_frame, 50);
+
 }
 
 bool AP_Ilmor::send_r3_status_frame_1()
