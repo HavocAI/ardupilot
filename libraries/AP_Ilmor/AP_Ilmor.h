@@ -112,12 +112,6 @@ private:
         WifiOn,
     } _motor_state;
 
-    enum class ComsState {
-        Waiting,
-        Running,
-        Unhealthy,
-    } _comsState;
-
 
     enum class ClearFaultsState {
         Ready,
@@ -154,7 +148,6 @@ private:
     uint8_t _current_trim_position;
     int32_t _last_rpm;
     uint32_t _last_motor_wait_ms;
-    uint32_t _last_com_wait_ms;
     uint32_t _last_trim_wait_ms;
     uint32_t _last_fault_notify_ms;
     J1939::DiagnosticMessage1::DTC _active_faults[AP_ILMOR_MAX_FAULTS];
@@ -203,6 +196,7 @@ private:
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
     bool send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg);
+    void send_direct_inverter();
     bool send_r3_status_frame_1();
     bool send_r3_status_frame_2(const struct ilmor_r3_status_frame_2_t &msg);
 
@@ -221,7 +215,6 @@ private:
     TrimCmd trim_demand();
 
     void trim_state_machine();
-    void coms_state_machine();
     void motor_state_machine();
     void clear_faults_state_machine();
 
