@@ -39,15 +39,7 @@ SimRover::SimRover(const char *frame_str) :
         return;
     }
 
-    vectored_thrust = strstr(frame_str, "vector") != nullptr;
-    if (vectored_thrust) {
-        printf("Vectored Thrust Rover Simulation Started\n");
-    }
-
-    omni3 = strstr(frame_str, "omni3mecanum") != nullptr;
-    if (omni3) {
-        printf("Omni3 Mecanum Rover Simulation Started\n");
-    }
+    printf("Custom Dynamics Rover Simulation Started\n");
 
     lock_step_scheduled = true;
 }
@@ -143,52 +135,41 @@ void SimRover::update(const struct sitl_input &input)
  */
 void SimRover::update_ackermann_or_skid(const struct sitl_input &input, float delta_time)
 {
-    float steering, throttle;
 
-    // if in skid steering mode the steering and throttle values are used for motor1 and motor2
-    if (skid_steering) {
-        float motor1 = 2*((input.servos[0]-1000)/1000.0f - 0.5f);
-        float motor2 = 2*((input.servos[2]-1000)/1000.0f - 0.5f);
-        steering = motor1 - motor2;
-        throttle = 0.5*(motor1 + motor2);
-    } else {
-        steering = 2*((input.servos[0]-1000)/1000.0f - 0.5f);
-        throttle = 2*((input.servos[2]-1000)/1000.0f - 0.5f);
-
-        // vectored thrust conversion
-        if (vectored_thrust) {
-            const float steering_angle_rad = radians(steering * vectored_angle_max);
-            steering = sinf(steering_angle_rad) * throttle;
-            throttle *= cosf(steering_angle_rad);
-        }
-    }
 
     // speed in m/s in body frame
     Vector3f velocity_body = dcm.transposed() * velocity_ef;
 
-    // speed along x axis, +ve is forward
-    float speed = velocity_body.x;
+    // Current velocities for dynamics calculations
+    float v_x = velocity_body.x;  // forward velocity
+    float v_y = velocity_body.y;  // starboard velocity  
 
-    // yaw rate in degrees/s
-    float yaw_rate = calc_yaw_rate(steering, speed);
+    float v_yaw_deg_s = degrees(gyro.z); // current yaw rate in deg/s
+    int16_t servo1_output = input.servos[0] - 1500;
+    int16_t servo3_output = input.servos[2] - 1500;
+    int16_t servo6_output = input.servos[5] - 1500;
 
-    // target speed with current throttle
-    float target_speed = throttle * max_speed;
+    // Custom dynamics equations
 
-    // linear acceleration in m/s/s - very crude model
-    float accel = max_accel * (target_speed - speed) / max_speed;
+    float v_yaw_deg_s_tp1 = 0.4916564184 * v_yaw_deg_s - 0.0377095101 * v_x - 0.0173249737 * v_y - 0.5474767805 * servo1_output - 1.7479285367 * servo3_output - 1.4322567509 * servo6_output - 0.0030811745 * v_yaw_deg_s * abs(v_yaw_deg_s) + 0.7417252685 * v_x * abs(v_x) + 0.0307017345 * v_y * abs(v_y) + 2.7803675978 * servo1_output * abs(servo1_output) + 39.6328582426 * servo3_output * abs(servo3_output) - 286.4513501710 * servo6_output * abs(servo6_output) - 0.0171158803 * v_yaw_deg_s * abs(v_x) + 0.0043611697 * v_yaw_deg_s * abs(v_y) + 0.1988914066 * v_yaw_deg_s * abs(servo1_output) + 98.3312836846 * v_yaw_deg_s * abs(servo6_output) + 0.0320896254 * v_x * abs(v_y) + 0.3093921495 * v_x * abs(servo1_output) + 0.1161545418 * v_x * abs(servo3_output) - 7.5419020177 * v_x * abs(servo6_output) - 0.4583748473 * v_y * abs(servo1_output) + 0.0440219117 * v_y * abs(servo3_output) - 3.4649947405 * v_y * abs(servo6_output) - 14.9576128441 * servo1_output * abs(servo3_output) - 109.4953560999 * servo1_output * abs(servo6_output) - 349.5857073488 * servo3_output * abs(servo6_output) - 0.0001233248 * pow(v_yaw_deg_s, 2) - 0.7460009872 * pow(v_x, 2) - 0.0640987752 * pow(v_y, 2) - 21.7940955738 * pow(servo3_output, 2) + 286.4513501731 * pow(servo6_output, 2) + 0.0000544364 * pow(v_yaw_deg_s, 3) + 0.0002939413 * pow(v_x, 3) - 0.0110899243 * pow(v_y, 3) + 5.4802165574 * pow(servo1_output, 3) - 32.4357758347 * pow(servo3_output, 3) - 57290.2700370548 * pow(servo6_output, 3);
+    float forward_speed_tp1 = 0.0012184941 * v_yaw_deg_s + 0.4712879431 * v_x - 0.0130216917 * v_y - 0.0455316502 * servo1_output - 0.4411568342 * servo3_output - 0.6502429234 * servo6_output - 0.0000672716 * v_yaw_deg_s * abs(v_yaw_deg_s) + 0.0088666014 * v_x * abs(v_x) - 0.0077023937 * v_y * abs(v_y) + 0.7213930293 * servo1_output * abs(servo1_output) + 20.9705308953 * servo3_output * abs(servo3_output) - 130.0485846752 * servo6_output * abs(servo6_output) + 0.0006194596 * v_yaw_deg_s * abs(v_x) - 0.0026734055 * v_yaw_deg_s * abs(v_y) - 0.0010742781 * v_yaw_deg_s * abs(servo1_output) - 0.0257308567 * v_yaw_deg_s * abs(servo3_output) + 0.2436988178 * v_yaw_deg_s * abs(servo6_output) - 0.0002040007 * v_x * abs(v_y) - 0.0153490950 * v_x * abs(servo3_output) + 94.2575886249 * v_x * abs(servo6_output) + 0.1005677203 * v_y * abs(servo1_output) + 0.0805001337 * v_y * abs(servo3_output) - 2.6043383301 * v_y * abs(servo6_output) - 0.6090922161 * servo1_output * abs(servo3_output) - 9.1063300438 * servo1_output * abs(servo6_output) - 88.2313668470 * servo3_output * abs(servo6_output) + 0.0001715758 * pow(v_yaw_deg_s, 2) - 0.0206917556 * pow(v_x, 2) - 0.0074700379 * pow(v_y, 2) - 0.1307424288 * pow(servo1_output, 2) + 0.3859444409 * pow(servo3_output, 2) + 130.0485846752 * pow(servo6_output, 2) + 0.0000087160 * pow(v_yaw_deg_s, 3) + 0.0009890791 * pow(v_x, 3) + 0.0009996821 * pow(v_y, 3) - 1.1264180334 * pow(servo1_output, 3) - 36.5005860301 * pow(servo3_output, 3) - 26009.7169368370 * pow(servo6_output, 3);
+    float starboard_speed_tp1 = 0.0012186617 * v_yaw_deg_s - 0.0010720336 * v_x + 0.4820522014 * v_y - 0.0510560946 * servo1_output + 0.0238960831 * servo3_output - 0.0000476661 * v_yaw_deg_s * abs(v_yaw_deg_s) - 0.0067437096 * v_x * abs(v_x) - 0.0051463783 * v_y * abs(v_y) + 0.4357296219 * servo1_output * abs(servo1_output) - 2.4866660468 * servo3_output * abs(servo3_output) - 0.0003776649 * v_yaw_deg_s * abs(v_x) + 0.0014462809 * v_yaw_deg_s * abs(v_y) - 0.0026763063 * v_yaw_deg_s * abs(servo1_output) + 0.0016902258 * v_yaw_deg_s * abs(servo3_output) + 0.2437323431 * v_yaw_deg_s * abs(servo6_output) - 0.0011703117 * v_x * abs(v_y) - 0.0669306517 * v_x * abs(servo3_output) - 0.2144067133 * v_x * abs(servo6_output) + 0.0561839699 * v_y * abs(servo1_output) + 0.1390013109 * v_y * abs(servo3_output) + 96.4104402734 * v_y * abs(servo6_output) + 0.0473917826 * servo1_output * abs(servo3_output) - 10.2112189198 * servo1_output * abs(servo6_output) + 4.7792166226 * servo3_output * abs(servo6_output) + 0.0101858154 * pow(v_x, 2) + 0.0003884389 * pow(v_y, 2) - 0.0344011563 * pow(servo1_output, 2) + 2.2106219374 * pow(servo3_output, 2) - 0.0000016791 * pow(v_yaw_deg_s, 3) - 0.0001713849 * pow(v_x, 3) + 0.0004106642 * pow(v_y, 3) - 0.4277868461 * pow(servo1_output, 3) + 2.0056869696 * pow(servo3_output, 3);
 
-    gyro = Vector3f(0,0,radians(yaw_rate));
+    printf("Inputs: Servo1: %u, Servo3: %u, Servo6: %u\n", servo1_output, servo3_output, servo6_output);
+    printf("Yaw spd: %f, Forward spd: %f, Starboard Accel: %f\n", v_yaw_deg_s_tp1, forward_speed_tp1, starboard_speed_tp1);
+
+    fflush(stdout);
+
+    gyro = Vector3f(0, 0, radians(v_yaw_deg_s_tp1));
+
 
     // update attitude
     dcm.rotate(gyro * delta_time);
     dcm.normalize();
 
-    // accel in body frame due to motor (excluding gravity)
-    accel_body = Vector3f(accel, 0, 0);
-
-    // add in accel due to direction change
-    accel_body.y += radians(yaw_rate) * speed;
+    float accel_x = (forward_speed_tp1 - v_x) / delta_time; // + sin(radians(yaw_rate)) * v_y;
+    float accel_y = (starboard_speed_tp1 - v_y) / delta_time + radians(v_yaw_deg_s_tp1) * v_x; // cos(radians) ~= radians
+    accel_body = Vector3f(accel_x, accel_y, 0);
 }
 
 /*
