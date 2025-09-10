@@ -284,6 +284,37 @@ void Mode::handle_tack_request()
     }
 }
 
+bool Mode::use_open_loop_throttle() const
+{
+    return ((g2.guided_options.get() & uint32_t(ModeGuided::Options::OpenLoopThrottle)) != 0);
+}
+
+void Mode::get_open_loop_throttle_out_speed(float target_speed, float &throttle_out)
+{
+    // Limit to SPEED_MAX parameter
+    if (is_positive(g2.speed_max)) {
+        if (fabsf(target_speed) > g2.speed_max) {
+            target_speed = copysignf(g2.speed_max, target_speed);
+        }
+    }
+
+    float cruise_speed = g.speed_cruise;
+    float cruise_throttle = g.throttle_cruise * 0.01f;
+    if (cruise_throttle < 0.05f) {
+        cruise_throttle = 0.05f;
+    }
+    if (cruise_speed < 0.5f) {
+        cruise_speed = 0.5f;
+    }
+
+    // convert speed to throttle using simple linear projection
+    // cruise_speed is in m/s, cruise_throttle should be in the range -1 to +1
+    throttle_out = target_speed / cruise_speed * cruise_throttle * 100.0f;
+
+    // constrain to -100 to +100
+    throttle_out = constrain_float(throttle_out, -100.0f, 100.0f);
+}
+
 void Mode::calc_throttle(float target_speed, bool avoidance_enabled)
 {
     // Limit to SPEED_MAX parameter
@@ -320,9 +351,13 @@ void Mode::calc_throttle(float target_speed, bool avoidance_enabled)
             bool stopped;
             throttle_out = 100.0f * attitude_control.get_throttle_out_stop(g2.motors.limit.throttle_lower, g2.motors.limit.throttle_upper, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt, stopped);
         } else {
-            bool motor_lim_low = g2.motors.limit.throttle_lower || attitude_control.pitch_limited();
-            bool motor_lim_high = g2.motors.limit.throttle_upper || attitude_control.pitch_limited();
-            throttle_out = 100.0f * attitude_control.get_throttle_out_speed(target_speed, motor_lim_low, motor_lim_high, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt);
+            if (use_open_loop_throttle()) {
+                get_open_loop_throttle_out_speed(target_speed, throttle_out);
+            } else {
+                bool motor_lim_low = g2.motors.limit.throttle_lower || attitude_control.pitch_limited();
+                bool motor_lim_high = g2.motors.limit.throttle_upper || attitude_control.pitch_limited();
+                throttle_out = 100.0f * attitude_control.get_throttle_out_speed(target_speed, motor_lim_low, motor_lim_high, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt);
+            }
         }
 
         // if vehicle is balance bot, calculate actual throttle required for balancing

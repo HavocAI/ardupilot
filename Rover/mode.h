@@ -130,6 +130,10 @@ public:
     // handle tacking request (from auxiliary switch) in sailboats
     virtual void handle_tack_request();
 
+    bool use_open_loop_throttle() const;
+
+    void get_open_loop_throttle_out_speed(float target_speed, float &throttle_out);
+
 protected:
 
     // subclasses override this to perform checks before entering the mode
@@ -562,6 +566,12 @@ public:
     void limit_init_time_and_location();
     bool limit_breached() const;
 
+    // enum for GUID_OPTIONS parameter
+    enum class Options : int32_t {
+        OpenLoopThrottle = (1U << 4),
+        SCurvesUsedForNavigation = (1U << 6)
+    };
+
 protected:
 
     enum class SubMode: uint8_t {
@@ -571,11 +581,6 @@ protected:
         Loiter,
         SteeringAndThrottle,
         Stop
-    };
-
-    // enum for GUID_OPTIONS parameter
-    enum class Options : int32_t {
-        SCurvesUsedForNavigation = (1U << 6)
     };
 
     bool _enter() override;
