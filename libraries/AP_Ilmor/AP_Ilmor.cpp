@@ -59,7 +59,7 @@
 
 extern const AP_HAL::HAL &hal;
 
-#define SEND_TIMEOUT_US 1000
+#define SEND_TIMEOUT_US 50
 
 #define AP_ILMOR_COMMAND_RATE_HZ 20
 #define AP_ILMOR_TRIM_DEADBAND 10
