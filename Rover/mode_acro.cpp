@@ -3,7 +3,7 @@
 void ModeAcro::update()
 {
     // get speed forward
-    float speed, desired_steering;
+    float speed, desired_steering, throttle_out;
     if (!attitude_control.get_forward_speed(speed)) {
         float desired_throttle;
         // convert pilot stick input into desired steering and throttle
@@ -14,13 +14,19 @@ void ModeAcro::update()
             rover.balancebot_pitch_control(desired_throttle);
         }
 
-        // no valid speed, just use the provided throttle
-        g2.motors.set_throttle(desired_throttle);
+        throttle_out = desired_throttle * 0.01f;
+
     } else {
         float desired_speed;
         // convert pilot stick input into desired steering and speed
         get_pilot_desired_steering_and_speed(desired_steering, desired_speed);
-        calc_throttle(desired_speed, true);
+        // Limit to SPEED_MAX parameter
+        if (is_positive(g2.speed_max)) {
+            if (fabsf(desired_speed) > g2.speed_max) {
+                desired_speed = copysignf(g2.speed_max, desired_speed);
+            }
+        }
+        throttle_out = attitude_control.get_throttle_out_speed(desired_speed, g2.motors.limit.throttle_lower, g2.motors.limit.throttle_upper, g.speed_cruise, g.throttle_cruise * 0.01f, rover.G_Dt);
     }
 
     float steering_out;
@@ -49,7 +55,18 @@ void ModeAcro::update()
                                                               rover.G_Dt);
     }
 
-    set_steering(steering_out * 4500.0f);
+    throttle_out = constrain_float(throttle_out, -1.0f, 1.0f);
+    steering_out = constrain_float(steering_out, -1.0f, 1.0f);
+
+
+    const float throttle_sign = (throttle_out > 0) ? 1.0f : -1.0f;
+
+    const float mixed_throttle = throttle_sign * sqrt(steering_out * steering_out + throttle_out * throttle_out);
+    const float mixed_steering = throttle_sign * atan2(steering_out, throttle_out);
+
+    
+    g2.motors.set_steering(mixed_steering * 4500.0f, false);
+    g2.motors.set_throttle(mixed_throttle * 100.0f);
 }
 
 bool ModeAcro::requires_velocity() const
