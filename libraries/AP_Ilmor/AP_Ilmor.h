@@ -48,6 +48,24 @@ class IlmorFwVersion {
         uint8_t dev_stage;
         uint8_t dev_stage_rev;
 };
+
+
+class MessageRateIIR {
+    public:
+        MessageRateIIR(float time_constant_sec = 5.0f);
+
+        void msg_received();
+        float rate_hz();
+    
+    private:
+        float _tau;
+        uint32_t _last_update_ms;
+        float _average_rate_hz;
+
+        void update_state();
+};
+
+
 class AP_Ilmor : public CANSensor
 #if HAL_WITH_ESC_TELEM
 , public AP_ESC_Telem_Backend
@@ -68,7 +86,7 @@ public:
     void update();
 
     
-    bool healthy() const;
+    bool healthy();
 
     bool pre_arm_check(char *failure_msg, uint8_t failure_msg_len);
 
@@ -160,19 +178,17 @@ private:
     uint8_t _server_mode;
     uint32_t _last_send_frame1_ms;
     uint32_t _last_auto_trim_down_ms;
+    MessageRateIIR _icu_msg_rate;
+    MessageRateIIR _inverter_msg_rate;
 
     struct run_state {
         run_state() :
             last_send_throttle_ms(0),
             last_send_trim_ms(0),
-            last_received_icu_ms(0),
-            last_received_inverter_msg_ms(0),
             last_trim_cmd(TRIM_CMD_STOP) {}
 
         uint32_t last_send_throttle_ms;
         uint32_t last_send_trim_ms;
-        uint32_t last_received_icu_ms;
-        uint32_t last_received_inverter_msg_ms;
         TrimCmd last_trim_cmd;
     } _run_state;
 
@@ -232,12 +248,12 @@ private:
     /// @brief is the ICU healthy?
     /// Healthy is determined if we have seen a CAN message from the ICU within the past 1 second.
     /// @return true if the ICU is healthy, false otherwise
-    bool icu_healthy() const;
+    bool icu_healthy();
 
     /// @brief is the inverter healthy?
     /// Healthy is determined if we have seen a CAN message from the inverter within the past 1 second.
     /// @return true if the inverter is healthy, false otherwise
-    bool inverter_healthy() const;
+    bool inverter_healthy();
 
 };
 
