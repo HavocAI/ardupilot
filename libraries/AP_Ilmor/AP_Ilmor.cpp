@@ -82,6 +82,38 @@ void IlmorFwVersion::print() const
 
 }
 
+
+MessageRateIIR::MessageRateIIR(float time_constant_sec)
+ :_tau(time_constant_sec),
+ _last_update_ms(0),
+ _average_rate_hz(0.0f)
+{
+    if (_tau <= 0.0f) {
+        _tau = 5.0f;
+    }
+}
+
+void MessageRateIIR::msg_received()
+{
+    update_state();
+    _average_rate_hz += (1.0 / _tau);
+}
+
+float MessageRateIIR::rate_hz()
+{
+    update_state();
+    return _average_rate_hz;
+}
+
+void MessageRateIIR::update_state()
+{
+    const uint32_t now_ms = AP_HAL::millis();
+    const float dt = (now_ms - _last_update_ms) / 1000.0f;
+    _last_update_ms = now_ms;
+
+    _average_rate_hz *= expf(-dt / _tau);
+}
+
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
@@ -310,17 +342,28 @@ void AP_Ilmor::tick()
             GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from Inverter");
         }
 
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: ICU %.1fHz Inverter %.1fHz",
+        //               _icu_msg_rate.rate_hz(), _inverter_msg_rate.rate_hz());
+
         // _ilmor_fw_version.print();
         _last_print_faults_ms = now_ms;
     }
+
+    const TelemetryData t = {
+        .voltage = _icu_msg_rate.rate_hz(),
+        .current = _inverter_msg_rate.rate_hz(),
+    };
+    // Hack the Wh consumed into the next ESC telemetry slot
+    update_telem_data(3, t,
+                      AP_ESC_Telem_Backend::TelemetryType::VOLTAGE | 
+                      AP_ESC_Telem_Backend::TelemetryType::CURRENT
+                    );
 
 }
 
 // parse inbound frames
 void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
 {
-
-    const uint32_t now = AP_HAL::millis();
     bool is_from_icu = false;
     const uint32_t frame_id = frame.id & AP_HAL::CANFrame::MaskExtID;
 
@@ -329,7 +372,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             struct ilmor_inverter_status_frame_1_t msg;
             ilmor_inverter_status_frame_1_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_1(msg);
-            _run_state.last_received_inverter_msg_ms = now;
+            _inverter_msg_rate.msg_received();
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_2_FRAME_ID: {
@@ -337,7 +380,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             struct ilmor_inverter_status_frame_2_t msg;
             ilmor_inverter_status_frame_2_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_2(msg);
-            _run_state.last_received_inverter_msg_ms = now;
+            _inverter_msg_rate.msg_received();
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_3_FRAME_ID: {
@@ -345,21 +388,21 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             struct ilmor_inverter_status_frame_3_t msg;
             ilmor_inverter_status_frame_3_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_3(msg);
-            _run_state.last_received_inverter_msg_ms = now;
+            _inverter_msg_rate.msg_received();
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_4_FRAME_ID: {
             struct ilmor_inverter_status_frame_4_t msg;
             ilmor_inverter_status_frame_4_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_4(msg);
-            _run_state.last_received_inverter_msg_ms = now;
+            _inverter_msg_rate.msg_received();
         } break;
 
         case ILMOR_INVERTER_STATUS_FRAME_5_FRAME_ID: {
             struct ilmor_inverter_status_frame_5_t msg;
             ilmor_inverter_status_frame_5_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_5(msg);
-            _run_state.last_received_inverter_msg_ms = now;
+            _inverter_msg_rate.msg_received();
         } break;
 
         default: {
@@ -371,7 +414,7 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
                 // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: pgn: %" PRIu32 " from unexpected sa: %" PRIu8, pgn, id.source_address());
                 break;
             } else {
-                _run_state.last_received_icu_ms = now;
+                _icu_msg_rate.msg_received();
             }
 
             switch (pgn) {
@@ -956,27 +999,19 @@ void AP_Ilmor::report_faults()
     }
 }
 
-bool AP_Ilmor::healthy() const
+bool AP_Ilmor::healthy()
 {
     return icu_healthy() && inverter_healthy();
 }
 
-bool AP_Ilmor::icu_healthy() const
+bool AP_Ilmor::icu_healthy()
 {
-    const uint32_t now_ms = AP_HAL::millis();
-    if (_run_state.last_received_icu_ms == 0 || now_ms - _run_state.last_received_icu_ms > 1000) {
-        return false;
-    }
-    return true;
+    return _icu_msg_rate.rate_hz() > 5.0f;
 }
 
-bool AP_Ilmor::inverter_healthy() const
+bool AP_Ilmor::inverter_healthy()
 {
-    const uint32_t now_ms = AP_HAL::millis();
-    if (_run_state.last_received_inverter_msg_ms == 0 || now_ms - _run_state.last_received_inverter_msg_ms > 1000) {
-        return false;
-    }
-    return true;
+   return _inverter_msg_rate.rate_hz() > 5.0f;
 }
 
 bool AP_Ilmor::send_unmanned_throttle_control(const struct ilmor_unmanned_throttle_control_t &msg)
