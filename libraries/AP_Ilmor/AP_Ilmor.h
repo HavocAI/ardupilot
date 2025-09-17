@@ -39,8 +39,12 @@
 class IlmorFwVersion {
     public:
         IlmorFwVersion() : major(0), minor(0), patch(0), dev_stage(0), dev_stage_rev(0) {}
+        IlmorFwVersion(uint8_t maj, uint8_t min, uint8_t pat, uint8_t stage, uint8_t stage_rev) :
+            major(maj), minor(min), patch(pat), dev_stage(stage), dev_stage_rev(stage_rev) {}
 
         void print() const;
+
+        bool operator<(const IlmorFwVersion& other) const;
 
         uint8_t major;  // Major version
         uint8_t minor;  // Minor version

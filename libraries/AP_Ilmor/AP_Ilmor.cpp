@@ -82,6 +82,14 @@ void IlmorFwVersion::print() const
 
 }
 
+bool IlmorFwVersion::operator<(const IlmorFwVersion& other) const {
+    if (major != other.major) return major < other.major;
+    if (minor != other.minor) return minor < other.minor;
+    if (patch != other.patch) return patch < other.patch;
+    if (dev_stage != other.dev_stage) return dev_stage < other.dev_stage;
+    return dev_stage_rev < other.dev_stage_rev;
+}
+
 
 MessageRateIIR::MessageRateIIR(float time_constant_sec)
  :_tau(time_constant_sec),
@@ -301,6 +309,10 @@ void AP_Ilmor::send_trim_cmd()
     }
 }
 
+const IlmorFwVersion DirectToIlmorFwVersion = {
+    1,1,9,98,6,
+};
+
 void AP_Ilmor::run_io()
 {
     while (true) {
@@ -309,7 +321,7 @@ void AP_Ilmor::run_io()
         send_trim_cmd();
         send_throttle_cmd();
 
-        if (!icu_healthy()) {
+        if (!icu_healthy() || DirectToIlmorFwVersion < _ilmor_fw_version) {
             send_direct_inverter();
         }
 
