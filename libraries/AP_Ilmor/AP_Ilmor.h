@@ -65,6 +65,7 @@ class MessageRateIIR {
         float _tau;
         uint32_t _last_update_ms;
         float _average_rate_hz;
+        HAL_Semaphore sem;
 
         void update_state();
 };

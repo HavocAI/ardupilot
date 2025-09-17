@@ -103,12 +103,14 @@ MessageRateIIR::MessageRateIIR(float time_constant_sec)
 
 void MessageRateIIR::msg_received()
 {
+    WITH_SEMAPHORE(sem);
     update_state();
     _average_rate_hz += (1.0 / _tau);
 }
 
 float MessageRateIIR::rate_hz()
 {
+    WITH_SEMAPHORE(sem);
     update_state();
     return _average_rate_hz;
 }
