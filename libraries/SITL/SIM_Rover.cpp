@@ -98,13 +98,7 @@ void SimRover::update(const struct sitl_input &input)
     if (omni3) {
         update_omni3(input, delta_time);
     } else {
-        // Use a custom havoc vehicle dynamics model
-        if (havoc_vehicle_sim_dynamics_type == 2){
             update_rampage_gen2(input, delta_time);
-        }
-        else{
-            update_ackermann_or_skid(input, delta_time);
-        }
     }
 
     // common to all rovers
