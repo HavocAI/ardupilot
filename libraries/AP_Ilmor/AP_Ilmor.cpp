@@ -74,6 +74,8 @@ extern const AP_HAL::HAL &hal;
 #define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
 #define AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY 3
 
+#define CURRENT_DEMAND 1
+
 
 void IlmorFwVersion::print() const
 {
