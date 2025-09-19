@@ -151,6 +151,23 @@ private:
     } _icu_logging_state;
 #endif
 
+    class MotorThrottleDemand {
+        public:
+        MotorThrottleDemand();
+
+        enum class Shift: uint8_t {
+            Neutral = 0x1f,
+            Forward = 0x3f,
+            Reverse = 0x7f,
+        } _shift;
+
+        float _throttle_value;
+
+        static MotorThrottleDemand from_normalized(float v);
+        static MotorThrottleDemand neutral();
+
+    };
+
 
     // Parameters
     AP_Int16 _min_rpm;
@@ -179,7 +196,7 @@ private:
     uint32_t _last_print_faults_ms;
     IlmorFwVersion _ilmor_fw_version;
     uint8_t _led_hue;
-    int16_t _rpm_demand;
+    MotorThrottleDemand _throttle_demand;
     uint8_t _server_mode;
     uint32_t _last_send_frame1_ms;
     uint32_t _last_auto_trim_down_ms;
@@ -199,10 +216,10 @@ private:
 
     struct command_output {
         command_output() :
-            motor_rpm(0),
+            motor_throttle(),
             motor_trim(TRIM_CMD_BUTTONS) {}
 
-        int16_t motor_rpm;
+        MotorThrottleDemand motor_throttle;
         TrimCmd motor_trim;
     } _output;
 
