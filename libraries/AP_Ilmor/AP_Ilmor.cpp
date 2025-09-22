@@ -74,7 +74,7 @@ extern const AP_HAL::HAL &hal;
 #define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
 #define AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY 3
 
-#define CURRENT_DEMAND 1
+#define AP_ILMOR_OPTION_CURRENT_DEMAND (1 << 0)
 
 
 void IlmorFwVersion::print() const
@@ -244,6 +244,11 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @Increment: 1
     // @User: Advanced
     AP_GROUPINFO("TR_PRD", 12, AP_Ilmor, _auto_trim_down_period, 60000),
+
+    // @Param: OPT
+    // @DisplayName: Options
+    // @Description: Bitmask options for various features. Bit 0: Enable Amperage Demand Control
+    AP_GROUPINFO("OPT", 13, AP_Ilmor, _options, 0),
 
     AP_GROUPEND};
 
@@ -1094,14 +1099,16 @@ void AP_Ilmor::send_direct_inverter()
     // send THR_DEMAND_LISP message to the Ilmor inverter
     // this message must be sent at 20Hz
 
-#ifdef CURRENT_DEMAND
-    const int32_t throttle_demand_lisp = _output.motor_throttle._throttle_value * 100000;
-    const uint8_t throttle_demand_type = 0x1f; // 0x1f = Current demand
-    
-#else
-    const int32_t throttle_demand_lisp = _output.motor_throttle._throttle_value * _max_rpm.get() * 5000;
-    const uint8_t throttle_demand_type = 0x3f; // 0x3f = RPM demand
-#endif // CURRENT_DEMAND
+    int32_t throttle_demand_lisp;
+    uint8_t throttle_demand_type;
+
+    if (_options.get() & AP_ILMOR_OPTION_CURRENT_DEMAND) {
+        throttle_demand_lisp = _output.motor_throttle._throttle_value * 100000;
+        throttle_demand_type = 0x1f; // 0x1f = Current demand
+    } else {
+        throttle_demand_lisp = _output.motor_throttle._throttle_value * _max_rpm.get() * 5000;
+        throttle_demand_type = 0x3f; // 0x3f = RPM demand
+    }
 
     const uint8_t shift_position = static_cast<uint8_t>(_output.motor_throttle._shift);
 

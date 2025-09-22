@@ -184,6 +184,7 @@ private:
     AP_Int8 _auto_trim_down;
     AP_Int8 _auto_trim_down_threshold;
     AP_Int32 _auto_trim_down_period;
+    AP_Int32 _options;
 
     uint8_t _current_trim_position;
     int32_t _last_rpm;
