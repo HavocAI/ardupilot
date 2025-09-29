@@ -748,6 +748,8 @@ void AP_MotorsUGV::output_regular(bool armed, float ground_speed, float steering
                     }
                 }
             } else {
+                steering *= 4500.0f;
+
                 // scale steering down as speed increase above MOT_SPD_SCA_BASE (1 m/s default)
                 if (is_positive(_speed_scale_base) && (fabsf(ground_speed) > _speed_scale_base)) {
                     steering *= (_speed_scale_base / fabsf(ground_speed));
