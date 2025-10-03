@@ -164,26 +164,63 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   float servo1_output = -(input.servos[0] - 1500.0f) / 1000.0f; // steering
   float servo3_output = (input.servos[2] - 1500.0f) / 1000.0f;  // throttle
 
+  // Constrain servo outputs to prevent extreme values
+  servo1_output = constrain_float(servo1_output, -1.0f, 1.0f);
+  servo3_output = constrain_float(servo3_output, -1.0f, 1.0f);
+
   // THRUST
   double advance_coefficient = 0.95;
   double propeller_rpm = servo3_output * 5000;
-  double va =
-      v_x *
-      advance_coefficient; // Rotational speed (n) in revolutions per second
+  double va = v_x * advance_coefficient;
   double rps = propeller_rpm / 60.0;
-  if (fabsf(rps) < 1e-2)
+
+  // Prevent very small rps values that cause division issues
+  if (fabsf(rps) < 1e-6) {
     rps = 0.0;
-  // Propeller diameter (d) in meters
-  double d = 0.3; // advance ratio = j
-  double j = va / (rps * d);
+  }
+
+  double d = 0.3; // Propeller diameter in meters
+
+  // Prevent division by zero in advance ratio calculation
+  double j = 0.0;
+  if (fabsf(rps * d) > 1e-6) {
+    j = va / (rps * d);
+  }
+
+  // Constrain advance ratio to reasonable values
+  j = constrain_float(j, -10.0, 10.0);
+
   double Kt = -0.091 * std::pow(j, 2) - 0.289 * j + 0.367; // thrust coefficient
+
+  // Constrain thrust coefficient to prevent extreme values
+  Kt = constrain_float(Kt, -2.0, 2.0);
+
   double rho = 1025; // saltwater density in kg/m^3
   double thrust = Kt * rho * std::pow(rps, 2) * std::pow(d, 4);
+
+  // Check for invalid thrust values
+  if (isnan(thrust) || !isfinite(thrust)) {
+    thrust = 0.0;
+  }
+
+  // Constrain thrust to reasonable limits
+  thrust = constrain_float(thrust, -10000.0, 10000.0);
 
   double thruster_angle = servo1_output * 30; // +/- 30 deg max output
   double thrust_fwd = thrust * cos(radians(thruster_angle));
   double thrust_side = thrust * sin(radians(thruster_angle));
   double thrust_yaw = thrust_side * 1; // 1 meter between CG and motor pivot
+
+  // Check for NaN in thrust components
+  if (isnan(thrust_fwd) || !isfinite(thrust_fwd)) {
+    thrust_fwd = 0.0;
+  }
+  if (isnan(thrust_side) || !isfinite(thrust_side)) {
+    thrust_side = 0.0;
+  }
+  if (isnan(thrust_yaw) || !isfinite(thrust_yaw)) {
+    thrust_yaw = 0.0;
+  }
 
   // DRAG
   // 3x1 vector of drag coefficients, 3x3 matrix of cross-coupling drag
@@ -213,20 +250,43 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   float vehicle_mass = 257.208;
   float Lzz = 39.284389916;
 
+  // Prevent division by zero in mass calculations
+  if (vehicle_mass <= 0.0f) {
+    vehicle_mass = 1.0f; // Minimum mass
+  }
+  if (Lzz <= 0.0f) {
+    Lzz = 1.0f; // Minimum rotational inertia
+  }
+
   // Accelerations
   double a_x = (thrust_fwd - f_drag_x) / vehicle_mass;
   double a_y = (thrust_side - f_drag_y) / vehicle_mass;
   double a_yaw = (thrust_yaw - f_drag_yaw) / Lzz;
 
-  // Custom dynamics equations
-  // float v_yaw_deg_s_tp1 = 0.8788459312 * v_yaw_deg_s - 3.9296105163 *
-  // servo3_output - 49.3558109408 * servo1_output*servo3_output; float
-  // forward_speed_tp1 = 0.9600673480 * v_x + 0.8431726738 * servo3_output;
-  // float starboard_speed_tp1 = 0.9579987959 * v_y + 0.2795478102 *
-  // servo1_output*servo3_output;
+  // Constrain accelerations to prevent extreme values
+  a_x = constrain_float(a_x, -100.0, 100.0);
+  a_y = constrain_float(a_y, -100.0, 100.0);
+  a_yaw = constrain_float(a_yaw, -1000.0, 1000.0);
+
+  // Check for NaN in accelerations
+  if (isnan(a_x) || !isfinite(a_x)) {
+    a_x = 0.0;
+  }
+  if (isnan(a_y) || !isfinite(a_y)) {
+    a_y = 0.0;
+  }
+  if (isnan(a_yaw) || !isfinite(a_yaw)) {
+    a_yaw = 0.0;
+  }
 
   // Including x|x| drag terms
-  double v_yaw_deg_s_tp1 = v_yaw_deg_s + a_yaw * (delta_time);
+  double v_yaw_deg_s_tp1 = v_yaw_deg_s + a_yaw * delta_time;
+
+  // Constrain the new yaw rate and check for validity
+  v_yaw_deg_s_tp1 = constrain_float(v_yaw_deg_s_tp1, -360.0, 360.0);
+  if (isnan(v_yaw_deg_s_tp1) || !isfinite(v_yaw_deg_s_tp1)) {
+    v_yaw_deg_s_tp1 = 0.0;
+  }
   //   float forward_speed_tp1 = forward_speed + a_x * (delta_time);
   //   float starboard_speed_tp1 = starboard_speed + a_y * (delta_time);
 
