@@ -293,7 +293,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
 
   // printf("Inputs: Servo1: %f, Servo3: %f, Servo6: %f\n", servo1_output,
   // servo3_output, servo6_output);
-  print();
+  printf("---------------------");
   printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f \n", v_x, v_y,
          v_yaw_deg_s);
   printf("Yaw acc: %f, Forward acc: %f, Starboard acc: %f \n", a_x, a_y, a_yaw);
