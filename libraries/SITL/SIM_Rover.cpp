@@ -209,7 +209,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   double thruster_angle = servo1_output * 30; // +/- 30 deg max output
   double thrust_fwd = thrust * cos(radians(thruster_angle));
   double thrust_side = thrust * sin(radians(thruster_angle));
-  double thrust_yaw = thrust_side * 1; // 1 meter between CG and motor pivot
+  double thrust_yaw = -thrust_side * 1; // 1 meter between CG and motor pivot
 
   // Check for NaN in thrust components
   if (isnan(thrust_fwd) || !isfinite(thrust_fwd)) {
@@ -244,7 +244,8 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   double f_drag_yaw = drag_coeffs[2] * v_yaw_deg_s +
                       drag_coupling[2][0] * v_yaw_deg_s * fabsf(v_x) +
                       drag_coupling[2][1] * v_yaw_deg_s * fabsf(v_y) +
-                      drag_coupling[2][2] * v_yaw_deg_s * fabsf(v_yaw_deg_s);
+                      drag_coupling[2][2] * v_yaw_deg_s *
+                          fabsf(v_yaw_deg_s); // N/m per deg/s to N/m per rad/s
 
   // INERTIA
   float vehicle_mass = 257.208;
@@ -261,7 +262,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   // Accelerations
   double a_x = (thrust_fwd - f_drag_x) / vehicle_mass;
   double a_y = (thrust_side - f_drag_y) / vehicle_mass;
-  double a_yaw = (thrust_yaw - f_drag_yaw) / Lzz;
+  double a_yaw = (thrust_yaw - radians(f_drag_yaw)) / Lzz;
 
   // Constrain accelerations to prevent extreme values
   a_x = constrain_float(a_x, -100.0, 100.0);
@@ -292,8 +293,10 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
 
   // printf("Inputs: Servo1: %f, Servo3: %f, Servo6: %f\n", servo1_output,
   // servo3_output, servo6_output);
-  printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f\n", v_x, v_y,
+  printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f \n", v_x, v_y,
          v_yaw_deg_s);
+  printf("Yaw acc: %f, Forward acc: %f, Starboard acc: %f \n", a_x, a_y, a_yaw);
+  printf("Thrust: %f, Thruster angle: %f \n", thrust, thruster_angle);
 
   // fflush(stdout);
 
