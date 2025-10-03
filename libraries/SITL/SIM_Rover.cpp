@@ -296,8 +296,8 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   printf("---------------------\n");
   printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f \n", v_x, v_y,
          v_yaw_deg_s);
-  printf("servo_1_output: %f, servo_3_output: %f \n", input.servos[0],
-         input.servos[2]);
+  printf("servo_1_output: %f, servo_3_output: %f \n", servo1_output_raw,
+         servo3_output_raw);
   printf("Yaw acc: %f, Forward acc: %f, Starboard acc: %f \n", a_x, a_y, a_yaw);
   printf("Thrust: %f, Thruster angle: %f \n", thrust, thruster_angle);
   printf("thrust_side: %f, thrust_yaw: %f, thrust_fwd: %f \n", thrust_side,
