@@ -149,6 +149,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   float v_x = velocity_body.x;         // forward velocity
   float v_y = velocity_body.y;         // starboard velocity
   float v_yaw_deg_s = degrees(gyro.z); // current yaw rate in deg/s
+  float v_yaw_rad_s = gyro.z;          // current yaw rate in rad/s
 
   // Check for NaN and set to 0 if needed
   if (isnan(v_x) || !isfinite(v_x)) {
@@ -157,8 +158,8 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   if (isnan(v_y) || !isfinite(v_y)) {
     v_y = 0.0f;
   }
-  if (isnan(v_yaw_deg_s) || !isfinite(v_yaw_deg_s)) {
-    v_yaw_deg_s = 0.0f;
+  if (isnan(v_yaw_rad_s) || !isfinite(v_yaw_rad_s)) {
+    v_yaw_rad_s = 0.0f;
   }
 
   float servo1_output_raw = -(input.servos[0] - 1500.0f) / 1000.0f; // steering
@@ -236,16 +237,15 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   double f_drag_x = drag_coeffs[0] * v_x +
                     drag_coupling[0][0] * v_x * fabsf(v_x) +
                     drag_coupling[0][1] * v_x * fabsf(v_y) +
-                    drag_coupling[0][2] * v_x * fabsf(v_yaw_deg_s);
+                    drag_coupling[0][2] * v_x * fabsf(v_yaw_rad_s);
   double f_drag_y = drag_coeffs[1] * v_y +
                     drag_coupling[1][0] * v_y * fabsf(v_x) +
                     drag_coupling[1][1] * v_y * fabsf(v_y) +
-                    drag_coupling[1][2] * v_y * fabsf(v_yaw_deg_s);
-  double f_drag_yaw = drag_coeffs[2] * v_yaw_deg_s +
-                      drag_coupling[2][0] * v_yaw_deg_s * fabsf(v_x) +
-                      drag_coupling[2][1] * v_yaw_deg_s * fabsf(v_y) +
-                      drag_coupling[2][2] * v_yaw_deg_s *
-                          fabsf(v_yaw_deg_s); // N/m per deg/s to N/m per rad/s
+                    drag_coupling[1][2] * v_y * fabsf(v_yaw_rad_s);
+  double f_drag_yaw = drag_coeffs[2] * v_yaw_rad_s +
+                      drag_coupling[2][0] * v_yaw_rad_s * fabsf(v_x) +
+                      drag_coupling[2][1] * v_yaw_rad_s * fabsf(v_y) +
+                      drag_coupling[2][2] * v_yaw_rad_s * fabsf(v_yaw_rad_s);
 
   // INERTIA
   float vehicle_mass = 257.208;
@@ -262,7 +262,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   // Accelerations
   double a_x = (thrust_fwd - f_drag_x) / vehicle_mass;
   double a_y = (thrust_side - f_drag_y) / vehicle_mass;
-  double a_yaw = (thrust_yaw - radians(f_drag_yaw)) / Lzz;
+  double a_yaw = (thrust_yaw - f_drag_yaw) / Lzz;
 
   // Constrain accelerations to prevent extreme values
   a_x = constrain_float(a_x, -100.0, 100.0);
@@ -281,7 +281,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   }
 
   // Including x|x| drag terms
-  double v_yaw_deg_s_tp1 = v_yaw_deg_s + a_yaw * delta_time;
+  double v_yaw_deg_s_tp1 = v_yaw_deg_s + degrees(a_yaw) * delta_time;
 
   // Constrain the new yaw rate and check for validity
   v_yaw_deg_s_tp1 = constrain_float(v_yaw_deg_s_tp1, -360.0, 360.0);
