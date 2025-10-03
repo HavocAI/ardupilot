@@ -206,7 +206,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   // Constrain thrust to reasonable limits
   thrust = constrain_float(thrust, -10000.0, 10000.0);
 
-  double thruster_angle = servo1_output * 30; // +/- 30 deg max output
+  double thruster_angle = servo1_output * 45; // +/- 30 deg max output
   double thrust_fwd = thrust * cos(radians(thruster_angle));
   double thrust_side = thrust * sin(radians(thruster_angle));
   double thrust_yaw = -thrust_side * 1; // 1 meter between CG and motor pivot
@@ -293,10 +293,15 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
 
   // printf("Inputs: Servo1: %f, Servo3: %f, Servo6: %f\n", servo1_output,
   // servo3_output, servo6_output);
+  print();
   printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f \n", v_x, v_y,
          v_yaw_deg_s);
   printf("Yaw acc: %f, Forward acc: %f, Starboard acc: %f \n", a_x, a_y, a_yaw);
   printf("Thrust: %f, Thruster angle: %f \n", thrust, thruster_angle);
+  printf("thrust_side: %f, thrust_yaw: %f, thrust_fwd: %f \n", thrust_side,
+         thrust_yaw, thrust_fwd);
+  printf("f_drag_x: %f, f_drag_y: %f, f_drag_yaw: %f \n", f_drag_x, f_drag_y,
+         f_drag_yaw);
 
   // fflush(stdout);
 
