@@ -2,6 +2,8 @@ name: Macos Build
 
 on:
   push:
+    branches-ignore:
+      - 'kb/sim_model'
     paths-ignore:
       # remove other env install scripts
       - 'Tools/environment_install/APM_install.sh'

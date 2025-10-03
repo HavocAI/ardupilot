@@ -1,7 +1,9 @@
 name: test ap_periph
 
-on: 
+on:
   push:
+    branches-ignore:
+      - 'kb/sim_model'
     paths-ignore:
       # remove other vehicles than copter
       - 'AntennaTracker/**'

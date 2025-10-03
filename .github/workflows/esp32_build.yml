@@ -2,6 +2,8 @@ name: ESP32 Build
 
 on:
   push:
+    branches-ignore:
+      - 'kb/sim_model'
     paths-ignore:
       # remove non copter and plane vehicles
       - 'AntennaTracker/**'

@@ -1,6 +1,11 @@
 name: test scripts
 
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches-ignore:
+      - 'kb/sim_model'
+  pull_request:
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{github.workflow}}-${{ github.ref }}
