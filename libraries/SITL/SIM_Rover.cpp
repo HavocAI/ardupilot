@@ -161,12 +161,12 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
     v_yaw_deg_s = 0.0f;
   }
 
-  float servo1_output = -(input.servos[0] - 1500.0f) / 1000.0f; // steering
-  float servo3_output = (input.servos[2] - 1500.0f) / 1000.0f;  // throttle
+  float servo1_output_raw = -(input.servos[0] - 1500.0f) / 1000.0f; // steering
+  float servo3_output_raw = (input.servos[2] - 1500.0f) / 1000.0f;  // throttle
 
   // Constrain servo outputs to prevent extreme values
-  servo1_output = constrain_float(servo1_output, -1.0f, 1.0f);
-  servo3_output = constrain_float(servo3_output, -1.0f, 1.0f);
+  float servo1_output = constrain_float(servo1_output_raw, -1.0f, 1.0f);
+  float servo3_output = constrain_float(servo3_output_raw, -1.0f, 1.0f);
 
   // THRUST
   double advance_coefficient = 0.95;
