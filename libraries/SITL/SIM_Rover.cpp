@@ -163,7 +163,55 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
 
   float servo1_output = -(input.servos[0] - 1500.0f) / 1000.0f; // steering
   float servo3_output = (input.servos[2] - 1500.0f) / 1000.0f;  // throttle
-  // float servo6_output = (input.servos[5] - 1000.0f)/1000.0f;
+
+  // THRUST
+  float advance_coefficient = 0.95;
+  float propeller_rpm = servo3_output * 5000;
+  float va =
+      v_x *
+      advance_coefficient; // Rotational speed (n) in revolutions per second
+  double rps = propeller_rpm / 60.0;
+  if (rps < 1e-6)
+    rps = 0.0;
+  // Propeller diameter (d) in meters
+  double d = 0.3; // advance ratio = j
+  double j = va / (rps * d);
+  double Kt = -0.091 * std::pow(j, 2) - 0.289 * j + 0.367; // thrust coefficient
+  double rho = 1025; // saltwater density in kg/m^3
+  double thrust = Kt * rho * std::pow(rps, 2) * std::pow(d, 4);
+
+  // DRAG
+  // 3x1 vector of drag coefficients, 3x3 matrix of cross-coupling drag
+  // coefficients
+  Vector3f drag_coeffs(1.101, 4.673, 2.0001); // linear drag coefficients
+  Matrix3f drag_coupling; // cross-coupling drag coefficients
+  drag_coupling.zero();
+  drag_coupling[0][0] = 2.012f;
+  drag_coupling[1][1] = 93.462f;
+  drag_coupling[2][2] = 50.0001f;
+  drag_coupling[0][1] = 28.241f;
+  drag_coupling[1][0] = 131.587f;
+  float f_drag_x = drag_coeffs[0] * v_x +
+                   drag_coupling[0][0] * v_x * fabsf(v_x) +
+                   drag_coupling[0][1] * v_x * fabsf(v_y) +
+                   drag_coupling[0][2] * v_x * fabsf(v_yaw_deg_s);
+  float f_drag_y = drag_coeffs[1] * v_y +
+                   drag_coupling[1][0] * v_y * fabsf(v_x) +
+                   drag_coupling[1][1] * v_y * fabsf(v_y) +
+                   drag_coupling[1][2] * v_y * fabsf(v_yaw_deg_s);
+  float f_drag_yaw = drag_coeffs[2] * v_yaw_deg_s +
+                     drag_coupling[2][0] * v_yaw_deg_s * fabsf(v_x) +
+                     drag_coupling[2][1] * v_yaw_deg_s * fabsf(v_y) +
+                     drag_coupling[2][2] * v_yaw_deg_s * fabsf(v_yaw_deg_s);
+
+  // INERTIA
+  float vehicle_mass = 257208.35 / 1e3; // grams to kg
+  float Lzz = 39284389916.57 / 1e9;
+
+  // Accelerations
+  float a_x = (thrust - f_drag_x) / vehicle_mass;
+  float a_y = (-f_drag_y) / vehicle_mass;
+  float a_yaw = (-f_drag_yaw) / Lzz;
 
   // Custom dynamics equations
   // float v_yaw_deg_s_tp1 = 0.8788459312 * v_yaw_deg_s - 3.9296105163 *
@@ -173,73 +221,14 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   // servo1_output*servo3_output;
 
   // Including x|x| drag terms
-  float v_yaw_deg_s_tp1 =
-      0.9457945913 * v_yaw_deg_s - 0.0365622154 * v_x + 0.0159923907 * v_y -
-      2.4841146175 * servo3_output -
-      35.9814219875 * servo1_output * servo3_output +
-      0.0005811410 * v_yaw_deg_s * fabsf(v_yaw_deg_s) -
-      0.0139930044 * v_x * fabsf(v_x) - 0.0143090388 * v_y * fabsf(v_y) -
-      5.0066888767 * servo3_output * fabsf(servo3_output) -
-      506.2938250188 * servo1_output * servo3_output *
-          fabsf(servo1_output * servo3_output) -
-      0.0272437176 * v_yaw_deg_s * fabsf(v_x) -
-      0.0004407969 * v_yaw_deg_s * fabsf(v_y) -
-      0.2400448838 * v_yaw_deg_s * fabsf(servo3_output) -
-      1.2125073772 * v_yaw_deg_s * fabsf(servo1_output * servo3_output) +
-      0.0075284391 * v_x * fabsf(v_y) +
-      0.2412053255 * v_x * fabsf(servo3_output) +
-      5.2039300712 * v_x * fabsf(servo1_output * servo3_output) -
-      0.1812173950 * v_y * fabsf(servo3_output) +
-      1.3642979940 * v_y * fabsf(servo1_output * servo3_output) -
-      77.2542650605 * servo3_output * fabsf(servo1_output * servo3_output);
-  float forward_speed_tp1 =
-      0.0023218995 * v_yaw_deg_s + 0.9573614449 * v_x - 0.0202371876 * v_y +
-      1.1849236340 * servo3_output +
-      1.1149387419 * servo1_output * servo3_output -
-      0.0000460026 * v_yaw_deg_s * fabsf(v_yaw_deg_s) -
-      0.0081352902 * v_x * fabsf(v_x) + 0.0017945045 * v_y * fabsf(v_y) -
-      3.5057290342 * servo3_output * fabsf(servo3_output) -
-      18.8332917858 * servo1_output * servo3_output *
-          fabsf(servo1_output * servo3_output) -
-      0.0000133372 * v_yaw_deg_s * fabsf(v_x) -
-      0.0020508151 * v_yaw_deg_s * fabsf(v_y) +
-      0.0065447383 * v_yaw_deg_s * fabsf(servo3_output) -
-      0.0169422758 * v_yaw_deg_s * fabsf(servo1_output * servo3_output) -
-      0.0052328498 * v_x * fabsf(v_y) +
-      0.3381735896 * v_x * fabsf(servo3_output) -
-      0.5880838675 * v_x * fabsf(servo1_output * servo3_output) +
-      0.0264846875 * v_y * fabsf(servo3_output) +
-      0.2447154700 * v_y * fabsf(servo1_output * servo3_output) +
-      10.7003507484 * servo3_output * fabsf(servo1_output * servo3_output);
-  float starboard_speed_tp1 =
-      0.0026065820 * v_yaw_deg_s + 0.0039205971 * v_x + 0.9061636012 * v_y -
-      0.0980101836 * servo3_output +
-      0.0365885257 * servo1_output * servo3_output -
-      0.0001910732 * v_yaw_deg_s * fabsf(v_yaw_deg_s) +
-      0.0003639366 * v_x * fabsf(v_x) - 0.0016148990 * v_y * fabsf(v_y) +
-      0.3606650119 * servo3_output * fabsf(servo3_output) +
-      21.1782894161 * servo1_output * servo3_output *
-          fabsf(servo1_output * servo3_output) -
-      0.0009443827 * v_yaw_deg_s * fabsf(v_x) +
-      0.0013409888 * v_yaw_deg_s * fabsf(v_y) +
-      0.0174653484 * v_yaw_deg_s * fabsf(servo3_output) +
-      0.0580827086 * v_yaw_deg_s * fabsf(servo1_output * servo3_output) -
-      0.0011245931 * v_x * fabsf(v_y) -
-      0.0098228854 * v_x * fabsf(servo3_output) -
-      0.0870928497 * v_x * fabsf(servo1_output * servo3_output) +
-      0.1123424914 * v_y * fabsf(servo3_output) +
-      0.1136855285 * v_y * fabsf(servo1_output * servo3_output) +
-      1.6273617255 * servo3_output * fabsf(servo1_output * servo3_output);
-
-  // printf("\n\n_____ Inputs: raw_servo1: %u, raw_servo3: %u, raw_servo6:
-  // %u\n", input.servos[0], input.servos[2], input.servos[5]); printf("_____
-  // Input speeds: vx: %f, vy: %f, vyaw: %f\n", v_x, v_y, v_yaw_deg_s);
-  // printf("__ Delta time: %f\n", delta_time);
+  float v_yaw_deg_s_tp1 = v_yaw_deg_s + a_yaw * (delta_time);
+  //   float forward_speed_tp1 = forward_speed + a_x * (delta_time);
+  //   float starboard_speed_tp1 = starboard_speed + a_y * (delta_time);
 
   // printf("Inputs: Servo1: %f, Servo3: %f, Servo6: %f\n", servo1_output,
   // servo3_output, servo6_output);
-  printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f\n", v_yaw_deg_s_tp1,
-         forward_speed_tp1, starboard_speed_tp1);
+  printf("Yaw spd: %f, Forward spd: %f, Starboard spd: %f\n", v_x, v_y,
+         v_yaw_deg_s);
 
   // fflush(stdout);
 
@@ -252,13 +241,13 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   // These equations were trained on a timestep of 0.25s, so we need to scale
   // this timestep to match also: The rotation of the coordinate frame is
   // already learned in these dynamics, so no radians(yaw) * v_x
-  float accel_x = (forward_speed_tp1 - v_x) /
-                  (delta_time / 0.25f); // + sin(radians(yaw_rate)) * v_y;
-  float accel_y =
-      (starboard_speed_tp1 - v_y) /
-      (delta_time /
-       0.25f); // + radians(v_yaw_deg_s) * v_x; // cos(radians) ~= radians
-  accel_body = Vector3f(accel_x, accel_y, 0);
+  //   float accel_x = (forward_speed_tp1 - v_x) /
+  //                   (delta_time / 0.25f); // + sin(radians(yaw_rate)) * v_y;
+  //   float accel_y =
+  //       (starboard_speed_tp1 - v_y) /
+  //       (delta_time /
+  //        0.25f); // + radians(v_yaw_deg_s) * v_x; // cos(radians) ~= radians
+  accel_body = Vector3f(a_x, a_y, 0);
 }
 
 /*
