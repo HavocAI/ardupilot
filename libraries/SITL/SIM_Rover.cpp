@@ -165,13 +165,13 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   float servo3_output = (input.servos[2] - 1500.0f) / 1000.0f;  // throttle
 
   // THRUST
-  float advance_coefficient = 0.95;
-  float propeller_rpm = servo3_output * 5000;
-  float va =
+  double advance_coefficient = 0.95;
+  double propeller_rpm = servo3_output * 5000;
+  double va =
       v_x *
       advance_coefficient; // Rotational speed (n) in revolutions per second
   double rps = propeller_rpm / 60.0;
-  if (rps < 1e-6)
+  if (fabsf(rps) < 1e-2)
     rps = 0.0;
   // Propeller diameter (d) in meters
   double d = 0.3; // advance ratio = j
@@ -180,7 +180,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   double rho = 1025; // saltwater density in kg/m^3
   double thrust = Kt * rho * std::pow(rps, 2) * std::pow(d, 4);
 
-  double thruster_angle = servo1_output * 30 ; // +/- 30 deg max output
+  double thruster_angle = servo1_output * 30; // +/- 30 deg max output
   double thrust_fwd = thrust * cos(radians(thruster_angle));
   double thrust_side = thrust * sin(radians(thruster_angle));
   double thrust_yaw = thrust_side * 1; // 1 meter between CG and motor pivot
@@ -196,27 +196,27 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   drag_coupling[2][2] = 50.0001f;
   drag_coupling[0][1] = 28.241f;
   drag_coupling[1][0] = 131.587f;
-  float f_drag_x = drag_coeffs[0] * v_x +
-                   drag_coupling[0][0] * v_x * fabsf(v_x) +
-                   drag_coupling[0][1] * v_x * fabsf(v_y) +
-                   drag_coupling[0][2] * v_x * fabsf(v_yaw_deg_s);
-  float f_drag_y = drag_coeffs[1] * v_y +
-                   drag_coupling[1][0] * v_y * fabsf(v_x) +
-                   drag_coupling[1][1] * v_y * fabsf(v_y) +
-                   drag_coupling[1][2] * v_y * fabsf(v_yaw_deg_s);
-  float f_drag_yaw = drag_coeffs[2] * v_yaw_deg_s +
-                     drag_coupling[2][0] * v_yaw_deg_s * fabsf(v_x) +
-                     drag_coupling[2][1] * v_yaw_deg_s * fabsf(v_y) +
-                     drag_coupling[2][2] * v_yaw_deg_s * fabsf(v_yaw_deg_s);
+  double f_drag_x = drag_coeffs[0] * v_x +
+                    drag_coupling[0][0] * v_x * fabsf(v_x) +
+                    drag_coupling[0][1] * v_x * fabsf(v_y) +
+                    drag_coupling[0][2] * v_x * fabsf(v_yaw_deg_s);
+  double f_drag_y = drag_coeffs[1] * v_y +
+                    drag_coupling[1][0] * v_y * fabsf(v_x) +
+                    drag_coupling[1][1] * v_y * fabsf(v_y) +
+                    drag_coupling[1][2] * v_y * fabsf(v_yaw_deg_s);
+  double f_drag_yaw = drag_coeffs[2] * v_yaw_deg_s +
+                      drag_coupling[2][0] * v_yaw_deg_s * fabsf(v_x) +
+                      drag_coupling[2][1] * v_yaw_deg_s * fabsf(v_y) +
+                      drag_coupling[2][2] * v_yaw_deg_s * fabsf(v_yaw_deg_s);
 
   // INERTIA
-  float vehicle_mass = 257208.35 / 1e3; // grams to kg
-  float Lzz = 39284389916.57 / 1e9;
+  float vehicle_mass = 257.208;
+  float Lzz = 39.284389916;
 
   // Accelerations
-  float a_x = (thrust_fwd - f_drag_x) / vehicle_mass;
-  float a_y = (thrust_side - f_drag_y) / vehicle_mass;
-  float a_yaw = (thrust_yaw - f_drag_yaw) / Lzz;
+  double a_x = (thrust_fwd - f_drag_x) / vehicle_mass;
+  double a_y = (thrust_side - f_drag_y) / vehicle_mass;
+  double a_yaw = (thrust_yaw - f_drag_yaw) / Lzz;
 
   // Custom dynamics equations
   // float v_yaw_deg_s_tp1 = 0.8788459312 * v_yaw_deg_s - 3.9296105163 *
@@ -226,7 +226,7 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   // servo1_output*servo3_output;
 
   // Including x|x| drag terms
-  float v_yaw_deg_s_tp1 = v_yaw_deg_s + a_yaw * (delta_time);
+  double v_yaw_deg_s_tp1 = v_yaw_deg_s + a_yaw * (delta_time);
   //   float forward_speed_tp1 = forward_speed + a_x * (delta_time);
   //   float starboard_speed_tp1 = starboard_speed + a_y * (delta_time);
 
