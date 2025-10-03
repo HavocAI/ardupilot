@@ -180,6 +180,11 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   double rho = 1025; // saltwater density in kg/m^3
   double thrust = Kt * rho * std::pow(rps, 2) * std::pow(d, 4);
 
+  double thruster_angle = servo1_output * 30 ; // +/- 30 deg max output
+  double thrust_fwd = thrust * cos(radians(thruster_angle));
+  double thrust_side = thrust * sin(radians(thruster_angle));
+  double thrust_yaw = thrust_side * 1; // 1 meter between CG and motor pivot
+
   // DRAG
   // 3x1 vector of drag coefficients, 3x3 matrix of cross-coupling drag
   // coefficients
@@ -209,9 +214,9 @@ void SimRover::update_ackermann_or_skid(const struct sitl_input &input,
   float Lzz = 39284389916.57 / 1e9;
 
   // Accelerations
-  float a_x = (thrust - f_drag_x) / vehicle_mass;
-  float a_y = (-f_drag_y) / vehicle_mass;
-  float a_yaw = (-f_drag_yaw) / Lzz;
+  float a_x = (thrust_fwd - f_drag_x) / vehicle_mass;
+  float a_y = (thrust_side - f_drag_y) / vehicle_mass;
+  float a_yaw = (thrust_yaw - f_drag_yaw) / Lzz;
 
   // Custom dynamics equations
   // float v_yaw_deg_s_tp1 = 0.8788459312 * v_yaw_deg_s - 3.9296105163 *
