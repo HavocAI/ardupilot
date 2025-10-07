@@ -575,7 +575,7 @@ void AP_Ilmor::trim_state_machine()
         case TrimState::Manual:
         {
 
-            if (_auto_trim_down.get() == 1 && _current_trim_position > _auto_trim_down_threshold.get() && AP_HAL::millis() - _last_auto_trim_down_ms > _auto_trim_down_period.get()) {
+            if (_auto_trim_down.get() == 1 && _current_trim_position > _auto_trim_down_threshold.get() && AP_HAL::millis() - _last_auto_trim_down_ms > static_cast<uint32_t>(_auto_trim_down_period.get())) {
                 // auto trim down every minute
                 _trimState = TrimState::AutoDown;
                 _last_trim_wait_ms = AP_HAL::millis();
