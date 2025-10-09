@@ -70,6 +70,17 @@ class MessageRateIIR {
         void update_state();
 };
 
+class OneShotTimer {
+public:
+    OneShotTimer(const uint32_t timeout_ms);
+    void reset(const uint32_t timeout_ms);
+    bool is_timed_out();
+
+private:
+    uint32_t _deadline_ms;
+    bool _is_timed_out;
+};
+
 
 class AP_Ilmor : public CANSensor
 #if HAL_WITH_ESC_TELEM
@@ -185,6 +196,7 @@ private:
     uint32_t _last_auto_trim_down_ms;
     MessageRateIIR _icu_msg_rate;
     MessageRateIIR _inverter_msg_rate;
+    OneShotTimer _print_fw_version_timer;
 
     struct run_state {
         run_state() :

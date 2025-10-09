@@ -124,6 +124,27 @@ void MessageRateIIR::update_state()
     _average_rate_hz *= expf(-dt / _tau);
 }
 
+OneShotTimer::OneShotTimer(const uint32_t timeout_ms)
+{
+    reset(timeout_ms);
+}
+
+void OneShotTimer::reset(const uint32_t timeout_ms)
+{
+    _deadline_ms = AP_HAL::millis() + timeout_ms;
+    _is_timed_out = false;
+}
+
+bool OneShotTimer::is_timed_out()
+{
+    if (_is_timed_out == false && AP_HAL::millis() > _deadline_ms) {
+        _is_timed_out = true;
+        return true;
+    }
+
+    return false;
+}
+
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
 
@@ -226,6 +247,7 @@ AP_Ilmor::AP_Ilmor()
 #ifdef AP_ILMOR_DEBUG
     _icu_logging_state(ICULoggingState::Idle),
 #endif
+    _print_fw_version_timer(90000),
     _run_state(),
     _output()
 {
@@ -361,6 +383,10 @@ void AP_Ilmor::tick()
 
         // _ilmor_fw_version.print();
         _last_print_faults_ms = now_ms;
+    }
+
+    if (_print_fw_version_timer.is_timed_out()) {
+        _ilmor_fw_version.print();
     }
 
     const TelemetryData t = {
