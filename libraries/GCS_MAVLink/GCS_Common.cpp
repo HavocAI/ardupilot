@@ -6618,6 +6618,9 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         if (torqeedo) {
             torqeedo->send_mavlink_status(chan);
         }
+
+        extern mavlink_torqeedo_telemetry_t _torqeedo_telemetry;
+        mavlink_msg_torqeedo_telemetry_send_struct(chan, &_torqeedo_telemetry);
         break;
     }
 #endif

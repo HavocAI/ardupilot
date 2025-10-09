@@ -59,6 +59,9 @@
 
 extern const AP_HAL::HAL &hal;
 
+mavlink_torqeedo_telemetry_t _torqeedo_telemetry = {};
+static uint32_t _num_unmanned_msg_sent = 0;
+
 #define SEND_TIMEOUT_US 50
 
 #define AP_ILMOR_COMMAND_RATE_HZ 20
@@ -306,6 +309,8 @@ void AP_Ilmor::send_throttle_cmd()
         
         if (!send_unmanned_throttle_control(throttle_msg)) {
             // GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Failed to send throttle control message");
+        } else {
+            _num_unmanned_msg_sent++;
         }
 
         _run_state.last_send_throttle_ms = AP_HAL::millis();
@@ -443,6 +448,16 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             ilmor_inverter_status_frame_5_unpack(&msg, frame.data, frame.dlc);
             handle_inverter_status_frame_5(msg);
             _inverter_msg_rate.msg_received();
+        } break;
+
+        case 0x04FF90EF: {
+            // heartbeat counter
+            const uint32_t counter = (uint32_t)frame.data[0] << 24 | (uint32_t)frame.data[1] << 16 | (uint32_t)frame.data[2] << 8 | (uint32_t)frame.data[3];
+
+            // ugly hack to use the torqeedo telemetry...
+            _torqeedo_telemetry.other = counter;
+            _torqeedo_telemetry.motor_errors = (uint16_t)(_num_unmanned_msg_sent - counter);
+
         } break;
 
         default: {
