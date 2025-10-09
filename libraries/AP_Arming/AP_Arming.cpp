@@ -580,13 +580,11 @@ bool AP_Arming::compass_checks(bool report)
             const Vector3f earth_field_mgauss = AP_Declination::get_earth_field_ga(ahrs_loc) * 1000.0;
             const Vector3f diff_mgauss = veh_mag_field_ef - earth_field_mgauss;
             if (MAX(fabsf(diff_mgauss.x), fabsf(diff_mgauss.y)) > magfield_error_threshold) {
-                check_failed(ARMING_CHECK_COMPASS, report, "Check mag field (xy diff:%.0f>%d)",
-                             (double)MAX(fabsf(diff_mgauss.x), (double)fabsf(diff_mgauss.y)), (int)magfield_error_threshold);
+                check_failed(ARMING_CHECK_COMPASS, report, "Check mag field (xy diff)");
                 return false;
             }
             if (fabsf(diff_mgauss.z) > magfield_error_threshold*2.0) {
-                check_failed(ARMING_CHECK_COMPASS, report, "Check mag field (z diff:%.0f>%d)",
-                             (double)fabsf(diff_mgauss.z), (int)magfield_error_threshold*2);
+                check_failed(ARMING_CHECK_COMPASS, report, "Check mag field (z diff)");
                 return false;
             }
         }
