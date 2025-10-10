@@ -450,6 +450,18 @@ void AP_Ilmor::handle_frame(AP_HAL::CANFrame &frame)
             _inverter_msg_rate.msg_received();
         } break;
 
+        case 0x00000340: {
+            // ICU restart
+            _torqeedo_telemetry.master_error_code++;
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: ICU Restarted");
+        } break;
+
+        case 0x00003940: {
+            // Inverter restart
+            _torqeedo_telemetry.motor_status++;
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: Inverter Restarted");
+        } break;
+
         case 0x04FF90EF: {
             // heartbeat counter
             const uint32_t counter = (uint32_t)frame.data[0] << 24 | (uint32_t)frame.data[1] << 16 | (uint32_t)frame.data[2] << 8 | (uint32_t)frame.data[3];
