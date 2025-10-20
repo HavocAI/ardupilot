@@ -137,6 +137,9 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
 #if AP_ROVER_ADVANCED_FAILSAFE_ENABLED
     SCHED_TASK(afs_fs_check,           10,    200, 129),
 #endif
+#ifdef HAL_NMEA2K_ENABLED
+    SCHED_TASK_CLASS(AP_NMEA2K, &rover.nmea2k, update, 10, 200, 100),
+#endif
 };
 
 
