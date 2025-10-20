@@ -72,6 +72,7 @@ class MessageRateIIR {
 
 class OneShotTimer {
 public:
+    OneShotTimer() : _deadline_ms(0), _is_timed_out(true) {}
     OneShotTimer(const uint32_t timeout_ms);
     void reset(const uint32_t timeout_ms);
     bool is_timed_out();

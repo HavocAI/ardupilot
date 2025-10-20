@@ -250,7 +250,7 @@ AP_Ilmor::AP_Ilmor()
 #ifdef AP_ILMOR_DEBUG
     _icu_logging_state(ICULoggingState::Idle),
 #endif
-    _print_fw_version_timer(90000),
+    _print_fw_version_timer(),
     _run_state(),
     _output()
 {
@@ -279,6 +279,8 @@ AP_Ilmor *AP_Ilmor::get_ilmor(uint8_t driver_index)
 void AP_Ilmor::init(uint8_t driver_index, bool enable_filters)
 {
     CANSensor::init(driver_index, enable_filters);
+
+    _print_fw_version_timer.reset(90000);
 
     hal.scheduler->register_io_process(FUNCTOR_BIND_MEMBER(&AP_Ilmor::tick, void));
 
