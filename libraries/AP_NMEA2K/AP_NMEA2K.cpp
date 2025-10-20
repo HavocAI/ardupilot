@@ -4,6 +4,8 @@
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 #include <AP_ESC_Telem/AP_ESC_Telem.h>
 
+#include <AP_NMEA2K/AP_NMEA2K_msg.h>
+
 #if HAL_NMEA2K_ENABLED
 
 
@@ -16,6 +18,14 @@ static void send_pgn_127488(AP_J1939_CAN* driver)
         return;
     }
     if (esc_telem->get_rpm(0, rpm)) {
+
+        nmea2k::N2KMessage msg;
+        msg.SetPGN(127488);
+
+        msg.AddByte(0);
+        msg.Add2ByteUInt(rpm);
+        msg.Add2ByteInt(0);
+        msg.AddByte(0);
 
     }
 
@@ -36,7 +46,6 @@ void AP_NMEA2K::update(void)
             }
 
             send_pgn_127488(driver);
-            
         }
     }
 }
