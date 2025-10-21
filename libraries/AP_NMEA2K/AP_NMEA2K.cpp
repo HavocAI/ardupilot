@@ -27,6 +27,12 @@ static void send_pgn_127488(AP_J1939_CAN* driver)
         msg.Add2ByteInt(0);
         msg.AddByte(0);
 
+        AP_HAL::CANFrame frame;
+        frame.id = msg.FormatToCanId() | AP_HAL::CANFrame::FlagEFF;
+        frame.dlc = msg.data_length();
+        msg.CopyDataToBuffer(frame.data, sizeof(frame.data), msg.data_length());
+        driver->write_frame(frame, 10);
+
     }
 
 }
