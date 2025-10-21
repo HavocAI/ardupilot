@@ -958,10 +958,18 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
     // by default, we consider that the rover will drive forward
     float speed_dir = 1.0f;
     if (!vel_ignore && (!yaw_ignore || !yaw_rate_ignore)) {
-        // Note: we are using the x-axis velocity to determine direction even though
-        // the frame may have been provided in MAV_FRAME_LOCAL_OFFSET_NED or MAV_FRAME_LOCAL_NED
-        if (is_negative(packet.vx)) {
-            speed_dir = -1.0f;
+        if (packet.coordinate_frame == MAV_FRAME_LOCAL_NED || packet.coordinate_frame == MAV_FRAME_LOCAL_OFFSET_NED) {
+            // Speed direction corresponds with velocity and target yaw directions
+            // having a greater than 90 degree distance
+            const float vel_yaw_cd = degrees(atan2f(packet.vy, packet.vx)) * 100.0f;
+            if (fabsf(wrap_180_cd(vel_yaw_cd - target_yaw_cd)) > 9000.0f) {
+                speed_dir = -1.0f;
+            }
+        } else {
+            // Speed direction corresponds with sign of vx in body frame
+            if (is_negative(packet.vx)) {
+                speed_dir = -1.0f;
+            }
         }
     }
 
