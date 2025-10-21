@@ -862,8 +862,6 @@ void GCS_MAVLINK_Rover::handle_set_attitude_target(const mavlink_message_t &msg)
 
 void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_message_t &msg)
 {
-    hal.console->printf("*** GCS_Mavlink: handle_set_position_target_local_ned ENTRY ***\n");
-    send_text(MAV_SEVERITY_CRITICAL, "GCS_Mavlink: handle_set_position_target_local_ned entry");
     // decode packet
     mavlink_set_position_target_local_ned_t packet;
     mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
@@ -978,26 +976,28 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
     // set guided mode targets
     printf("Setting guided mode targets\n");
     if (!pos_ignore) {
+        printf("\tUsing pos\n");
         // consume position target
         if (!rover.mode_guided.set_desired_location(target_loc)) {
             // GCS will need to monitor desired location to
             // see if they are having an effect.
         }
     } else if (!vel_ignore && acc_ignore && yaw_ignore && yaw_rate_ignore) {
+        printf("\tUsing vel\n");
         // consume velocity
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (!vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
+        printf("\tUsing vel and yaw rate\n");
         // consume velocity and turn rate
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, speed_dir * target_speed);
     } else if (!vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
+        printf("\tUsing vel and yaw\n");
+        printf("\tGCS_Mavlink: target_yaw_cd=%.2f, speed_dir=%.2f, target_speed=%.2f\n", 
+            target_yaw_cd * 0.01f, speed_dir, target_speed);
         // consume velocity and heading
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
-    } else if (vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
-        printf("GCS_Mavlink: target_yaw_cd=%.2f, speed_dir=%.2f, target_speed=%.2f\n", 
-            target_yaw_cd * 0.01f, speed_dir, target_speed);
-        // consume just target heading (probably only skid steering vehicles can do this)
-        rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
     } else if (vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
+        printf("\tUsing yaw\n");
         // consume just turn rate (probably only skid steering vehicles can do this)
         rover.mode_guided.set_desired_turn_rate_and_speed(target_turn_rate_cds, 0.0f);
     }
