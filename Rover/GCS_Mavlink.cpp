@@ -974,7 +974,7 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
     }
 
     // set guided mode targets
-    printf("Setting guided mode targets");
+    fprintf(stderr, "Setting guided mode targets");
     if (!pos_ignore) {
         // consume position target
         if (!rover.mode_guided.set_desired_location(target_loc)) {
@@ -991,7 +991,7 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
         // consume velocity and heading
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
-        printf("GCS_Mavlink: target_yaw_cd=%.2f, speed_dir=%.2f, target_speed=%.2f\n", 
+        fprintf(stderr, "GCS_Mavlink: target_yaw_cd=%.2f, speed_dir=%.2f, target_speed=%.2f\n", 
             target_yaw_cd * 0.01f, speed_dir, target_speed);
         // consume just target heading (probably only skid steering vehicles can do this)
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
