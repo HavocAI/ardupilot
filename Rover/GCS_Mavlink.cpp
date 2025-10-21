@@ -862,6 +862,7 @@ void GCS_MAVLINK_Rover::handle_set_attitude_target(const mavlink_message_t &msg)
 
 void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_message_t &msg)
 {
+    printf("Entrypoint\n");
     // decode packet
     mavlink_set_position_target_local_ned_t packet;
     mavlink_msg_set_position_target_local_ned_decode(&msg, &packet);
