@@ -990,6 +990,10 @@ void GCS_MAVLINK_Rover::handle_set_position_target_local_ned(const mavlink_messa
         // consume velocity and heading
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, speed_dir * target_speed);
     } else if (vel_ignore && acc_ignore && !yaw_ignore && yaw_rate_ignore) {
+        #if HAL_LOGGING_ENABLED
+            AP::logger().Write_MessageF("GCS_VelHdg: yaw=%.2f dir=%.2f spd=%.2f", 
+                                    target_yaw_cd * 0.01f, speed_dir, target_speed);
+        #endif
         // consume just target heading (probably only skid steering vehicles can do this)
         rover.mode_guided.set_desired_heading_and_speed(target_yaw_cd, 0.0f);
     } else if (vel_ignore && acc_ignore && yaw_ignore && !yaw_rate_ignore) {
