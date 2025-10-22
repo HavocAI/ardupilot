@@ -8,6 +8,11 @@
 
 #if HAL_NMEA2K_ENABLED
 
+const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
+
+    AP_GROUPEND
+};
+
 
 static void send_pgn_127488(AP_J1939_CAN* driver)
 {
@@ -34,6 +39,17 @@ static void send_pgn_127488(AP_J1939_CAN* driver)
         driver->write_frame(frame, 10);
 
     }
+
+}
+
+AP_NMEA2K::AP_NMEA2K() :
+CANSensor("NMEA2K", 2048)
+{
+    AP_Param::setup_object_defaults(this, var_info);
+}
+
+void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
+{
 
 }
 

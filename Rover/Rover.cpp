@@ -138,7 +138,7 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
     SCHED_TASK(afs_fs_check,           10,    200, 129),
 #endif
 #ifdef HAL_NMEA2K_ENABLED
-    SCHED_TASK_CLASS(AP_NMEA2K, &rover.nmea2k, update, 10, 200, 100),
+    SCHED_TASK(nmea2k_update, 10, 200, 100),
 #endif
 };
 
@@ -512,6 +512,13 @@ bool Rover::get_wp_crosstrack_error_m(float &xtrack_error) const
     xtrack_error = control_mode->crosstrack_error();
     return true;
 }
+
+#ifdef HAL_NMEA2K_ENABLED
+void Rover::nmea2k_update(void)
+{
+    AP_NMEA2K::update();
+}
+#endif
 
 
 Rover rover;

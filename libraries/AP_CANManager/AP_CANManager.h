@@ -150,6 +150,7 @@ private:
         AP_CANDriver* _uavcan;
         AP_CANDriver* _piccolocan;
         AP_CANDriver* _ilmor;
+        AP_CANDriver* _nmea2k;
     };
 
     CANIface_Params _interfaces[HAL_NUM_CAN_IFACES];

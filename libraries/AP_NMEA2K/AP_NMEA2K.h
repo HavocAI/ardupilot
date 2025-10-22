@@ -8,11 +8,21 @@
 
 #if HAL_NMEA2K_ENABLED
 
-class AP_NMEA2K {
-    public:
+#include <AP_Param/AP_Param.h>
+#include <AP_CANManager/AP_CANSensor.h>
+class AP_NMEA2K :
+    public CANSensor
+{
+public:
+    AP_NMEA2K();
+    CLASS_NO_COPY(AP_NMEA2K);
+
+    static const struct AP_Param::GroupInfo var_info[];
 
     // called from the main loop
-    void update(void);
+    static void update(void);
+
+    void handle_frame(AP_HAL::CANFrame &frame) override;
 };
 
 #endif // HAL_NMEA2K_ENABLED

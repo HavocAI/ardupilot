@@ -497,10 +497,6 @@ protected:
     void accel_cal_update();
 #endif
 
-#if HAL_NMEA2K_ENABLED
-    AP_NMEA2K nmea2k;
-#endif
-
     // call the arming library's update function
     void update_arming();
 
