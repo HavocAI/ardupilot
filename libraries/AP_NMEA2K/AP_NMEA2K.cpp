@@ -40,10 +40,10 @@ static void send_pgn_127488(AP_NMEA2K* driver)
             nmea2k::N2KMessage::MAX_DATA_SIZE
         );
 
-        msg.AddByte(0);
-        msg.Add2ByteUInt(rpm);
-        msg.Add2ByteInt(0);
-        msg.AddByte(0);
+        // msg.AddByte(0);
+        // msg.Add2ByteUInt(rpm);
+        // msg.Add2ByteInt(0);
+        // msg.AddByte(0);
 
         AP_HAL::CANFrame frame;
         frame.id = msg.FormatToCanId() | AP_HAL::CANFrame::FlagEFF;
