@@ -6,6 +6,8 @@
 
 #include <AP_NMEA2K/AP_NMEA2K_msg.h>
 
+#include "can-msg-definitions/n2k.h"
+
 #if HAL_NMEA2K_ENABLED
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
@@ -14,7 +16,7 @@ const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 };
 
 
-static void send_pgn_127488(AP_J1939_CAN* driver)
+static void send_pgn_127488(AP_NMEA2K* driver)
 {
     float rpm = 0.0f;
     // get the current engine RPM from the vehicle
@@ -26,6 +28,17 @@ static void send_pgn_127488(AP_J1939_CAN* driver)
 
         nmea2k::N2KMessage msg;
         msg.SetPGN(127488);
+
+        const n2k_pgn_127488_engine_parameters_rapid_update_t data = {
+            .instance = 0,
+            .speed = static_cast<uint16_t>(rpm),
+        };
+
+        n2k_pgn_127488_engine_parameters_rapid_update_pack(
+            msg.DataPtrForPack(),
+            &data,
+            nmea2k::N2KMessage::MAX_DATA_SIZE
+        );
 
         msg.AddByte(0);
         msg.Add2ByteUInt(rpm);
@@ -61,8 +74,8 @@ void AP_NMEA2K::update(void)
     }
 
     for (uint8_t can_port=0; can_port < can_mgr->get_num_drivers(); can_port++) {
-        if (can_mgr->get_driver_type(can_port) == AP_CAN::Protocol::J1939) {
-            AP_J1939_CAN* driver = static_cast<AP_J1939_CAN*>(can_mgr->get_driver(can_port));
+        if (can_mgr->get_driver_type(can_port) == AP_CAN::Protocol::NMEA2K) {
+            AP_NMEA2K* driver = static_cast<AP_NMEA2K*>(can_mgr->get_driver(can_port));
             if (driver == nullptr) {
                 continue;
             }

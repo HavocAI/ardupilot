@@ -45,3 +45,6 @@
 [submodule "libraries/AP_NMEA"]
 	path = libraries/AP_NMEA
 	url = git@github.com:HavocAI/can-msg-definitions.git
+[submodule "libraries/AP_NMEA2K/can-msg-definitions"]
+	path = libraries/AP_NMEA2K/can-msg-definitions
+	url = git@github.com:HavocAI/can-msg-definitions.git

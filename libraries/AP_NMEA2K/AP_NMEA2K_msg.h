@@ -34,14 +34,17 @@ static constexpr double kNotAvailable_Float = -1e9;
  */
 
 class N2KMessage {
+  
+
+ public:
+
   /**
    * Maximum size of the data array, which also represents the maximum size of a
    * message using fast packets. In the case of fast packet, the first frame can
    * have 6 bytes while the following 32 frames can have 7 bytes.
    */
-  static const uint8_t MAX_DATA_SIZE = 223;
+  static const size_t MAX_DATA_SIZE = 223;
 
- public:
   /**
    * @brief Constructor for N2KMessage
    * @param source The source address of this message [0..251]
@@ -151,6 +154,8 @@ class N2KMessage {
    * @return The message data pointer
    */
   const uint8_t* DataPtrForUnpack() const;
+
+  uint8_t* DataPtrForPack() { return data_; }
 
   /**
    * @brief Copy data into another provided buffer
