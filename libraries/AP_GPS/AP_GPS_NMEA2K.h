@@ -11,6 +11,13 @@
 class AP_GPS_NMEA2K : public AP_GPS_Backend {
 public:
     AP_GPS_NMEA2K(AP_GPS &_gps, AP_GPS::Params &_params, AP_GPS::GPS_State &_state);
+
+    bool read() override;
+
+    bool is_healthy(void) const override;
+
+private:
+    AP_GPS::GPS_State _interim_state;
 };
 
 

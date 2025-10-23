@@ -308,6 +308,7 @@ bool AP_GPS::needs_uart(GPS_Type type) const
     case GPS_TYPE_MAV:
     case GPS_TYPE_MSP:
     case GPS_TYPE_EXTERNAL_AHRS:
+    case GPS_TYPE_NMEA2K:
         return false;
     default:
         break;
