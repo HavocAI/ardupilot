@@ -39,6 +39,15 @@
 #endif
 #define LOOP_RATE 0
 
+
+#define SCHED_TASK_FN(func, _interval_ticks, _max_time_micros, _priority) { \
+    .function = Functor(func),\
+    AP_SCHEDULER_NAME_INITIALIZER(AP_Scheduler, func)\
+    .rate_hz = LOOP_RATE / _interval_ticks,\
+    .max_time_micros = _max_time_micros,        \
+    .priority = _priority \
+}
+
 /*
   useful macro for creating scheduler task table
  */

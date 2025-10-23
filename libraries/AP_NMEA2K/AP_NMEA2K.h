@@ -10,10 +10,17 @@
 
 #include <AP_Param/AP_Param.h>
 #include <AP_CANManager/AP_CANSensor.h>
+#include <AP_HAL/AP_HAL.h>
 class AP_NMEA2K :
     public CANSensor
 {
 public:
+
+    struct Callback {
+        Functor<void, AP_HAL::CANFrame&> handle_frame;
+    };
+
+
     AP_NMEA2K();
     CLASS_NO_COPY(AP_NMEA2K);
 
