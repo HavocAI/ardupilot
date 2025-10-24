@@ -29,7 +29,7 @@ static void send_pgn_127488(AP_NMEA2K* driver)
 {
 
 #if NMEA2K_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Sending PGN 127488");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: tx PGN 127488");
 #endif // NMEA2K_DEBUG
 
 
@@ -78,7 +78,7 @@ AP_NMEA2K::AP_NMEA2K() :
 {
     AP_Param::setup_object_defaults(this, var_info);
 #if NMEA2K_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K Driver Created");
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: Driver Created");
 #endif // NMEA2K_DEBUG
 
     _num_n2k_message_handlers = 0;
@@ -108,7 +108,7 @@ size_t AP_NMEA2K::find_buffered_slot(const uint32_t id)
 void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
 {
 #if NMEA2K_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K Frame ID: 0x%" PRIx32 " DLC: %" PRIu8, frame.id, frame.dlc);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: rx ID: 0x%" PRIx32, frame.id);
 #endif // NMEA2K_DEBUG
 
     const uint32_t now_ms = AP_HAL::millis();
@@ -178,7 +178,6 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
         }
     } else {
         // single frame message
-        
         msg.SetDataFromPack(frame.data, frame.dlc);
         handle_message(msg);
     }

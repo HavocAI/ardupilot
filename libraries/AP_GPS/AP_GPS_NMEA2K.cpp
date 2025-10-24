@@ -47,10 +47,6 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
     const uint32_t now_ms = AP_HAL::millis();
     WITH_SEMAPHORE(sem);
 
-#if AP_GPS_NMEA2K_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K PGN: %lu", msg.pgn());
-#endif // AP_GPS_NMEA2K_DEBUG
-
     switch (msg.pgn()) {
         case 129025: // Position, Rapid Update
         {
@@ -65,6 +61,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             if (_interim_state.status < AP_GPS::GPS_Status::GPS_OK_FIX_2D) {
                 _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
             }
+
+#if AP_GPS_NMEA2K_DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129025 Lat: %.7f Lon: %.7f", data.latitude * 1e-7, data.longitude * 1e-7);
+#endif // AP_GPS_NMEA2K_DEBUG
             
             _last_msg_time_ms = now_ms;
             _new_data = true;
@@ -115,6 +115,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
 
             _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
 
+#if AP_GPS_NMEA2K_DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Lat: %.7f Lon: %.7f Alt: %.2f", _interim_state.location.lat * 1e-7, _interim_state.location.lng * 1e-7, _interim_state.location.alt * 0.01f);
+#endif // AP_GPS_NMEA2K_DEBUG
+
             _last_msg_time_ms = now_ms;
             _new_data = true;
             break;
@@ -134,6 +138,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             _interim_state.gps_yaw = data.heading * 0.0001f * RAD_TO_DEG;
             _interim_state.have_gps_yaw = true;
             _interim_state.gps_yaw_time_ms = now_ms;
+
+#if AP_GPS_NMEA2K_DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 127250 Heading: %.2f", _interim_state.gps_yaw);
+#endif // AP_GPS_NMEA2K_DEBUG
 
             _last_msg_time_ms = now_ms;
             _new_data = true;
