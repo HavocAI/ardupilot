@@ -97,8 +97,8 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
     const uint32_t pgn = msg.pgn();
 
     if (IsSingleFrameSystemMessage(pgn)) {
-        memcpy(msg.data_, frame.data, frame.dlc);
-        handle_message(msg);
+        // TODO: handle system message
+        
     } else if (IsFastPacketDefaultMessage(pgn) || IsFastPacketSystemMessage(pgn)) {
         const uint8_t frame_counter = frame.data[0] & 0x1F;
         const uint8_t sequence_counter = (frame.data[0] >> 5) & 0x07;
@@ -134,7 +134,7 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
             }
             bp = &_rx_msg[buffer_index];
             src = &frame.data[1];
-            len = frame.dlc - 1;
+            len = MIN(bp->expected_data_len, frame.dlc - 1);
         }
 
         len = MIN(len, nmea2k::N2KMessage::MAX_DATA_SIZE - bp->msg.data_length_);

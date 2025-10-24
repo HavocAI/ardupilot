@@ -22,6 +22,9 @@ public:
 
 private:
     AP_GPS::GPS_State _interim_state;
+    uint32_t _last_msg_time_ms;
+    bool _new_data;
+    HAL_Semaphore sem;
 
     void handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2KMessage& msg);
 };

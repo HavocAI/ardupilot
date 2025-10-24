@@ -226,6 +226,10 @@ class N2KMessage {
    */
   void Add2ByteInt(int16_t value);
 
+  static uint16_t ReadUInt16(const uint8_t* data);
+  static uint32_t ReadUInt32(const uint8_t* data);
+  static int64_t ReadInt64(const uint8_t* data);
+
   /**
    * @brief Add a 2-byte unsigned integer to the message data
    * @param value The unsigned integer to add
