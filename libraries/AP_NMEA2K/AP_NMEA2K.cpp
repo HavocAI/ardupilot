@@ -10,8 +10,11 @@
 #include "can-msg-definitions/n2k.h"
 
 #include <AP_Math/AP_Math.h>
+#include <GCS_MAVLink/GCS.h>
 
 #if HAL_NMEA2K_ENABLED
+
+#define NMEA2K_DEBUG 1
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 
@@ -22,6 +25,12 @@ const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 
 static void send_pgn_127488(AP_NMEA2K* driver)
 {
+
+#if NMEA2K_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Sending PGN 127488");
+#endif // NMEA2K_DEBUG
+
+
     float rpm = 0.0f;
     // get the current engine RPM from the vehicle
     AP_ESC_Telem* esc_telem = AP_ESC_Telem::get_singleton();
@@ -66,6 +75,10 @@ AP_NMEA2K::AP_NMEA2K() :
     CANSensor("NMEA2K", 2048)
 {
     AP_Param::setup_object_defaults(this, var_info);
+#if NMEA2K_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K Driver Created");
+#endif // NMEA2K_DEBUG
+
 }
 
 size_t AP_NMEA2K::find_free_slot(uint32_t now_ms)
@@ -90,6 +103,10 @@ size_t AP_NMEA2K::find_buffered_slot(const uint32_t id)
 
 void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
 {
+#if NMEA2K_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K Frame ID: 0x%" PRIx32 " DLC: %" PRIu8, frame.id, frame.dlc);
+#endif // NMEA2K_DEBUG
+
     const uint32_t now_ms = AP_HAL::millis();
 
     nmea2k::N2KMessage msg;

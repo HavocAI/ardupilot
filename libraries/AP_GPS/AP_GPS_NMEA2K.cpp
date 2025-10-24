@@ -5,7 +5,7 @@
 
 #include <AP_NMEA2K/can-msg-definitions/n2k.h>
 
-#define AP_GPS_NMEA2K_DEBUG 0
+#define AP_GPS_NMEA2K_DEBUG 1
 
 AP_GPS_NMEA2K::AP_GPS_NMEA2K(AP_GPS &_gps, AP_GPS::Params &_params, AP_GPS::GPS_State &_state) :
     AP_GPS_Backend(_gps, _params, _state, nullptr)
@@ -47,7 +47,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
     const uint32_t now_ms = AP_HAL::millis();
     WITH_SEMAPHORE(sem);
 
-#ifdef AP_GPS_NMEA2K_DEBUG
+#if AP_GPS_NMEA2K_DEBUG
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K PGN: %lu", msg.pgn());
 #endif // AP_GPS_NMEA2K_DEBUG
 
@@ -62,8 +62,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             _interim_state.location.lat = data.latitude;  // in 1e-7 degrees
             _interim_state.location.lng = data.longitude; // in 1e-7 degrees
 
-            _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
-
+            if (_interim_state.status < AP_GPS::GPS_Status::GPS_OK_FIX_2D) {
+                _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+            }
+            
             _last_msg_time_ms = now_ms;
             _new_data = true;
             break;
@@ -111,7 +113,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             // uint8_t integrity = data[i] >> 6;
             i += 1;
 
-            _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+            _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
 
             _last_msg_time_ms = now_ms;
             _new_data = true;
