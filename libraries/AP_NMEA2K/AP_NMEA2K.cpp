@@ -156,8 +156,20 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
 
 }
 
+void AP_NMEA2K::register_handle_n2k_message(NMEA2K_HandleN2KMessage_Functor handle_n2k_message)
+{
+    if (_num_n2k_message_handlers < ARRAY_SIZE(_n2k_message_handlers)) {
+        _n2k_message_handlers[_num_n2k_message_handlers++] = handle_n2k_message;
+    }
+}
+
 void AP_NMEA2K::handle_message(nmea2k::N2KMessage& msg)
 {
+
+    for (size_t i=0; i<_num_n2k_message_handlers; i++) {
+        _n2k_message_handlers[i](this, msg);
+    }
+
 }
 
 void AP_NMEA2K::update(void)

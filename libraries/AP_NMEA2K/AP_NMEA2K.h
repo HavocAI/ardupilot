@@ -18,10 +18,15 @@ class AP_NMEA2K :
 {
 public:
 
-    struct Callbacks {
-        Functor<void, AP_NMEA2K*, AP_HAL::CANFrame&> handle_frame;
-        Functor<void, AP_NMEA2K*, nmea2k::N2KMessage&> handle_n2k_message;
-    };
+    FUNCTOR_TYPEDEF(NMEA2K_HandleN2KMessage_Functor,
+                     void,
+                     AP_NMEA2K*,
+                     nmea2k::N2KMessage&);
+    
+    FUNCTOR_TYPEDEF(NMEA2K_HandleFrame_Functor,
+                     void,
+                     AP_NMEA2K*,
+                     AP_HAL::CANFrame&);
 
 
     AP_NMEA2K();
@@ -34,7 +39,7 @@ public:
 
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
-    void register_handle_n2k_message(Functor<void, AP_NMEA2K*, nmea2k::N2KMessage&> handle_n2k_message);
+    void register_handle_n2k_message(NMEA2K_HandleN2KMessage_Functor handle_n2k_message);
 
 private:
 
@@ -67,6 +72,9 @@ private:
     };
 
     BufferedFastPacket _rx_msg[kMaxStoredFastPackets];
+
+    NMEA2K_HandleN2KMessage_Functor _n2k_message_handlers[4];
+    size_t _num_n2k_message_handlers = 0;
 
     size_t find_free_slot(uint32_t now_ms);
     size_t find_buffered_slot(const uint32_t id);
