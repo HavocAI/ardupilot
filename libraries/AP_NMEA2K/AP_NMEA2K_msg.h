@@ -86,15 +86,6 @@ class N2KMessage {
   void SetDestination(uint8_t destination);
 
   /**
-   * @brief Set the CAN bus ID for the message
-   *
-   * The CAN bus ID, which identifies which CAN bus this message came in
-   * on. By default, this is 0. This is only ever not 0 if there are more than
-   * one CAN bus available to send and receive messages on
-   */
-  void SetCanBusId(uint8_t bus_id = 0);
-
-  /**
    * @brief Set the data length for the message
    *
    * @param length The data length of the message [0..223]
@@ -167,14 +158,6 @@ class N2KMessage {
    */
   void CopyDataToBuffer(uint8_t* buffer, size_t buffer_size,
                         size_t data_size) const;
-
-  /**
-   * @brief Get the CAN bus ID for the message
-   * @return The CAN bus ID, which identifies which CAN bus this message came in
-   * on. By default, this is 0. This is only ever not 0 if there are more than
-   * one CAN bus available to send and receive messages on
-   */
-  uint8_t bus_id() const;
 
   /**
    * @brief Get the message data length
@@ -425,13 +408,11 @@ class N2KMessage {
   uint32_t pgn_;
   uint8_t msg_source_;
   uint8_t msg_destination_;  // Either global (255) or specific (0..251)
-  uint8_t data_length_;      // current length of the data buffer in bytes
-  uint8_t data_fill_index_;  // index for next byte added to the data array
-  mutable uint8_t data_[MAX_DATA_SIZE];
-  uint64_t msg_timestamp_;
 
-  uint8_t can_bus_id_ =
-      0;  // 0 by default, assumes one CAN bus unless set otherwise
+public:
+  uint8_t data_length_;      // current length of the data buffer in bytes
+  mutable uint8_t data_[MAX_DATA_SIZE];
+
 };
 
 }  // namespace nmea2k

@@ -47,8 +47,6 @@ void N2KMessage::SetDestination(uint8_t destination) {
   }
 }
 
-void N2KMessage::SetCanBusId(uint8_t bus_id) { can_bus_id_ = bus_id; }
-
 void N2KMessage::SetDataLength(uint8_t length) {
   if (length <= MAX_DATA_SIZE) {
     data_length_ = length;
@@ -82,8 +80,6 @@ void N2KMessage::SetDataFromSingleFrame(uint8_t msg_start_index,
   std::memcpy(data_ + msg_start_index, buffer + buf_start_index, length);
 }
 
-uint8_t N2KMessage::bus_id() const { return can_bus_id_; }
-
 uint8_t N2KMessage::data_length() const { return data_length_; }
 
 uint32_t N2KMessage::pgn() const { return pgn_; }
@@ -99,7 +95,6 @@ const uint8_t* N2KMessage::DataPtrForUnpack() const { return data_; }
 void N2KMessage::clear() {
   data_length_ = 0;
   std::memset(data_, 0, sizeof(data_));
-  msg_timestamp_ = 0;
   msg_source_ = 0;
   msg_destination_ = 0;
   pgn_ = 0;
