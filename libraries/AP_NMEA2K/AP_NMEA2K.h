@@ -22,8 +22,6 @@ public:
         Functor<void, AP_HAL::CANFrame&> handle_frame;
     };
 
-    static AP_NMEA2K& get_singleton();
-
 
     AP_NMEA2K();
     CLASS_NO_COPY(AP_NMEA2K);
@@ -36,6 +34,40 @@ public:
     void handle_frame(AP_HAL::CANFrame &frame) override;
 
 private:
+
+    static constexpr size_t kMaxStoredFastPackets = 4;
+
+    class BufferedFastPacket {
+    public:
+
+        BufferedFastPacket() 
+        : id(0)
+        {}
+
+        void reset(uint32_t new_id, size_t expected_len)
+        {
+            this->id = new_id;
+            this->expected_data_len = expected_len;
+            this->msg.data_length_ = 0;
+        }
+
+        void clear()
+        {
+            id = 0;
+        }
+
+        uint32_t id;
+        size_t expected_data_len;
+        nmea2k::N2KMessage msg;
+        uint32_t last_update_ms;
+
+    };
+
+    BufferedFastPacket _rx_msg[kMaxStoredFastPackets];
+
+    size_t find_free_slot(uint32_t now_ms);
+    size_t find_buffered_slot(const uint32_t id);
+    void handle_message(nmea2k::N2KMessage& msg);
     
 };
 
