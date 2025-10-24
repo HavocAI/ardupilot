@@ -19,3 +19,4 @@ bool AP_GPS_NMEA2K::is_healthy(void) const
     return true;
 }
 
+
