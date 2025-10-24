@@ -14,9 +14,11 @@
 
 #if HAL_NMEA2K_ENABLED
 
-#define NMEA2K_DEBUG 1
+#define NMEA2K_DEBUG 0
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
+
+    AP_GROUPINFO("NM_B", 1, AP_NMEA2K, _param, 0),
 
     AP_GROUPEND
 };
@@ -79,6 +81,8 @@ AP_NMEA2K::AP_NMEA2K() :
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K Driver Created");
 #endif // NMEA2K_DEBUG
 
+    _num_n2k_message_handlers = 0;
+
 }
 
 size_t AP_NMEA2K::find_free_slot(uint32_t now_ms)
@@ -115,6 +119,7 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
 
     if (IsSingleFrameSystemMessage(pgn)) {
         // TODO: handle system message
+        GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: unhandled sys pgn: %" PRIu32, pgn);
         
     } else if (IsFastPacketDefaultMessage(pgn) || IsFastPacketSystemMessage(pgn)) {
         const uint8_t frame_counter = frame.data[0] & 0x1F;
@@ -163,12 +168,19 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
 
             if (IsFastPacketSystemMessage(pgn)) {
                 // TODO:
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: unhandled sys pgn: %" PRIu32, pgn);
+                   
             } else {
                 handle_message(bp->msg);
             }
 
             bp->clear();
         }
+    } else {
+        // single frame message
+        
+        msg.SetDataFromPack(frame.data, frame.dlc);
+        handle_message(msg);
     }
 
 }
@@ -182,11 +194,9 @@ void AP_NMEA2K::register_handle_n2k_message(NMEA2K_HandleN2KMessage_Functor hand
 
 void AP_NMEA2K::handle_message(nmea2k::N2KMessage& msg)
 {
-
     for (size_t i=0; i<_num_n2k_message_handlers; i++) {
         _n2k_message_handlers[i](this, msg);
     }
-
 }
 
 void AP_NMEA2K::update(void)

@@ -3,7 +3,7 @@
 #include <AP_HAL/AP_HAL_Boards.h>
 
 #ifndef HAL_NMEA2K_ENABLED
-#define HAL_NMEA2K_ENABLED (HAL_MAX_CAN_PROTOCOL_DRIVERS && BOARD_FLASH_SIZE > 1024)
+#define HAL_NMEA2K_ENABLED HAL_CANMANAGER_ENABLED
 #endif
 
 #if HAL_NMEA2K_ENABLED
@@ -70,6 +70,8 @@ private:
         uint32_t last_update_ms;
 
     };
+
+    AP_Int8 _param;
 
     BufferedFastPacket _rx_msg[kMaxStoredFastPackets];
 
