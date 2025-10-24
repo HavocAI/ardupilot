@@ -147,16 +147,11 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
             if (IsFastPacketSystemMessage(pgn)) {
                 // TODO:
             } else {
-                memcpy(msg.data_, bp->msg.data_, bp->msg.data_length_);
-                handle_message(msg);
+                handle_message(bp->msg);
             }
 
             bp->clear();
         }
-
-
-
-
     }
 
 }

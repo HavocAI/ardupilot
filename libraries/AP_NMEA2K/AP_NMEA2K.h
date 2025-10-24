@@ -18,8 +18,9 @@ class AP_NMEA2K :
 {
 public:
 
-    struct Callback {
-        Functor<void, AP_HAL::CANFrame&> handle_frame;
+    struct Callbacks {
+        Functor<void, AP_NMEA2K*, AP_HAL::CANFrame&> handle_frame;
+        Functor<void, AP_NMEA2K*, nmea2k::N2KMessage&> handle_n2k_message;
     };
 
 
@@ -32,6 +33,8 @@ public:
     static void update(void);
 
     void handle_frame(AP_HAL::CANFrame &frame) override;
+
+    void register_handle_n2k_message(Functor<void, AP_NMEA2K*, nmea2k::N2KMessage&> handle_n2k_message);
 
 private:
 
