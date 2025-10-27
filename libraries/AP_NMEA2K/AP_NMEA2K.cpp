@@ -15,6 +15,7 @@
 #if HAL_NMEA2K_ENABLED
 
 #define NMEA2K_DEBUG 0
+#define NMEA2K_EMU_MESSAGES 1
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 
@@ -213,8 +214,37 @@ void AP_NMEA2K::update(void)
             }
 
             send_pgn_127488(driver);
+
+#if NMEA2K_EMU_MESSAGES
+            static uint32_t last_msg_time_ms = 0;
+            const uint32_t now_ms = AP_HAL::millis();
+            if ((now_ms - last_msg_time_ms) >= 1000) {
+                last_msg_time_ms = now_ms;
+
+                // emulate a PGN 127250 Vessel Heading message
+                nmea2k::N2KMessage msg;
+                msg.SetPGN(127250);
+
+                const float heading_deg = fmodf(static_cast<float>(now_ms) * 0.1f, 360.0f);
+
+                const n2k_pgn_127250_vessel_heading_t data = {
+                    .sid = 0,
+                    .heading = static_cast<uint16_t>(heading_deg * 10000.0f / RAD_TO_DEG),
+                };
+
+                n2k_pgn_127250_vessel_heading_pack(
+                    msg.DataPtrForPack(),
+                    &data,
+                    nmea2k::N2KMessage::MAX_DATA_SIZE
+                );
+
+                driver->handle_message(msg);
+            }
+#endif // NMEA2K_EMU_MESSAGES
         }
     }
+
+
 }
 
 
