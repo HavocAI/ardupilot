@@ -200,7 +200,7 @@ void AP_NMEA2K::handle_message(nmea2k::N2KMessage& msg)
 }
 
 void AP_NMEA2K::update(void)
-{
+{ 
     AP_CANManager* can_mgr = AP_CANManager::get_singleton();
     if (can_mgr == nullptr) {
         return;
@@ -225,7 +225,7 @@ void AP_NMEA2K::update(void)
                 nmea2k::N2KMessage msg;
                 msg.SetPGN(127250);
 
-                const float heading_deg = fmodf(static_cast<float>(now_ms) * 0.1f, 360.0f);
+                const float heading_deg = fmodf(static_cast<float>(now_ms) * 0.001f, 360.0f);
 
                 const n2k_pgn_127250_vessel_heading_t data = {
                     .sid = 0,
@@ -237,8 +237,27 @@ void AP_NMEA2K::update(void)
                     &data,
                     nmea2k::N2KMessage::MAX_DATA_SIZE
                 );
+                msg.SetDataLength(8);
 
                 driver->handle_message(msg);
+
+                msg.SetPGN(129029);
+                msg.SetDataLength(0);
+                msg.AddByte(0); // SID
+
+                // today's fake day is 1761582411
+                const uint64_t unix_time = 1761582411ULL;
+                
+                msg.Add2ByteUInt(unix_time / 86400);
+                msg.Add4ByteUInt((unix_time % 86400) * 1000);
+
+                msg.Add8ByteInt(static_cast<int64_t>(37.7749 * 1e16));  // lat
+                msg.Add8ByteInt(static_cast<int64_t>(-122.4194 * 1e16)); // lon
+
+                msg.Add8ByteInt(static_cast<int64_t>(15.24 * 1e6));
+
+                driver->handle_message(msg);
+
             }
 #endif // NMEA2K_EMU_MESSAGES
         }

@@ -288,6 +288,8 @@ class N2KMessage {
    */
   void Add8ByteUint(uint64_t value);
 
+  void Add8ByteInt(int64_t value);
+
   /**
    * @brief Add a 8-byte signed integer to the message data
    * @param value The signed integer to add

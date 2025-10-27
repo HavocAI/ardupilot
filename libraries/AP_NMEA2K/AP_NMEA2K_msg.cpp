@@ -195,6 +195,10 @@ void N2KMessage::Add8ByteUint(uint64_t value) {
   SetBuf(value, 8, data_length_, data_);
 }
 
+void N2KMessage::Add8ByteInt(int64_t value) {
+  SetBuf(value, 8, data_length_, data_);
+}
+
 void N2KMessage::AddFloat(float value, float undefined_value) {
   if (value >= undefined_value) {
     Add4ByteUInt(kNotAvailable_Int32);

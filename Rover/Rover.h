@@ -294,7 +294,7 @@ private:
     void one_second_loop(void);
     void update_current_mode(void);
 
-#ifdef HAL_NMEA2K_ENABLED
+#if HAL_NMEA2K_ENABLED
     void nmea2k_update(void);
 #endif
 

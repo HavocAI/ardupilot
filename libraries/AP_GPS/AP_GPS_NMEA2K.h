@@ -21,7 +21,7 @@ public:
     bool is_healthy(void) const override;
 
 private:
-    AP_GPS::GPS_State _interim_state;
+    // AP_GPS::GPS_State _interim_state;
     uint32_t _last_msg_time_ms;
     bool _new_data;
     HAL_Semaphore sem;

@@ -5,7 +5,7 @@
 
 #include <AP_NMEA2K/can-msg-definitions/n2k.h>
 
-#define AP_GPS_NMEA2K_DEBUG 1
+#define AP_GPS_NMEA2K_DEBUG 0
 
 AP_GPS_NMEA2K::AP_GPS_NMEA2K(AP_GPS &_gps, AP_GPS::Params &_params, AP_GPS::GPS_State &_state) :
     AP_GPS_Backend(_gps, _params, _state, nullptr)
@@ -51,11 +51,11 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 return;
             }
 
-            _interim_state.location.lat = data.latitude;  // in 1e-7 degrees
-            _interim_state.location.lng = data.longitude; // in 1e-7 degrees
+            state.location.lat = data.latitude;  // in 1e-7 degrees
+            state.location.lng = data.longitude; // in 1e-7 degrees
 
-            if (_interim_state.status < AP_GPS::GPS_Status::GPS_OK_FIX_2D) {
-                _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+            if (state.status < AP_GPS::GPS_Status::GPS_OK_FIX_2D) {
+                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
             }
 
 #if AP_GPS_NMEA2K_DEBUG
@@ -88,22 +88,22 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
 
             // GPS time started at midnight Jan 6, 1980
             // GPS week number is the number of weeks since the start of GPS time.
-            _interim_state.time_week = (uint16_t)(gps_ms / AP_MSEC_PER_WEEK);
-            _interim_state.time_week_ms = (uint32_t)(gps_ms - (_interim_state.time_week * AP_MSEC_PER_WEEK));
+            state.time_week = (uint16_t)(gps_ms / AP_MSEC_PER_WEEK);
+            state.time_week_ms = (uint32_t)(gps_ms - (state.time_week * AP_MSEC_PER_WEEK));
 
 #if AP_GPS_NMEA2K_DEBUG
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Week: %" PRIu16 " WeekMs: %" PRIu32, _interim_state.time_week, _interim_state.time_week_ms);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Week: %" PRIu16 " WeekMs: %" PRIu32, state.time_week, state.time_week_ms);
 #endif // AP_GPS_NMEA2K_DEBUG
 
             // lat/lng comes in at 1e16 degrees. Convert to 1e7 degrees.
-            _interim_state.location.lat = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
+            state.location.lat = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
             i += 8;
 
-            _interim_state.location.lng = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
+            state.location.lng = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
             i += 8;
 
             // altitude comes in 1e6 meters. Convert to cm.
-            _interim_state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABSOLUTE);
+            state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABOVE_ORIGIN);
             i += 8;
 
             // const uint8_t type_of_system = data[i] >> 4;
@@ -113,10 +113,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             // uint8_t integrity = data[i] >> 6;
             i += 1;
 
-            _interim_state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
+            state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
 
 #if AP_GPS_NMEA2K_DEBUG
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Lat: %.7f Lon: %.7f Alt: %.2f", _interim_state.location.lat * 1e-7, _interim_state.location.lng * 1e-7, _interim_state.location.alt * 0.01f);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Lat: %.7f Lon: %.7f Alt: %.2f", state.location.lat * 1e-7, state.location.lng * 1e-7, state.location.alt * 0.01f);
 #endif // AP_GPS_NMEA2K_DEBUG
 
             _last_msg_time_ms = now_ms;
@@ -131,16 +131,16 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 return;
             }
 
-            _interim_state.gps_yaw_configured = true;
+            state.gps_yaw_configured = true;
 
             
             // heading comes in at 1e4 radians. Convert to degrees.
-            _interim_state.gps_yaw = data.heading * 0.0001f * RAD_TO_DEG;
-            _interim_state.have_gps_yaw = true;
-            _interim_state.gps_yaw_time_ms = now_ms;
+            state.gps_yaw = data.heading * 0.0001f * RAD_TO_DEG;
+            state.have_gps_yaw = true;
+            state.gps_yaw_time_ms = now_ms;
 
 #if AP_GPS_NMEA2K_DEBUG
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 127250 Heading: %.2f", _interim_state.gps_yaw);
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 127250 Heading: %.2f", state.gps_yaw);
 #endif // AP_GPS_NMEA2K_DEBUG
 
             _last_msg_time_ms = now_ms;
@@ -157,7 +157,7 @@ bool AP_GPS_NMEA2K::read()
 
     if (_new_data) {
         _new_data = false;
-        state = _interim_state;
+        // state = _interim_state;
     }
 
     if (!is_healthy()) {

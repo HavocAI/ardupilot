@@ -6,6 +6,10 @@
 void Rover::update_compass(void)
 {
     compass.read();
+
+#if HAL_NMEA2K_ENABLED
+    AP_NMEA2K::update();
+#endif // HAL_NMEA2K_ENABLED
 }
 
 // Save compass offsets
