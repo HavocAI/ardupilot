@@ -171,23 +171,6 @@ void N2KMessage::Add2ByteInt(int16_t value) {
   SetBuf(value, 2, data_length_, data_);
 }
 
-uint16_t N2KMessage::ReadUInt16(const uint8_t* data) {
-  // Little-endian read
-  return static_cast<uint16_t>(data[0]) | (static_cast<uint16_t>(data[1]) << 8);
-}
-
-uint32_t N2KMessage::ReadUInt32(const uint8_t* data)
-{
-  return 0;  
-}
-
-int64_t N2KMessage::ReadInt64(const uint8_t* data)
-{
-  return 0;
-
-}
-
-
 void N2KMessage::Add2ByteUInt(uint16_t value) {
   SetBuf(value, 2, data_length_, data_);
 }

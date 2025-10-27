@@ -226,9 +226,31 @@ class N2KMessage {
    */
   void Add2ByteInt(int16_t value);
 
-  static uint16_t ReadUInt16(const uint8_t* data);
-  static uint32_t ReadUInt32(const uint8_t* data);
-  static int64_t ReadInt64(const uint8_t* data);
+  static inline uint16_t ReadUInt16(const uint8_t* data)
+  {
+    return static_cast<uint16_t>(data[0]) |
+           (static_cast<uint16_t>(data[1]) << 8);
+  }
+
+  static inline uint32_t ReadUInt32(const uint8_t* data)
+  {
+    return static_cast<uint32_t>(data[0]) |
+           (static_cast<uint32_t>(data[1]) << 8) |
+           (static_cast<uint32_t>(data[2]) << 16) |
+           (static_cast<uint32_t>(data[3]) << 24);
+  }
+  
+  static inline int64_t ReadInt64(const uint8_t* data)
+  {
+    return static_cast<int64_t>(data[0]) |
+           (static_cast<int64_t>(data[1]) << 8) |
+           (static_cast<int64_t>(data[2]) << 16) |
+           (static_cast<int64_t>(data[3]) << 24) |
+           (static_cast<int64_t>(data[4]) << 32) |
+           (static_cast<int64_t>(data[5]) << 40) |
+           (static_cast<int64_t>(data[6]) << 48) |
+           (static_cast<int64_t>(data[7]) << 56);
+  }
 
   /**
    * @brief Add a 2-byte unsigned integer to the message data

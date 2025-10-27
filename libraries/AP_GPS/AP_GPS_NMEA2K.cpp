@@ -19,24 +19,20 @@ AP_GPS_NMEA2K* AP_GPS_NMEA2K::probe(AP_GPS &_gps, AP_GPS::Params &_params, AP_GP
 {
     // find a NMEA2K CAN driver instance from the CANManager
     AP_CANManager* can_manager = AP_CANManager::get_singleton();
-    AP_NMEA2K* nmea2k = nullptr;
+    AP_GPS_NMEA2K* backend = nullptr;
     for (size_t i = 0; i < can_manager->get_num_drivers(); i++) {
         if (can_manager->get_driver_type(i) == AP_CAN::Protocol::NMEA2K) {
-            nmea2k = static_cast<AP_NMEA2K*>(can_manager->get_driver(i));
-            break;
+            AP_NMEA2K* nmea2k = static_cast<AP_NMEA2K*>(can_manager->get_driver(i));
+
+            if (backend == nullptr) {
+                backend = NEW_NOTHROW AP_GPS_NMEA2K(_gps, _params, _state);
+            }
+
+            // register NMEA2K message handler
+            AP_NMEA2K::NMEA2K_HandleN2KMessage_Functor handle_n2k_message = FUNCTOR_BIND(backend, &AP_GPS_NMEA2K::handle_nmea2k_message, void, AP_NMEA2K*, nmea2k::N2KMessage&);
+            nmea2k->register_handle_n2k_message(handle_n2k_message);
         }
     }
-
-    // create GPS backend
-    AP_GPS_NMEA2K* backend = NEW_NOTHROW AP_GPS_NMEA2K(_gps, _params, _state);
-    if (backend == nullptr) {
-        return nullptr;
-    }
-
-
-    // register NMEA2K message handler
-    AP_NMEA2K::NMEA2K_HandleN2KMessage_Functor handle_n2k_message = FUNCTOR_BIND(backend, &AP_GPS_NMEA2K::handle_nmea2k_message, void, AP_NMEA2K*, nmea2k::N2KMessage&);
-    nmea2k->register_handle_n2k_message(handle_n2k_message);
 
     return backend;
 }
@@ -94,6 +90,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             // GPS week number is the number of weeks since the start of GPS time.
             _interim_state.time_week = (uint16_t)(gps_ms / AP_MSEC_PER_WEEK);
             _interim_state.time_week_ms = (uint32_t)(gps_ms - (_interim_state.time_week * AP_MSEC_PER_WEEK));
+
+#if AP_GPS_NMEA2K_DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Week: %" PRIu16 " WeekMs: %" PRIu32, _interim_state.time_week, _interim_state.time_week_ms);
+#endif // AP_GPS_NMEA2K_DEBUG
 
             // lat/lng comes in at 1e16 degrees. Convert to 1e7 degrees.
             _interim_state.location.lat = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
