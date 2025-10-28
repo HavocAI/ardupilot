@@ -14,8 +14,8 @@
 
 #if HAL_NMEA2K_ENABLED
 
-#define NMEA2K_DEBUG 0
-#define NMEA2K_EMU_MESSAGES 1
+#define NMEA2K_DEBUG 1
+#define NMEA2K_EMU_MESSAGES 0
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 
@@ -25,7 +25,7 @@ const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 };
 
 
-
+#if 0
 static void send_pgn_127488(AP_NMEA2K* driver)
 {
 
@@ -70,7 +70,7 @@ static void send_pgn_127488(AP_NMEA2K* driver)
     }
 
 }
-
+#endif
 
 
 
@@ -213,7 +213,7 @@ void AP_NMEA2K::update(void)
                 continue;
             }
 
-            send_pgn_127488(driver);
+            // send_pgn_127488(driver);
 
 #if NMEA2K_EMU_MESSAGES
             static uint32_t last_msg_time_ms = 0;
@@ -249,7 +249,7 @@ void AP_NMEA2K::update(void)
                 const uint64_t unix_time = 1761582411ULL;
                 
                 msg.Add2ByteUInt(unix_time / 86400);
-                msg.Add4ByteUInt((unix_time % 86400) * 1000);
+                msg.Add4ByteUInt((unix_time % 86400) * 10000);
 
                 msg.Add8ByteInt(static_cast<int64_t>(37.7749 * 1e16));  // lat
                 msg.Add8ByteInt(static_cast<int64_t>(-122.4194 * 1e16)); // lon
