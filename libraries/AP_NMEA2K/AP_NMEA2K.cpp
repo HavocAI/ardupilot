@@ -14,7 +14,7 @@
 
 #if HAL_NMEA2K_ENABLED
 
-#define NMEA2K_DEBUG 1
+#define NMEA2K_DEBUG 0
 #define NMEA2K_EMU_MESSAGES 0
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
@@ -109,7 +109,7 @@ size_t AP_NMEA2K::find_buffered_slot(const uint32_t id)
 void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
 {
 #if NMEA2K_DEBUG
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: rx ID: 0x%" PRIx32, frame.id);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: rx ID: 0x%" PRIx32, frame.id);
 #endif // NMEA2K_DEBUG
 
     const uint32_t now_ms = AP_HAL::millis();
@@ -123,18 +123,25 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: unhandled sys pgn: %" PRIu32, pgn);
         
     } else if (IsFastPacketDefaultMessage(pgn) || IsFastPacketSystemMessage(pgn)) {
-        const uint8_t frame_counter = frame.data[0] & 0x1F;
-        const uint8_t sequence_counter = (frame.data[0] >> 5) & 0x07;
+        const uint8_t frame_counter = frame.data[0] & 0x0F;
+        const uint8_t sequence_counter = (frame.data[0] >> 4) & 0x0F;
         const uint32_t id = pgn << 8 | sequence_counter;
         BufferedFastPacket* bp = nullptr;
         uint8_t* src = nullptr;
         size_t len = 0;
+
+#if NMEA2K_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: FP PNG: %" PRIu32 " FC: %" PRIu8 " SC: %" PRIu8, pgn, frame_counter, sequence_counter);
+#endif // NMEA2K_DEBUG
 
         if (frame_counter == 0) {
             // find a buffer to use
             const size_t buffer_index = find_free_slot(now_ms);
             if (buffer_index == kMaxStoredFastPackets) {
                 // no buffer available
+#if NMEA2K_DEBUG
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: no FP buffer");
+#endif // NMEA2K_DEBUG
                 return;
             }
 
@@ -150,9 +157,16 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
             src = &frame.data[2];
             len = MIN(expected_data_len, frame.dlc - 2);
 
+#if NMEA2K_DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: FP expected len: %" PRIu8 " len: %" PRIu16, expected_data_len, len);
+#endif // NMEA2K_DEBUG
+
         } else {
             const size_t buffer_index = find_buffered_slot(id);
             if (buffer_index == kMaxStoredFastPackets) {
+#if NMEA2K_DEBUG
+                GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: no matching FP buffer");
+#endif // NMEA2K_DEBUG
                 return;
             }
             bp = &_rx_msg[buffer_index];
@@ -161,11 +175,16 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
         }
 
         len = MIN(len, nmea2k::N2KMessage::MAX_DATA_SIZE - bp->msg.data_length_);
-        memcpy(&bp->msg.data_[bp->msg.data_length_], src, len);
+        uint8_t* dst = &bp->msg.data_[bp->msg.data_length_];
+        memcpy(dst, src, len);
         bp->msg.data_length_ += len;
         bp->last_update_ms = now_ms;
 
-        if (bp->msg.data_length_ == bp->expected_data_len) {
+#if NMEA2K_DEBUG
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: FP copied len: %" PRIu16 " total: %" PRIu16, len, bp->msg.data_length_);
+#endif // NMEA2K_DEBUG
+
+        if (bp->msg.data_length_ >= bp->expected_data_len) {
 
             if (IsFastPacketSystemMessage(pgn)) {
                 // TODO:
