@@ -41,6 +41,8 @@ public:
 
     void register_handle_n2k_message(NMEA2K_HandleN2KMessage_Functor handle_n2k_message);
 
+    void send_message(nmea2k::N2KMessage& msg);
+
 private:
 
     static constexpr size_t kMaxStoredFastPackets = 4;

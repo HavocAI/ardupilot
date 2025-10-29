@@ -26,6 +26,7 @@ COMMON_VEHICLE_DEPENDENT_CAN_LIBRARIES = [
     'AP_NMEA2K',
     'AP_PiccoloCAN',
     'AP_PiccoloCAN/piccolo_protocol',
+    'AP_Anello',
 ]
 
 COMMON_VEHICLE_DEPENDENT_LIBRARIES = [

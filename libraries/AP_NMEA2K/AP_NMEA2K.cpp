@@ -86,6 +86,15 @@ AP_NMEA2K::AP_NMEA2K() :
 
 }
 
+void AP_NMEA2K::send_message(nmea2k::N2KMessage& msg)
+{
+    AP_HAL::CANFrame frame;
+    frame.id = msg.FormatToCanId() | AP_HAL::CANFrame::FlagEFF;
+    frame.dlc = msg.data_length();
+    msg.CopyDataToBuffer(frame.data, sizeof(frame.data), msg.data_length());
+    write_frame(frame, 10);
+}
+
 size_t AP_NMEA2K::find_free_slot(uint32_t now_ms)
 {
     for (size_t i=0; i<kMaxStoredFastPackets; i++) {
