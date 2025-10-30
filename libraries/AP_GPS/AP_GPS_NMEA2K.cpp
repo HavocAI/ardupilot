@@ -118,6 +118,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 // uint8_t integrity = data[i] >> 6;
                 i += 1;
 
+                state.hdop = 155;
+                state.vdop = 155;
+                state.num_sats = 30;
+
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
 
                 _last_msg_time_ms = now_ms;
