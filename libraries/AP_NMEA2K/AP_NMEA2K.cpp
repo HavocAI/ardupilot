@@ -46,7 +46,7 @@ static void send_pgn_127488(AP_NMEA2K* driver)
 
         const n2k_pgn_127488_engine_parameters_rapid_update_t data = {
             .instance = 0,
-            .speed = static_cast<uint16_t>(rpm),
+            .speed = static_cast<uint16_t>(abs(rpm))*4,
         };
 
         n2k_pgn_127488_engine_parameters_rapid_update_pack(
