@@ -43,28 +43,31 @@ static void send_pgn_127488(AP_NMEA2K* driver)
 
         nmea2k::N2KMessage msg;
         msg.SetPGN(127488);
+        msg.SetPriority(2);
 
         const n2k_pgn_127488_engine_parameters_rapid_update_t data = {
             .instance = 0,
-            .speed = static_cast<uint16_t>(abs(rpm))*4,
+            .speed = static_cast<uint16_t>(abs(rpm*4)),
         };
 
-        n2k_pgn_127488_engine_parameters_rapid_update_pack(
+        msg.SetDataLength(n2k_pgn_127488_engine_parameters_rapid_update_pack(
             msg.DataPtrForPack(),
             &data,
             nmea2k::N2KMessage::MAX_DATA_SIZE
-        );
+        ));
 
         // msg.AddByte(0);
         // msg.Add2ByteUInt(rpm);
         // msg.Add2ByteInt(0);
         // msg.AddByte(0);
 
-        AP_HAL::CANFrame frame;
-        frame.id = msg.FormatToCanId() | AP_HAL::CANFrame::FlagEFF;
-        frame.dlc = msg.data_length();
-        msg.CopyDataToBuffer(frame.data, sizeof(frame.data), msg.data_length());
-        driver->write_frame(frame, 10);
+        driver->send_message(msg);
+
+        // AP_HAL::CANFrame frame;
+        // frame.id = msg.FormatToCanId() | AP_HAL::CANFrame::FlagEFF;
+        // frame.dlc = msg.data_length();
+        // msg.CopyDataToBuffer(frame.data, sizeof(frame.data), msg.data_length());
+        // driver->write_frame(frame, 10);
 
     }
 
