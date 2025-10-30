@@ -115,6 +115,10 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 const uint8_t method = data[i] & 0x0F;
                 i += 1;
 
+#if AP_GPS_NMEA2K_DEBUG
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 type/method: %" PRIx8, data[i]);
+#endif // AP_GPS_NMEA2K_DEBUG
+
                 switch (method) {
                     case 0:
                     state.status = AP_GPS::GPS_Status::NO_FIX;
