@@ -25,7 +25,6 @@ const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 };
 
 
-#if 0
 static void send_pgn_127488(AP_NMEA2K* driver)
 {
 
@@ -70,8 +69,6 @@ static void send_pgn_127488(AP_NMEA2K* driver)
     }
 
 }
-#endif
-
 
 
 AP_NMEA2K::AP_NMEA2K() :
@@ -241,7 +238,7 @@ void AP_NMEA2K::update(void)
                 continue;
             }
 
-            // send_pgn_127488(driver);
+            send_pgn_127488(driver);
 
 #if NMEA2K_EMU_MESSAGES
             static uint32_t last_msg_time_ms = 0;
