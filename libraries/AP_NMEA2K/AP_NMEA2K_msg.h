@@ -232,6 +232,12 @@ class N2KMessage {
            (static_cast<uint16_t>(data[1]) << 8);
   }
 
+  static inline int16_t ReadInt16(const uint8_t* data)
+  {
+    return static_cast<int16_t>(data[0]) |
+           (static_cast<int16_t>(data[1]) << 8);
+  }
+
   static inline uint32_t ReadUInt32(const uint8_t* data)
   {
     return static_cast<uint32_t>(data[0]) |

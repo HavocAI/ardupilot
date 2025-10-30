@@ -112,17 +112,48 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 i += 8;
 
                 // const uint8_t type_of_system = data[i] >> 4;
-                // const uint8_t type_of_fix = data[i] & 0x0F;
+                const uint8_t method = data[i] & 0x0F;
                 i += 1;
+
+                switch (method) {
+                    case 0:
+                    state.status = AP_GPS::GPS_Status::NO_FIX;
+                    break;
+
+                    case 1:
+                    case 2:
+                    case 3:
+                    state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
+                    break;
+
+                    case 4:
+                    state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED;
+                    break;
+
+                    case 5:
+                    state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT;
+                    break;
+
+                    default:
+                    state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+                    break;
+
+                }
 
                 // uint8_t integrity = data[i] >> 6;
                 i += 1;
 
-                state.hdop = 155;
-                state.vdop = 155;
-                state.num_sats = 30;
+                state.num_sats = data[i];
+                i += 1;
 
-                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
+                // hdop comes in on 1e2
+                state.hdop = abs(nmea2k::N2KMessage::ReadInt16(&data[i]));
+                i += 2;
+
+                state.vdop = abs(nmea2k::N2KMessage::ReadInt16(&data[i]));
+                i += 2;
+                
+                // state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
 
                 _last_msg_time_ms = now_ms;
                 _new_data = true;
