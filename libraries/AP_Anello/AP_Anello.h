@@ -13,6 +13,8 @@ public:
 
     static const struct AP_Param::GroupInfo var_info[];
 
+    void update(void);
+
 private:
 
     AP_Int8 _gps_param;
