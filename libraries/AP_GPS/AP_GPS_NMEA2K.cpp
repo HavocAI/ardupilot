@@ -5,7 +5,7 @@
 
 #include <AP_NMEA2K/can-msg-definitions/n2k.h>
 
-#define AP_GPS_NMEA2K_DEBUG 1
+#define AP_GPS_NMEA2K_DEBUG 0
 
 AP_GPS_NMEA2K::AP_GPS_NMEA2K(AP_GPS &_gps, AP_GPS::Params &_params, AP_GPS::GPS_State &_state) :
     AP_GPS_Backend(_gps, _params, _state, nullptr)
