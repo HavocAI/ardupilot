@@ -55,7 +55,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             state.location.lat = data.latitude;  // in 1e-7 degrees
             state.location.lng = data.longitude; // in 1e-7 degrees
 
-            if (state.status < AP_GPS::GPS_Status::GPS_OK_FIX_2D) {
+            if (state.status < AP_GPS::GPS_Status::GPS_OK_FIX_2D && (state.location.lat != 0 && state.location.lng != 0)) {
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
             }
 
@@ -111,38 +111,14 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABOVE_ORIGIN);
             i += 8;
 
-            // const uint8_t type_of_system = data[i] >> 4;
-            // const uint8_t method = data[i] & 0x0F;
+
+#if AP_GPS_NMEA2K_DEBUG
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 type/method: 0x%" PRIx8, data[i]);
+#endif // AP_GPS_NMEA2K_DEBUG
+
+            const uint8_t method = data[i] >> 4;
+            // const uint8_t type_of_system = data[i] & 0x0F;
             i += 1;
-
-// #if AP_GPS_NMEA2K_DEBUG
-//                 GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 type/method: %" PRIx8, data[i]);
-// #endif // AP_GPS_NMEA2K_DEBUG
-
-            // switch (method) {
-            //     case 0:
-            //     state.status = AP_GPS::GPS_Status::NO_FIX;
-            //     break;
-
-            //     case 1:
-            //     case 2:
-            //     case 3:
-            //     state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
-            //     break;
-
-            //     case 4:
-            //     state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED;
-            //     break;
-
-            //     case 5:
-            //     state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT;
-            //     break;
-
-            //     default:
-            //     state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
-            //     break;
-
-            // }
 
             // uint8_t integrity = data[i] >> 6;
             i += 1;
@@ -150,7 +126,38 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             state.num_sats = data[i];
             i += 1;
 
-            state.status = state.num_sats >= 4 ? AP_GPS::GPS_Status::GPS_OK_FIX_3D : AP_GPS::GPS_Status::NO_FIX;
+            switch (method) {
+                case 0:
+                state.status = AP_GPS::GPS_Status::NO_FIX;
+                break;
+
+                case 1:
+                case 2:
+                case 3:
+                state.status = state.num_sats > 3 ? AP_GPS::GPS_Status::GPS_OK_FIX_3D : AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+                break;
+
+                case 4:
+                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED;
+                break;
+
+                case 5:
+                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT;
+                break;
+
+                default:
+                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+                break;
+
+            }
+
+            // if (state.num_sats < 3) {
+            //     state.status = AP_GPS::GPS_Status::NO_FIX;
+            // } else if (state.num_sats == 3) {
+            //     state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+            // } else {
+            //     state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
+            // }
 
             // hdop comes in on 1e2
             state.hdop = abs(nmea2k::N2KMessage::ReadInt16(&data[i]));
