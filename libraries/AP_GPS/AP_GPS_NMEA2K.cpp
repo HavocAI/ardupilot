@@ -108,7 +108,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             i += 8;
 
             // altitude comes in 1e6 meters. Convert to cm.
-            // state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABOVE_ORIGIN);
+            state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABOVE_ORIGIN);
             i += 8;
 
 
