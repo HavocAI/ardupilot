@@ -208,6 +208,30 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
 #endif // AP_GPS_NMEA2K_DEBUG
         break;
     }
+
+    case 129026:
+    {
+        n2k_pgn_129026_cog_sog_rapid_update_t data;
+        if (n2k_pgn_129026_cog_sog_rapid_update_unpack(&data, msg.DataPtrForUnpack(), msg.data_length()) != 0) {
+            return;
+        }
+
+        {
+            WITH_SEMAPHORE(sem);
+            // cog comes in at 1e4 radians. Convert to degrees.
+            state.ground_course = wrap_360(data.cog * 0.0001f * RAD_TO_DEG);
+
+            // sog comes in at 1e2 m/s. Convert to m/s.
+            state.ground_speed = data.sog * 0.01f;
+
+            fill_3d_velocity();
+
+            _last_msg_time_ms = now_ms;
+            _new_data = true;
+        }
+
+        break;
+    }
     }
 }
 
