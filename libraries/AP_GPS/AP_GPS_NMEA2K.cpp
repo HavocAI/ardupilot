@@ -230,9 +230,9 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             _new_data = true;
         }
 
-// #if AP_GPS_NMEA2K_DEBUG
+#if AP_GPS_NMEA2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129026 GS: %.2f", state.ground_speed);
-// #endif // AP_GPS_NMEA2K_DEBUG
+#endif // AP_GPS_NMEA2K_DEBUG
 
         break;
     }
