@@ -19,7 +19,13 @@
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 
-    AP_GROUPINFO("NM_B", 1, AP_NMEA2K, _param, 0),
+    // @Param: ANN
+    // @DisplayName: NMEA2000 Anello GPS Enable
+    // @Description: Enable Anello GPS messages on NMEA2000 bus
+    // @Values: 0:Disabled,1:Enabled
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("ANN", 1, AP_NMEA2K, _param, 0),
 
     AP_GROUPEND
 };
@@ -75,7 +81,7 @@ static void send_pgn_127488(AP_NMEA2K* driver)
 
 
 AP_NMEA2K::AP_NMEA2K() :
-    CANSensor("NMEA2K", 2048)
+    CANSensor("NMEA2K")
 {
     AP_Param::setup_object_defaults(this, var_info);
 #if NMEA2K_DEBUG

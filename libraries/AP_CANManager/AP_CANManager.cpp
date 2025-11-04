@@ -238,7 +238,7 @@ void AP_CANManager::init()
             AP_Param::load_object_from_eeprom((AP_Ilmor*)_drivers[drv_num], AP_Ilmor::var_info);
             break;
 #endif
-#ifdef HAL_NMEA2K_ENABLED
+#if HAL_NMEA2K_ENABLED
         case AP_CAN::Protocol::NMEA2K:
             _drivers[drv_num] = _drv_param[drv_num]._nmea2k = NEW_NOTHROW AP_NMEA2K();
             if (_drivers[drv_num] == nullptr) {
