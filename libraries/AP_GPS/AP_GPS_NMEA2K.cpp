@@ -127,25 +127,25 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             i += 1;
 
             switch (method) {
-                case 0:
+            case 0:
                 state.status = AP_GPS::GPS_Status::NO_FIX;
                 break;
 
-                case 1:
-                case 2:
-                case 3:
+            case 1:
+            case 2:
+            case 3:
                 state.status = state.num_sats > 3 ? AP_GPS::GPS_Status::GPS_OK_FIX_3D : AP_GPS::GPS_Status::GPS_OK_FIX_2D;
                 break;
 
-                case 4:
+            case 4:
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FIXED;
                 break;
 
-                case 5:
+            case 5:
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT;
                 break;
 
-                default:
+            default:
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
                 break;
 

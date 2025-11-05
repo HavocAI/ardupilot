@@ -137,9 +137,6 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
 #if AP_ROVER_ADVANCED_FAILSAFE_ENABLED
     SCHED_TASK(afs_fs_check,           10,    200, 129),
 #endif
-// #if HAL_NMEA2K_ENABLED
-//     SCHED_TASK(nmea2k_update, 10, 200, 110),
-// #endif
 };
 
 
@@ -467,8 +464,6 @@ void Rover::one_second_loop(void)
     // Update stats "flying" time
     AP::stats()->set_flying(g2.motors.active());
 #endif
-
-    // AP_NMEA2K::update();
 }
 
 void Rover::update_current_mode(void)
@@ -514,13 +509,6 @@ bool Rover::get_wp_crosstrack_error_m(float &xtrack_error) const
     xtrack_error = control_mode->crosstrack_error();
     return true;
 }
-
-#if HAL_NMEA2K_ENABLED
-void Rover::nmea2k_update(void)
-{
-    AP_NMEA2K::update();
-}
-#endif
 
 
 Rover rover;

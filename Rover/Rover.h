@@ -294,10 +294,6 @@ private:
     void one_second_loop(void);
     void update_current_mode(void);
 
-#if HAL_NMEA2K_ENABLED
-    void nmea2k_update(void);
-#endif
-
     // balance_bot.cpp
     void balancebot_pitch_control(float &throttle);
     bool is_balancebot() const;

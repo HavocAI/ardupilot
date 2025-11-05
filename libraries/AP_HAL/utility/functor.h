@@ -37,12 +37,6 @@ class Functor
 public:
     constexpr Functor(void *obj, RetType (*method)(void *obj, Args...))
         : _obj(obj)
-        , _obj_method(method)
-    {
-    }
-
-    constexpr Functor(RetType (*method)(Args...))
-        : _obj(nullptr)
         , _method(method)
     {
     }
@@ -57,11 +51,7 @@ public:
     // Call the method on the obj this Functor is bound to
     RetType operator()(Args... args) const
     {
-        if (_obj == nullptr) {
-            return _method(args...);
-        } else {
-            return _obj_method(_obj, args...);
-        }
+        return _method(_obj, args...);
     }
 
     // Compare if the two Functors are calling the same method in the same
@@ -89,10 +79,7 @@ public:
 
 private:
     void *_obj;
-    union {
-        RetType (*_obj_method)(void *obj, Args...);
-        RetType (*_method)(Args...);
-    };
+    RetType (*_method)(void *obj, Args...);
 
     template<class T, RetType (T::*method)(Args...)>
     static RetType method_wrapper(void *obj, Args... args)
