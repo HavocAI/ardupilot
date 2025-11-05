@@ -83,6 +83,8 @@ private:
     size_t find_free_slot(uint32_t now_ms);
     size_t find_buffered_slot(const uint32_t id);
     void handle_message(nmea2k::N2KMessage& msg);
+
+    void send_anello_gps(void);
     
 };
 

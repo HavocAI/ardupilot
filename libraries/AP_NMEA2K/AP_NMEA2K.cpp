@@ -57,10 +57,10 @@ static void send_pgn_127488(AP_NMEA2K* driver)
         };
 
         msg.SetDataLength(n2k_pgn_127488_engine_parameters_rapid_update_pack(
-            msg.DataPtrForPack(),
-            &data,
-            nmea2k::N2KMessage::MAX_DATA_SIZE
-        ));
+                              msg.DataPtrForPack(),
+                              &data,
+                              nmea2k::N2KMessage::MAX_DATA_SIZE
+                          ));
 
         // msg.AddByte(0);
         // msg.Add2ByteUInt(rpm);
@@ -136,7 +136,7 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
     if (IsSingleFrameSystemMessage(pgn)) {
         // TODO: handle system message
         GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: unhandled sys pgn: %" PRIu32, pgn);
-        
+
     } else if (IsFastPacketDefaultMessage(pgn) || IsFastPacketSystemMessage(pgn)) {
         const uint8_t frame_counter = frame.data[0] & 0x0F;
         const uint8_t sequence_counter = (frame.data[0] >> 4) & 0x0F;
@@ -161,7 +161,7 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
             }
 
             const size_t expected_data_len = frame.data[1];
-            
+
 
             bp = &_rx_msg[buffer_index];
             bp->id = id;
@@ -204,7 +204,7 @@ void AP_NMEA2K::handle_frame(AP_HAL::CANFrame &frame)
             if (IsFastPacketSystemMessage(pgn)) {
                 // TODO:
                 GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA2K: unhandled sys pgn: %" PRIu32, pgn);
-                   
+
             } else {
                 handle_message(bp->msg);
             }
@@ -234,7 +234,7 @@ void AP_NMEA2K::handle_message(nmea2k::N2KMessage& msg)
 }
 
 void AP_NMEA2K::update(void)
-{ 
+{
     AP_CANManager* can_mgr = AP_CANManager::get_singleton();
     if (can_mgr == nullptr) {
         return;
@@ -248,6 +248,7 @@ void AP_NMEA2K::update(void)
             }
 
             send_pgn_127488(driver);
+            driver->send_anello_gps();
 
 #if NMEA2K_EMU_MESSAGES
             static uint32_t last_msg_time_ms = 0;
@@ -281,7 +282,7 @@ void AP_NMEA2K::update(void)
 
                 // today's fake day is 1761582411
                 const uint64_t unix_time = 1761582411ULL;
-                
+
                 msg.Add2ByteUInt(unix_time / 86400);
                 msg.Add4ByteUInt((unix_time % 86400) * 10000);
 
@@ -298,6 +299,29 @@ void AP_NMEA2K::update(void)
     }
 
 
+}
+
+void AP_NMEA2K::send_anello_gps()
+{
+    const uint8_t anello_gps_param = _param.get() & 0x3;
+    if (anello_gps_param == 0) {
+        return;
+    }
+
+    // send the GPS enable/disable message
+    nmea2k::N2KMessage msg;
+
+    // TODO: what PGN?
+    // msg.SetPGN();
+    msg.AddByte(0x01);
+    msg.AddByte(anello_gps_param == 1 ? 0x01 : 0x00);
+
+    send_message(msg);
+
+    uint8_t value = _param.get();
+    // set bit 0 and 1 to zero
+    value &= ~0x3;
+    _param.set(value);
 }
 
 
