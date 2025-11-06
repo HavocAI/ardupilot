@@ -885,6 +885,9 @@ void AP_GPS::update_instance(uint8_t instance)
 
     // we have an active driver for this instance
     bool result = drivers[instance]->read();
+    if (option_set(DriverOptions::Disable)) {
+        result = false;
+    }
     uint32_t tnow = AP_HAL::millis();
 
     // if we did not get a message, and the idle timer of 2 seconds
