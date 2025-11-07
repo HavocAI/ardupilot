@@ -153,8 +153,8 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 break;
 
             case 6:
-                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
-                state.num_sats = 4;
+                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
+                state.num_sats = 0;
                 break;
 
             default:
