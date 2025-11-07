@@ -112,9 +112,9 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
             i += 8;
 
 
-#if AP_GPS_NMEA2K_DEBUG
+// #if AP_GPS_NMEA2K_DEBUG
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 type/method: 0x%" PRIx8, data[i]);
-#endif // AP_GPS_NMEA2K_DEBUG
+// #endif // AP_GPS_NMEA2K_DEBUG
 
             const uint8_t method = (data[i] >> 4) & 0x0F;
             // const uint8_t type_of_system = data[i] & 0x0F;
@@ -128,7 +128,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
 
             switch (method) {
             case 0:
-                state.status = AP_GPS::GPS_Status::NO_FIX;
+            //     state.status = AP_GPS::GPS_Status::NO_FIX;
                 break;
 
             case 1:
@@ -145,8 +145,13 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D_RTK_FLOAT;
                 break;
 
-            default:
+            case 6:
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_2D;
+                state.num_sats = 4;
+                break;
+
+            default:
+                state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
                 break;
 
             }
