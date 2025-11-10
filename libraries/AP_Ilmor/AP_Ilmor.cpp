@@ -1315,8 +1315,11 @@ void AP_Ilmor::handle_inverter_status_frame_2(const struct ilmor_inverter_status
 
 void AP_Ilmor::handle_inverter_status_frame_3(const struct ilmor_inverter_status_frame_3_t &msg)
 {
+
+    // Wh is reported as Wh Consumed * 10000
+    // We use the voltage field which is in units of 0.1V
     const TelemetryData t = {
-        .voltage = float(msg.wh_consumed) / 10000.0f,
+        .voltage = float(msg.wh_consumed) / 1000000.0f,
     };
     // Hack the Wh consumed into the next ESC telemetry slot
     update_telem_data(2, t,
