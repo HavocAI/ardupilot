@@ -706,69 +706,7 @@ void AP_MotorsUGV::output_regular(bool armed, float ground_speed, float steering
 {
     // output to throttle channels
     if (armed) {
-        if (_scale_steering) {
-            // vectored thrust handling
-            if (have_vectored_thrust()) {
-
-                // normalise desired steering and throttle to ease calculations
-                float steering_norm = steering / 4500.0f;
-                const float throttle_norm = throttle * 0.01f;
-
-                // steering can never be more than throttle * tan(_vector_angle_max)
-                const float vector_angle_max_rad = radians(constrain_float(_vector_angle_max, 0.0f, 90.0f));
-                const float steering_norm_lim = fabsf(throttle_norm * tanf(vector_angle_max_rad));
-                if (fabsf(steering_norm) > steering_norm_lim) {
-                    if (is_positive(steering_norm)) {
-                        steering_norm = steering_norm_lim;
-                    }
-                    if (is_negative(steering_norm)) {
-                        steering_norm = -steering_norm_lim;
-                    }
-                    limit.steer_right = true;
-                    limit.steer_left = true;
-                }
-
-                if (!is_zero(throttle_norm)) {
-                    // calculate steering angle
-                    float steering_angle_rad = atanf(steering_norm / throttle_norm);
-                    // limit steering angle to vector_angle_max
-                    if (fabsf(steering_angle_rad) > vector_angle_max_rad) {
-                        steering_angle_rad = constrain_float(steering_angle_rad, -vector_angle_max_rad, vector_angle_max_rad);
-                        limit.steer_right = true;
-                        limit.steer_left = true;
-                     }
-
-                    // convert steering angle to steering output
-                    steering = steering_angle_rad / vector_angle_max_rad * 4500.0f;
-
-                    // scale up throttle to compensate for steering angle
-                    const float throttle_scaler_inv = cosf(steering_angle_rad);
-                    if (!is_zero(throttle_scaler_inv)) {
-                        throttle /= throttle_scaler_inv;
-                    }
-                }
-            } else {
-                // scale steering down as speed increase above MOT_SPD_SCA_BASE (1 m/s default)
-                if (is_positive(_speed_scale_base) && (fabsf(ground_speed) > _speed_scale_base)) {
-                    steering *= (_speed_scale_base / fabsf(ground_speed));
-                } else {
-                    // regular steering rover at low speed so set limits to stop I-term build-up in controllers
-                    if (!have_skid_steering()) {
-                        limit.steer_left = true;
-                        limit.steer_right = true;
-                    }
-                }
-                // reverse steering direction when backing up
-                if (is_negative(ground_speed)) {
-                    steering *= -1.0f;
-                }
-            }
-        } else {
-            // reverse steering direction when backing up
-            if (is_negative(throttle)) {
-                steering *= -1.0f;
-            }
-        }
+        
         output_throttle(SRV_Channel::k_throttle, throttle);
     } else {
         // handle disarmed case
@@ -788,6 +726,8 @@ void AP_MotorsUGV::output_regular(bool armed, float ground_speed, float steering
 
     // always allow steering to move
     SRV_Channels::set_output_scaled(SRV_Channel::k_steering, steering);
+
+    output_throttle(SRV_Channel::k_throttle, throttle);
 }
 
 // output to skid steering channels
