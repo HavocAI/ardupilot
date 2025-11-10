@@ -100,15 +100,16 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
 
 
 
-            // lat/lng comes in at 1e16 degrees. Convert to 1e7 degrees.
+            // lat/lng comes in at 1e-16 degrees. Convert to 1e-7 degrees.
             state.location.lat = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
             i += 8;
 
             state.location.lng = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
             i += 8;
 
-            // altitude comes in 1e6 meters. Convert to cm.
-            state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABOVE_ORIGIN);
+            // altitude comes in 1e-6 meters. Convert to 1e-2.
+            // state.location.set_alt_cm(static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000), Location::AltFrame::ABOVE_ORIGIN);
+            state.location.alt = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000);
             i += 8;
 
 
@@ -188,9 +189,9 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Week: %" PRIu16 " WeekMs: %" PRIu32, state.time_week, state.time_week_ms);
 #endif // AP_GPS_NMEA2K_DEBUG
 
-#if AP_GPS_NMEA2K_DEBUG
+// #if AP_GPS_NMEA2K_DEBUG
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129029 Lat: %.7f Lon: %.7f Alt: %.2f", state.location.lat * 1e-7, state.location.lng * 1e-7, state.location.alt * 0.01f);
-#endif // AP_GPS_NMEA2K_DEBUG
+// #endif // AP_GPS_NMEA2K_DEBUG
 
         break;
     }
