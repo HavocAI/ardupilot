@@ -155,7 +155,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
 
             case 6:
                 state.status = AP_GPS::GPS_Status::GPS_OK_FIX_3D;
-                state.num_sats = 0;
+                state.num_sats = 6;
                 break;
 
             default:
@@ -244,7 +244,7 @@ void AP_GPS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2
         }
 
 #if AP_GPS_NMEA2K_DEBUG
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129026 GS: %.2f", state.ground_speed);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K_GPS: 129026 COG: %.1f GS: %.1f", state.ground_course, state.ground_speed);
 #endif // AP_GPS_NMEA2K_DEBUG
 
         break;
