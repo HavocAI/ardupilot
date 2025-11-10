@@ -77,6 +77,8 @@ static uint32_t _num_unmanned_msg_sent = 0;
 #define AP_ILMOR_R3_STATUS_FRAME_2_PRIORITY 3
 #define AP_ILMOR_R3_STATUS_FRAME_3_PRIORITY 3
 
+#define AP_ILMOR_OPTION_CURRENT_DEMAND (1 << 0)
+
 
 void IlmorFwVersion::print() const
 {
@@ -125,6 +127,33 @@ void MessageRateIIR::update_state()
     _last_update_ms = now_ms;
 
     _average_rate_hz *= expf(-dt / _tau);
+}
+
+AP_Ilmor::MotorThrottleDemand::MotorThrottleDemand()
+    : _shift(Shift::Neutral),
+    _throttle_value(0.0f)
+{}
+
+AP_Ilmor::MotorThrottleDemand AP_Ilmor::MotorThrottleDemand::neutral()
+{
+    MotorThrottleDemand demand;
+    demand._throttle_value = 0.0f;
+    demand._shift = Shift::Neutral;
+    return demand;
+}
+
+AP_Ilmor::MotorThrottleDemand AP_Ilmor::MotorThrottleDemand::from_normalized(float v)
+{
+    MotorThrottleDemand demand;
+    demand._throttle_value = constrain_float(v, -1.0f, 1.0f);
+    if (demand._throttle_value > 0.01f) {
+        demand._shift = Shift::Forward;
+    } else if (demand._throttle_value < -0.01f) {
+        demand._shift = Shift::Reverse;
+    } else {
+        demand._shift = Shift::Neutral;
+    }
+    return demand;
 }
 
 OneShotTimer::OneShotTimer(const uint32_t timeout_ms)
@@ -240,6 +269,11 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TR_PRD", 12, AP_Ilmor, _auto_trim_down_period, 60000),
 
+    // @Param: OPT
+    // @DisplayName: Options
+    // @Description: Bitmask options for various features. Bit 0: Enable Amperage Demand Control
+    AP_GROUPINFO("OPT", 13, AP_Ilmor, _options, 0),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -256,7 +290,7 @@ AP_Ilmor::AP_Ilmor()
 {
     _num_active_faults = 0;
     _num_tp_packets = 0;
-    _output.motor_rpm = 0;
+    _output.motor_throttle = MotorThrottleDemand::neutral();
     _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
     _last_trim_wait_ms = 0;
     _last_auto_trim_down_ms = 0;
@@ -303,9 +337,24 @@ void AP_Ilmor::send_throttle_cmd()
     const uint8_t trim_upper_limit = _trim_stop.get() < 0 ? 255 : _trim_stop.get();
 
     if (AP_HAL::millis() - _run_state.last_send_throttle_ms >= 1000 / AP_ILMOR_COMMAND_RATE_HZ) {
+
+        int16_t rpm_demand;
+        switch (_output.motor_throttle._shift) {
+            case MotorThrottleDemand::Shift::Forward:
+                rpm_demand = _output.motor_throttle._throttle_value * _max_rpm.get();
+                break;
+            case MotorThrottleDemand::Shift::Reverse:
+                rpm_demand = _output.motor_throttle._throttle_value * _max_rpm.get();
+                break;
+            case MotorThrottleDemand::Shift::Neutral:
+            default:
+                rpm_demand = 0;
+                break;
+        }
+
         ilmor_unmanned_throttle_control_t throttle_msg = {
             .unmanned_control_key = 0x4d,
-            .unmanned_p_rpm_demand = _output.motor_rpm,
+            .unmanned_p_rpm_demand = rpm_demand,
             .trim_custom_upper_limit = trim_upper_limit,
         };
         
@@ -871,7 +920,7 @@ void AP_Ilmor::motor_state_machine()
 
         case MotorState::Ready: {
 
-            _output.motor_rpm = 0;
+            _output.motor_throttle = MotorThrottleDemand::neutral();
             trim_state_machine();
 
             // set to solid red
@@ -903,7 +952,7 @@ void AP_Ilmor::motor_state_machine()
         } break;
 
         case MotorState::StopWait: {
-             _output.motor_rpm = 0;
+             _output.motor_throttle = MotorThrottleDemand::neutral();
              trim_state_machine();
 
             // set to solid white
@@ -918,7 +967,7 @@ void AP_Ilmor::motor_state_machine()
         } break;
 
         case MotorState::Stop: {
-            _output.motor_rpm = 0;
+            _output.motor_throttle = MotorThrottleDemand::neutral();
             trim_state_machine();
 
             if (is_locked_out()) {
@@ -930,18 +979,18 @@ void AP_Ilmor::motor_state_machine()
             _led_hue = 255;
             _led_mode = LEDMode::Solid;
 
-            if (_rpm_demand > min_rpm) {
+            if (_throttle_demand._shift == MotorThrottleDemand::Shift::Forward) {
                 _motor_state = MotorState::Forward;
                 _last_motor_wait_ms = now_ms;
-            } else if (_rpm_demand < -min_rpm) {
+            } else if (_throttle_demand._shift == MotorThrottleDemand::Shift::Reverse) {
                 _motor_state = MotorState::Reverse;
                 _last_motor_wait_ms = now_ms;
             }
         } break;
 
         case MotorState::Forward: {
-            if (_rpm_demand > min_rpm) {
-                _output.motor_rpm = _rpm_demand;
+            if (_throttle_demand._shift == MotorThrottleDemand::Shift::Forward) {
+                _output.motor_throttle = _throttle_demand;
                 trim_state_machine();
 
                 if (is_locked_out()) {
@@ -969,8 +1018,8 @@ void AP_Ilmor::motor_state_machine()
         } break;
 
         case MotorState::Reverse: {
-            if (_rpm_demand < -min_rpm) {
-                _output.motor_rpm = _rpm_demand;
+            if (_throttle_demand._shift == MotorThrottleDemand::Shift::Reverse) {
+                _output.motor_throttle = _throttle_demand;
                 trim_state_machine();
 
                 if (is_locked_out()) {
@@ -998,7 +1047,7 @@ void AP_Ilmor::motor_state_machine()
         } break;
 
         case MotorState::Fault: {
-            _output.motor_rpm = 0;
+            _output.motor_throttle = MotorThrottleDemand::neutral();;
             trim_state_machine();
 
             // set LED to flashing blue
@@ -1011,7 +1060,7 @@ void AP_Ilmor::motor_state_machine()
         } break;
 
         case MotorState::WifiOn: {
-            _output.motor_rpm = 0;
+            _output.motor_throttle = MotorThrottleDemand::neutral();
             _output.motor_trim = AP_Ilmor::TRIM_CMD_STOP;
 
             // set LED to solid purple
@@ -1036,10 +1085,7 @@ void AP_Ilmor::motor_state_machine()
 void AP_Ilmor::update()
 {
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    _rpm_demand = throttle * _max_rpm.get();
-
-    
-
+    _throttle_demand = AP_Ilmor::MotorThrottleDemand::from_normalized(throttle);
 }
 
 void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
@@ -1108,17 +1154,18 @@ void AP_Ilmor::send_direct_inverter()
     // send THR_DEMAND_LISP message to the Ilmor inverter
     // this message must be sent at 20Hz
 
-    const int32_t throttle_demand_lisp = (int32_t)_output.motor_rpm * 5000;
-    const uint8_t throttle_demand_type = 0x3f; // 0x3f = RPM demand
-    uint8_t shift_position;
+    int32_t throttle_demand_lisp;
+    uint8_t throttle_demand_type;
 
-    if (_output.motor_rpm > 0) {
-        shift_position = 0x3f; // forward
-    } else if (_output.motor_rpm < 0) {
-        shift_position = 0x7f; // reverse
+    if (_options.get() & AP_ILMOR_OPTION_CURRENT_DEMAND) {
+        throttle_demand_lisp = _output.motor_throttle._throttle_value * 100000;
+        throttle_demand_type = 0x1f; // 0x1f = Current demand
     } else {
-        shift_position = 0x1f; // neutral
+        throttle_demand_lisp = _output.motor_throttle._throttle_value * _max_rpm.get() * 5000;
+        throttle_demand_type = 0x3f; // 0x3f = RPM demand
     }
+
+    const uint8_t shift_position = static_cast<uint8_t>(_output.motor_throttle._shift);
 
     can_frame.data[0] = (throttle_demand_lisp >> 24) & 0xFF;
     can_frame.data[1] = (throttle_demand_lisp >> 16) & 0xFF;
