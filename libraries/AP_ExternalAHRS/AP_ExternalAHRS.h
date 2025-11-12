@@ -62,6 +62,10 @@ public:
         // 8 reserved for SBG
         // 9 reserved for EulerNav
         // 10 reserved for Aeron
+
+#if AP_EXTERNAL_AHRS_NMEA2K_ENABLED
+        NMEA2K = 11,
+#endif
     };
 
     static AP_ExternalAHRS *get_singleton(void) {

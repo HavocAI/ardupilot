@@ -26,6 +26,7 @@
 #include "AP_ExternalAHRS_MicroStrain5.h"
 #include "AP_ExternalAHRS_MicroStrain7.h"
 #include "AP_ExternalAHRS_InertialLabs.h"
+#include "AP_ExternalAHRS_NMEA2K.h"
 
 #include <GCS_MAVLink/GCS.h>
 #include <AP_AHRS/AP_AHRS.h>
@@ -127,6 +128,12 @@ void AP_ExternalAHRS::init(void)
 #if AP_EXTERNAL_AHRS_INERTIALLABS_ENABLED
     case DevType::InertialLabs:
         backend = NEW_NOTHROW AP_ExternalAHRS_InertialLabs(this, state);
+        return;
+#endif
+
+#if AP_EXTERNAL_AHRS_NMEA2K_ENABLED
+    case DevType::NMEA2K:
+        backend = NEW_NOTHROW AP_ExternalAHRS_NMEA2K(this, state);
         return;
 #endif
 
