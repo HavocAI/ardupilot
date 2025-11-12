@@ -637,6 +637,10 @@ void AP_Ilmor::trim_state_machine()
                 _last_auto_trim_down_ms = AP_HAL::millis();
             } else {
                 _output.motor_trim = trim_demand();
+                // if the prop is spinning and delegate to HMI buttons, override and send the trim stop command
+                if (_output.motor_trim == TrimCmd::TRIM_CMD_BUTTONS && std::abs(_output.motor_rpm) > 50) {
+                    _output.motor_trim = TrimCmd::TRIM_CMD_STOP;
+                }
                 _trimState = TrimState::CheckSoftStop;
             }
 
