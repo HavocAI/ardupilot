@@ -132,7 +132,7 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
 {
     const uint32_t now_ms = AP_HAL::millis();
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: rx PGN %" PRIu32, msg.pgn());
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: rx PGN %" PRIu32, msg.pgn());
 
 
     switch (msg.pgn()) {
