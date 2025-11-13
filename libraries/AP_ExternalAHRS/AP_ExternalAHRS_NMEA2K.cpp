@@ -15,11 +15,15 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
     : AP_ExternalAHRS_backend(_frontend, _state)
 {
     initialized = false;
+    nmea2k = nullptr;
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: init");
+
     // find a NMEA2K CAN driver instance from the CANManager
     AP_CANManager* can_manager = AP_CANManager::get_singleton();
     for (size_t i = 0; i < can_manager->get_num_drivers(); i++) {
         if (can_manager->get_driver_type(i) == AP_CAN::Protocol::NMEA2K) {
-            AP_NMEA2K* nmea2k = static_cast<AP_NMEA2K*>(can_manager->get_driver(i));
+            nmea2k = static_cast<AP_NMEA2K*>(can_manager->get_driver(i));
 
             // register NMEA2K message handler
             AP_NMEA2K::NMEA2K_HandleN2KMessage_Functor handle_n2k_message = FUNCTOR_BIND(this, &AP_ExternalAHRS_NMEA2K::handle_nmea2k_message, void, AP_NMEA2K*, nmea2k::N2KMessage&);
@@ -32,7 +36,19 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
 }
 
 void AP_ExternalAHRS_NMEA2K::update()
-{}
+{
+    const uint32_t now = AP_HAL::millis();
+    if (nmea2k != nullptr && now - last_send_cmd > 1000) {
+
+        nmea2k::N2KMessage msg;
+        msg.SetPGN(65281);
+        msg.AddByte(option_is_set(AP_ExternalAHRS::OPTIONS::AN_DISABLE_GNSS) ? 0 : 1);
+
+        nmea2k->send_message(msg);
+
+        last_send_cmd = now;
+    }
+}
 
 bool AP_ExternalAHRS_NMEA2K::healthy(void) const
 {
@@ -55,8 +71,8 @@ bool AP_ExternalAHRS_NMEA2K::pre_arm_check(char *failure_msg, uint8_t failure_ms
     WITH_SEMAPHORE(state.sem);
     uint32_t now = AP_HAL::millis();
     if (now - last_att_ms > 500 ||
-        now - last_pos_ms > 500 ||
-        now - last_vel_ms > 500) {
+            now - last_pos_ms > 500 ||
+            now - last_vel_ms > 500) {
         hal.util->snprintf(failure_msg, failure_msg_len, "NMEA2K not up to date");
         return false;
     }
@@ -105,8 +121,11 @@ bool AP_ExternalAHRS_NMEA2K::get_variances(float &velVar, float &posVar, float &
 void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2KMessage& msg)
 {
     const uint32_t now_ms = AP_HAL::millis();
-    switch (msg.pgn()) {
 
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: rx PGN %" PRIu32, msg.pgn());
+
+
+    switch (msg.pgn()) {
     case 129025:
     {
         n2k_pgn_129025_position_rapid_update_t data;
@@ -122,7 +141,8 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         state.last_location_update_us = AP_HAL::micros();
         last_pos_ms = now_ms;
 
-    } break;
+    }
+    break;
     case 129029:
     {
         WITH_SEMAPHORE(state.sem);
