@@ -16,6 +16,9 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
 {
     initialized = false;
     nmea2k = nullptr;
+
+    set_default_sensors(uint16_t(AP_ExternalAHRS::AvailableSensor::GPS) |
+                        uint16_t(AP_ExternalAHRS::AvailableSensor::COMPASS));
 }
 
 bool AP_ExternalAHRS_NMEA2K::init()
@@ -121,9 +124,9 @@ void AP_ExternalAHRS_NMEA2K::get_filter_status(nav_filter_status &status) const
 
 bool AP_ExternalAHRS_NMEA2K::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
 {
-    velVar = 2.0f;
-    posVar = gps_data.hdop * 3.0f;
-    hgtVar = gps_data.hdop * 3.0f;
+    velVar = 2.0f * vel_gate_scale;
+    posVar = gps_data.hdop * 3.0f * pos_gate_scale;
+    hgtVar = gps_data.hdop * 3.0f * hgt_gate_scale;
     tasVar = 0;
     return true;
 }
@@ -328,7 +331,6 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         );
 
         state.have_quaternion = true;
-
         last_att_ms = now_ms;
 
     }
