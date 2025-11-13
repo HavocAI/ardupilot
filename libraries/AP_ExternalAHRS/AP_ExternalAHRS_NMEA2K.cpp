@@ -16,7 +16,14 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
 {
     initialized = false;
     nmea2k = nullptr;
+}
 
+bool AP_ExternalAHRS_NMEA2K::init()
+{
+    WITH_SEMAPHORE(state.sem);
+    if (initialized) {
+        return true;
+    }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: init");
 
     // find a NMEA2K CAN driver instance from the CANManager
@@ -32,11 +39,14 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
         }
     }
 
-
+    return initialized;
 }
 
 void AP_ExternalAHRS_NMEA2K::update()
 {
+    if (!init()) {
+        return;
+    }
     const uint32_t now = AP_HAL::millis();
     if (nmea2k != nullptr && now - last_send_cmd > 1000) {
 

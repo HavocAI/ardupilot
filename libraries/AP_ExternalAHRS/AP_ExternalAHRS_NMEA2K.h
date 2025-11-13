@@ -17,6 +17,8 @@ public:
         return "NMEA2K";
     }
 
+    int8_t get_port(void) const override { return 0; };
+
     bool healthy(void) const override;
 
     bool initialised(void) const override;
@@ -34,6 +36,7 @@ public:
     }
 
 private:
+    bool init();
     void handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2KMessage& msg);
 
     AP_ExternalAHRS::gps_data_message_t gps_data;
