@@ -9,10 +9,12 @@
 #include <AP_NMEA2K/AP_NMEA2K.h>
 #include <AP_NMEA2K/can-msg-definitions/n2k.h>
 
+extern const AP_HAL::HAL &hal;
+
 AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_ExternalAHRS::state_t &_state)
     : AP_ExternalAHRS_backend(_frontend, _state)
 {
-
+    initialized = false;
     // find a NMEA2K CAN driver instance from the CANManager
     AP_CANManager* can_manager = AP_CANManager::get_singleton();
     for (size_t i = 0; i < can_manager->get_num_drivers(); i++) {
@@ -22,6 +24,7 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
             // register NMEA2K message handler
             AP_NMEA2K::NMEA2K_HandleN2KMessage_Functor handle_n2k_message = FUNCTOR_BIND(this, &AP_ExternalAHRS_NMEA2K::handle_nmea2k_message, void, AP_NMEA2K*, nmea2k::N2KMessage&);
             nmea2k->register_handle_n2k_message(handle_n2k_message);
+            initialized = true;
         }
     }
 
@@ -30,6 +33,41 @@ AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_Ex
 
 void AP_ExternalAHRS_NMEA2K::update()
 {}
+
+bool AP_ExternalAHRS_NMEA2K::healthy(void) const
+{
+    WITH_SEMAPHORE(state.sem);
+    return AP_HAL::millis() - last_att_ms < 500 &&
+           AP_HAL::millis() - last_vel_ms < 500 &&
+           AP_HAL::millis() - last_pos_ms < 500;
+}
+
+bool AP_ExternalAHRS_NMEA2K::pre_arm_check(char *failure_msg, uint8_t failure_msg_len) const
+{
+    if (!initialized) {
+        hal.util->snprintf(failure_msg, failure_msg_len, "NMEA2K setup failed");
+        return false;
+    }
+    if (!healthy()) {
+        hal.util->snprintf(failure_msg, failure_msg_len, "NMEA2K unhealthy");
+        return false;
+    }
+    WITH_SEMAPHORE(state.sem);
+    uint32_t now = AP_HAL::millis();
+    if (now - last_att_ms > 500 ||
+        now - last_pos_ms > 500 ||
+        now - last_vel_ms > 500) {
+        hal.util->snprintf(failure_msg, failure_msg_len, "NMEA2K not up to date");
+        return false;
+    }
+    return true;
+}
+
+bool AP_ExternalAHRS_NMEA2K::initialised(void) const
+{
+    return initialized;
+}
+
 
 void AP_ExternalAHRS_NMEA2K::get_filter_status(nav_filter_status &status) const
 {
@@ -42,13 +80,26 @@ void AP_ExternalAHRS_NMEA2K::get_filter_status(nav_filter_status &status) const
     // const bool init_ok = state.location.lat != 0 || state.location.lng != 0;
 
     status.flags.attitude = (now - last_att_ms < dt_limit);
-    status.flags.vert_vel = (now - last_vel_ms < dt_limit);
+    status.flags.horiz_vel = (now - last_vel_ms < dt_limit);
+    status.flags.vert_vel = status.flags.horiz_vel;
     status.flags.horiz_pos_rel = state.have_origin && (now - last_pos_ms < dt_limit);
     status.flags.horiz_pos_abs = status.flags.horiz_pos_rel;
+    status.flags.pred_horiz_pos_rel = status.flags.horiz_pos_abs;
+    status.flags.pred_horiz_pos_abs = status.flags.horiz_pos_abs;
     status.flags.vert_pos = (now - last_gps_ms < dt_limit);
     status.flags.using_gps = (now - last_gps_ms < dt_limit_gps);
+    status.flags.gps_quality_good = (now - last_gps_ms < dt_limit_gps) && (gps_data.fix_type >= AP_GPS_FixType::FIX_2D);
     status.flags.dead_reckoning = cached_data.pgn_129029_method == 6;
 
+}
+
+bool AP_ExternalAHRS_NMEA2K::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
+{
+    velVar = 2.0f;
+    posVar = gps_data.hdop * 3.0f;
+    hgtVar = gps_data.hdop * 3.0f;
+    tasVar = 0;
+    return true;
 }
 
 void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2KMessage& msg)

@@ -25,9 +25,13 @@ public:
 
     void update() override;
 
-    uint8_t num_gps_sensors(void) const override;
-
     void get_filter_status(nav_filter_status &status) const override;
+
+    bool get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const override;
+
+    uint8_t num_gps_sensors(void) const override {
+        return 1;
+    }
 
 private:
     void handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, nmea2k::N2KMessage& msg);
@@ -42,6 +46,7 @@ private:
     uint32_t last_vel_ms;
     uint32_t last_pos_ms;
     uint32_t last_gps_ms;
+    bool initialized;
 };
 
 #endif // AP_EXTERNAL_AHRS_NMEA2K_ENABLED
