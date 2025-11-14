@@ -125,9 +125,9 @@ void AP_ExternalAHRS_NMEA2K::get_filter_status(nav_filter_status &status) const
 
 bool AP_ExternalAHRS_NMEA2K::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
 {
-    velVar = 2.0f * vel_gate_scale;
-    posVar = gps_data.hdop * 3.0f * pos_gate_scale;
-    hgtVar = gps_data.hdop * 3.0f * hgt_gate_scale;
+    velVar = 0.5f * vel_gate_scale;
+    posVar = 0.5f * pos_gate_scale;
+    hgtVar = 0.5f * hgt_gate_scale;
     tasVar = 0;
     return true;
 }
