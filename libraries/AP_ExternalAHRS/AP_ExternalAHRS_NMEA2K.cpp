@@ -326,16 +326,54 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         WITH_SEMAPHORE(state.sem);
 
         state.quat.from_euler(
-            radians(data.roll * 0.0001f),
-            radians(data.pitch * 0.0001f),
-            radians(data.yaw * 0.0001f)
+            data.roll * 0.0001f,
+            data.pitch * 0.0001f,
+            data.yaw * 0.0001f
         );
 
         state.have_quaternion = true;
         last_att_ms = now_ms;
 
+        static uint32_t last_attitude_print_ms = 0;
+        if (now_ms - last_attitude_print_ms > 1000) {
+            last_attitude_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: att R %.2f P %.2f Y %.2f",
+                          degrees(data.roll * 0.0001f),
+                          degrees(data.pitch * 0.0001f),
+                          degrees(data.yaw * 0.0001f));
+        }
+
     }
     break;
+
+    case 127250:
+    {
+
+        n2k_pgn_127250_vessel_heading_t data;
+        if (n2k_pgn_127250_vessel_heading_unpack(&data, msg.DataPtrForUnpack(), msg.data_length()) != 0) {
+            return;
+        }
+
+        // WITH_SEMAPHORE(state.sem);
+
+        // state.quat.from_euler(
+        //     0.0f,
+        //     0.0f,
+        //     data.heading * 0.0001f
+        // );
+
+        // state.have_quaternion = true;
+        // last_att_ms = now_ms;
+
+        static uint32_t last_heading_ms = 0;
+        if (now_ms - last_heading_ms > 1000) {
+            last_heading_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: heading %.2f", degrees(data.heading * 0.0001f));
+        }
+
+
+    } break;
+
     }
 
 
