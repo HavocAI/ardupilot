@@ -115,7 +115,8 @@ void AP_ExternalAHRS_NMEA2K::get_filter_status(nav_filter_status &status) const
     status.flags.horiz_pos_abs = status.flags.horiz_pos_rel;
     status.flags.pred_horiz_pos_rel = status.flags.horiz_pos_abs;
     status.flags.pred_horiz_pos_abs = status.flags.horiz_pos_abs;
-    status.flags.vert_pos = (now - last_gps_ms < dt_limit);
+    // status.flags.vert_pos = (now - last_gps_ms < dt_limit);
+    status.flags.vert_pos = true;
     status.flags.using_gps = (now - last_gps_ms < dt_limit_gps);
     status.flags.gps_quality_good = (now - last_gps_ms < dt_limit_gps) && (gps_data.fix_type >= AP_GPS_FixType::FIX_2D);
     status.flags.dead_reckoning = cached_data.pgn_129029_method == 6;
