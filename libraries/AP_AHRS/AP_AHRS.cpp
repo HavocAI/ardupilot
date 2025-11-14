@@ -1940,6 +1940,8 @@ AP_AHRS::EKFType AP_AHRS::ekf_type(void) const
 
 AP_AHRS::EKFType AP_AHRS::_active_EKF_type(void) const
 {
+    return EKFType::EXTERNAL;
+    
     EKFType ret = fallback_active_EKF_type();
 
     switch (ekf_type()) {
