@@ -59,10 +59,10 @@ void AP_ExternalAHRS_NMEA2K::update()
 
             nmea2k::N2KMessage msg;
             msg.SetPGN(65281);
-            msg.SetPriority(2);
-
+            msg.SetPriority(6);
+            msg.ManualSetSource(0x23);
             
-            std::memset(msg.DataPtrForPack(), 0, 8);
+            std::memset(msg.DataPtrForPack(), 0xff, 8);
             msg.DataPtrForPack()[0] = enable_gps; 
             msg.SetDataLength(8);
             
