@@ -185,8 +185,11 @@ protected:
     enum class OPTIONS {
         VN_UNCOMP_IMU = 1U << 0,
         AN_DISABLE_GNSS = 1U << 1,
+        AN_SEND_GPS_MSG = 1U << 2,
     };
     bool option_is_set(OPTIONS option) const { return (options.get() & int32_t(option)) != 0; }
+
+    AP_Int16         options;
 
 private:
     AP_ExternalAHRS_backend *backend;
@@ -194,7 +197,7 @@ private:
     AP_Enum<DevType> devtype;
     AP_Int16         rate;
     AP_Int16         log_rate;
-    AP_Int16         options;
+    
     AP_Int16         sensors;
 
     static AP_ExternalAHRS *_singleton;

@@ -11,6 +11,8 @@
 
 extern const AP_HAL::HAL &hal;
 
+#define EXTERNAL_AHRS_DEBUG 1
+
 AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_ExternalAHRS::state_t &_state)
     : AP_ExternalAHRS_backend(_frontend, _state)
 {
@@ -47,19 +49,27 @@ bool AP_ExternalAHRS_NMEA2K::init()
 
 void AP_ExternalAHRS_NMEA2K::update()
 {
-    if (!init()) {
-        return;
-    }
+    init();
     const uint32_t now = AP_HAL::millis();
     if (nmea2k != nullptr && now - last_send_cmd > 1000) {
 
-        nmea2k::N2KMessage msg;
-        msg.SetPGN(65281);
-        msg.AddByte(option_is_set(AP_ExternalAHRS::OPTIONS::AN_DISABLE_GNSS) ? 0 : 1);
+        const uint8_t send_gps = option_is_set(AP_ExternalAHRS::OPTIONS::AN_SEND_GPS_MSG);
+        if (send_gps) {
+            const uint8_t enable_gps = option_is_set(AP_ExternalAHRS::OPTIONS::AN_DISABLE_GNSS) ? 0 : 1;
 
-        nmea2k->send_message(msg);
+            nmea2k::N2KMessage msg;
+            msg.SetPGN(65281);
+            msg.SetPriority(2);
+            msg.AddByte(enable_gps);
+            nmea2k->send_message(msg);
 
-        last_send_cmd = now;
+            uint16_t options_value = frontend.options.get();
+            options_value &= ~uint16_t(AP_ExternalAHRS::OPTIONS::AN_SEND_GPS_MSG);
+            frontend.options.set(options_value);
+
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: sent AN_DISABLE_GNSS=%d", enable_gps);
+            last_send_cmd = now;
+        }
     }
 }
 
@@ -239,7 +249,7 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
 
         case 6:
             // Dead Reckoning
-            gps_data.fix_type = AP_GPS_FixType::NONE;
+            gps_data.fix_type = AP_GPS_FixType::FIX_2D;
             break;
 
         case 7:
@@ -262,7 +272,7 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         i += 2;
 
         // pdop comes in on 1e-2
-        // state.vdop = abs(nmea2k::N2KMessage::ReadInt16(&data[i]));
+        // pdop = abs(nmea2k::N2KMessage::ReadInt16(&data[i]));
         i += 2;
 
 
@@ -283,6 +293,19 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
 
             last_gps_ms = now_ms;
         }
+
+#if EXTERNAL_AHRS_DEBUG
+        static uint32_t last_position_print_ms = 0;
+        if (now_ms - last_position_print_ms > 1000) {
+            last_position_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: pos lat %.7f lon %.7f sats %d m: %d",
+                          gps_data.latitude * 1e-7,
+                          gps_data.longitude * 1e-7,
+                          gps_data.satellites_in_view,
+                          cached_data.pgn_129029_method);
+        }
+#endif // EXTERNAL_AHRS_DEBUG
+
     }
     break;
 
@@ -334,6 +357,7 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         state.have_quaternion = true;
         last_att_ms = now_ms;
 
+#if EXTERNAL_AHRS_DEBUG
         static uint32_t last_attitude_print_ms = 0;
         if (now_ms - last_attitude_print_ms > 1000) {
             last_attitude_print_ms = now_ms;
@@ -342,6 +366,7 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
                           degrees(data.pitch * 0.0001f),
                           degrees(data.yaw * 0.0001f));
         }
+#endif // EXTERNAL_AHRS_DEBUG
 
     }
     break;
@@ -365,11 +390,11 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         // state.have_quaternion = true;
         // last_att_ms = now_ms;
 
-        static uint32_t last_heading_ms = 0;
-        if (now_ms - last_heading_ms > 1000) {
-            last_heading_ms = now_ms;
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: heading %.2f", degrees(data.heading * 0.0001f));
-        }
+        // static uint32_t last_heading_ms = 0;
+        // if (now_ms - last_heading_ms > 1000) {
+        //     last_heading_ms = now_ms;
+        //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: heading %.2f", degrees(data.heading * 0.0001f));
+        // }
 
 
     } break;

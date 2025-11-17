@@ -80,7 +80,7 @@ protected:
     const float pos_gate_scale = 0.2;
     const float hgt_gate_scale = 0.2;
     
-private:
+protected:
     AP_ExternalAHRS &frontend;
 };
 
