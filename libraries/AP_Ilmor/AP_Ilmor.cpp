@@ -1036,10 +1036,7 @@ void AP_Ilmor::motor_state_machine()
 void AP_Ilmor::update()
 {
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    _rpm_demand = throttle * _max_rpm.get();
-
-    
-
+    _rpm_demand = constrain_float(throttle * _max_rpm.get(), -300.0f, _max_rpm.get());
 }
 
 void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
