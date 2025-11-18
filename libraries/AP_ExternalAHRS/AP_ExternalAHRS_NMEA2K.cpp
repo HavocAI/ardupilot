@@ -333,11 +333,11 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         gps_data.ned_vel_east = ground_speed * sinf(ground_corse);
         gps_data.ned_vel_down = 0.0f;
 
-        // state.velocity.x = gps_data.ned_vel_north;
-        // state.velocity.y = gps_data.ned_vel_east;
-        // state.velocity.z = gps_data.ned_vel_down;
+        state.velocity.x = gps_data.ned_vel_north;
+        state.velocity.y = gps_data.ned_vel_east;
+        state.velocity.z = gps_data.ned_vel_down;
 
-        // state.have_velocity = true;
+        state.have_velocity = true;
 
         last_vel_ms = now_ms;
 
