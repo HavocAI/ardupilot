@@ -329,15 +329,15 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         // sog comes in at 1e-2 m/s. Convert to m/s.
         float ground_speed = data.sog * 0.01f;
 
-        gps_data.ned_vel_north = ground_speed * cosf(ground_corse);
-        gps_data.ned_vel_east = ground_speed * sinf(ground_corse);
-        gps_data.ned_vel_down = 0.0f;
+        // gps_data.ned_vel_north = ground_speed * cosf(ground_corse);
+        // gps_data.ned_vel_east = ground_speed * sinf(ground_corse);
+        // gps_data.ned_vel_down = 0.0f;
 
-        state.velocity.x = gps_data.ned_vel_north;
-        state.velocity.y = gps_data.ned_vel_east;
-        state.velocity.z = gps_data.ned_vel_down;
+        // state.velocity.x = gps_data.ned_vel_north;
+        // state.velocity.y = gps_data.ned_vel_east;
+        // state.velocity.z = gps_data.ned_vel_down;
 
-        state.have_velocity = true;
+        // state.have_velocity = true;
 
         last_vel_ms = now_ms;
 
