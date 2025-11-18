@@ -240,6 +240,14 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("TR_PRD", 12, AP_Ilmor, _auto_trim_down_period, 60000),
 
+    // @Param: MAX_R
+    // @DisplayName: Ilmor Motor Maximum Reverse RPM
+    // @Description: Ilmor Motor Maximum Reverse RPM, by default this is set to 300
+    // @Values: 0:2000
+    // @Increment: 1
+    // @User: Advanced
+    AP_GROUPINFO("MAX_R", 13, AP_Ilmor, _max_rpm_reverse, 300),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -1040,10 +1048,9 @@ void AP_Ilmor::motor_state_machine()
 void AP_Ilmor::update()
 {
     const float throttle = constrain_float(SRV_Channels::get_output_norm(SRV_Channel::k_throttle), -1.0, 1.0);
-    _rpm_demand = throttle * _max_rpm.get();
-
+    const float max_reverse = constrain_float(_max_rpm_reverse.get(), 0.0f, _max_rpm.get());
     
-
+    _rpm_demand = constrain_float(throttle * _max_rpm.get(), -max_reverse, _max_rpm.get());
 }
 
 void AP_Ilmor::active_fault(J1939::DiagnosticMessage1::DTC& dtc)
