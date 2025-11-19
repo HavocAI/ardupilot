@@ -198,17 +198,55 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         gps_data.gps_week = (uint16_t)(gps_ms / AP_MSEC_PER_WEEK);
         gps_data.ms_tow = (uint32_t)(gps_ms - (gps_data.gps_week * AP_MSEC_PER_WEEK));
 
+        
+        Location new_location;
+
 
         // lat/lng comes in at 1e-16 degrees. Convert to 1e-7 degrees.
-        state.location.lat = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
+        new_location.lat = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
         i += 8;
 
-        state.location.lng = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
+        new_location.lng = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 1000000000);
         i += 8;
 
         // altitude comes in 1e-6 meters. Convert to 1e-2.
-        state.location.alt = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000);
+        new_location.alt = static_cast<int32_t>(nmea2k::N2KMessage::ReadInt64(&data[i]) / 10000);
         i += 8;
+
+        // compute the ground speed based on position delta if we have a previous position
+        const float dt_sec = (now_ms - last_vel_ms) * 0.001f;
+        if (dt_sec > 0.5f) {
+            const Vector2f delta_xy = new_location.get_distance_NE(_last_velocity_location);
+            const Vector2f velocity_xy = delta_xy / dt_sec;
+            state.velocity.x = velocity_xy.x;
+            state.velocity.y = velocity_xy.y;
+            state.velocity.z = 0.0f;
+
+            gps_data.ned_vel_north = state.velocity.x;
+            gps_data.ned_vel_east = state.velocity.y;
+            gps_data.ned_vel_down = state.velocity.z;
+
+            state.have_velocity = true;
+            last_vel_ms = now_ms;
+            _last_velocity_location = new_location;
+
+#if EXTERNAL_AHRS_DEBUG
+            static uint32_t last_position_print_ms = 0;
+            if (now_ms - last_position_print_ms > 1000) {
+                last_position_print_ms = now_ms;
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: vel N %.2f E %.2f",
+                            state.velocity.x,
+                            state.velocity.y);
+
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: dt %.4f dN %.5f dE %.5f",
+                            dt_sec,
+                            delta_xy.x,
+                            delta_xy.y);
+            }
+#endif // EXTERNAL_AHRS_DEBUG
+        }
+
+        state.location = new_location;
 
         state.have_location = true;
         state.last_location_update_us = AP_HAL::micros();
@@ -286,6 +324,8 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
             AP::gps().handle_external(gps_data, instance);
         }
 
+        
+
         if (gps_data.satellites_in_view > 3) {
             if (!state.have_origin) {
                 state.origin = Location{
@@ -295,9 +335,9 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
                     Location::AltFrame::ABSOLUTE};
                 state.have_origin = true;
             }
-
-            last_gps_ms = now_ms;
         }
+
+        last_gps_ms = now_ms;
 
 #if EXTERNAL_AHRS_DEBUG
         static uint32_t last_position_print_ms = 0;
@@ -321,7 +361,7 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
             return;
         }
 
-        WITH_SEMAPHORE(state.sem);
+        // WITH_SEMAPHORE(state.sem);
 
         // cog comes in at 1e-4 radians.
         float ground_corse = data.cog * 0.0001f;
@@ -329,17 +369,25 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         // sog comes in at 1e-2 m/s. Convert to m/s.
         float ground_speed = data.sog * 0.01f;
 
-        gps_data.ned_vel_north = ground_speed * cosf(ground_corse);
-        gps_data.ned_vel_east = ground_speed * sinf(ground_corse);
-        gps_data.ned_vel_down = 0.0f;
+        static uint32_t last_vel_print_ms = 0;
+        if (now_ms - last_vel_print_ms > 1000) {
+            last_vel_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: vel SOG %.2f COG %.2f",
+                          ground_speed,
+                          degrees(ground_corse));
+        }
 
-        state.velocity.x = gps_data.ned_vel_north;
-        state.velocity.y = gps_data.ned_vel_east;
-        state.velocity.z = gps_data.ned_vel_down;
+        // gps_data.ned_vel_north = ground_speed * cosf(ground_corse);
+        // gps_data.ned_vel_east = ground_speed * sinf(ground_corse);
+        // gps_data.ned_vel_down = 0.0f;
 
-        state.have_velocity = true;
+        // state.velocity.x = gps_data.ned_vel_north;
+        // state.velocity.y = gps_data.ned_vel_east;
+        // state.velocity.z = gps_data.ned_vel_down;
 
-        last_vel_ms = now_ms;
+        // state.have_velocity = true;
+
+        // last_vel_ms = now_ms;
 
     }
     break;

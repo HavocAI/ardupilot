@@ -52,6 +52,9 @@ private:
     bool initialized;
     uint32_t last_send_cmd;
     AP_NMEA2K* nmea2k;
+
+    Location _last_velocity_location;
+
 };
 
 #endif // AP_EXTERNAL_AHRS_NMEA2K_ENABLED
