@@ -118,8 +118,8 @@ void AP_ExternalAHRS_NMEA2K::get_filter_status(nav_filter_status &status) const
     WITH_SEMAPHORE(state.sem);
     uint32_t now = AP_HAL::millis();
 
-    const uint32_t dt_limit = 200;
-    const uint32_t dt_limit_gps = 500;
+    const uint32_t dt_limit = 1500;
+    const uint32_t dt_limit_gps = 1500;
 
     // const bool init_ok = state.location.lat != 0 || state.location.lng != 0;
 
