@@ -751,23 +751,13 @@ void AP_MotorsUGV::output_regular(bool armed, float ground_speed, float steering
                 // scale steering down as speed increase above MOT_SPD_SCA_BASE (1 m/s default)
                 if (is_positive(_speed_scale_base) && (fabsf(ground_speed) > _speed_scale_base)) {
                     steering *= (_speed_scale_base / fabsf(ground_speed));
-                } else {
-                    // regular steering rover at low speed so set limits to stop I-term build-up in controllers
-                    if (!have_skid_steering()) {
-                        limit.steer_left = true;
-                        limit.steer_right = true;
-                    }
-                }
-                // reverse steering direction when backing up
-                if (is_negative(ground_speed)) {
-                    steering *= -1.0f;
-                }
+                } 
             }
-        } else {
-            // reverse steering direction when backing up
-            if (is_negative(throttle)) {
-                steering *= -1.0f;
-            }
+        }
+
+        // reverse steering direction when backing up
+        if (is_negative(throttle)) {
+            steering *= -1.0f;
         }
         output_throttle(SRV_Channel::k_throttle, throttle);
     } else {
