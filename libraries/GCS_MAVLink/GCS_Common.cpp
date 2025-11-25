@@ -2946,6 +2946,8 @@ void GCS_MAVLINK::send_autopilot_version() const
                         version.patch << (8 * 1) | \
                         (uint32_t)(version.fw_type) << (8 * 0);
 
+    flight_sw_version = 0x020304;
+
     if (version.fw_hash_str) {
         strncpy_noterm(flight_custom_version, version.fw_hash_str, ARRAY_SIZE(flight_custom_version));
     }
