@@ -77,6 +77,16 @@ public:
 #endif
 
 private:
+
+
+    enum ParserState {
+        SearchForStart,
+        SearchForDelimiter,
+        SearchingForTerminator
+
+    } _parser_state;
+
+
     /// Coding for the GPS sentences that the parser handles
     enum _sentence_types : uint16_t {      //there are some more than 10 fields in some sentences , thus we have to increase these value.
         _GPS_SENTENCE_RMC = 32,

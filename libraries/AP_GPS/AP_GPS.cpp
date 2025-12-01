@@ -71,7 +71,7 @@
 #define GPS_MAX_RATE_MS 200 // maximum value of rate_ms (i.e. slowest update rate) is 5hz or 200ms
 #endif
 #define GPS_BAUD_TIME_MS 1200
-#define GPS_TIMEOUT_MS 4000u
+#define GPS_TIMEOUT_MS 20000u
 
 extern const AP_HAL::HAL &hal;
 
@@ -842,6 +842,7 @@ bool AP_GPS::should_log() const
 }
 #endif
 
+#define GPS_DEBUG 1
 
 /*
   update one GPS instance. This should be called at 10Hz or greater
@@ -880,18 +881,44 @@ void AP_GPS::update_instance(uint8_t instance)
     bool result = drivers[instance]->read();
     uint32_t tnow = AP_HAL::millis();
 
+    #if GPS_DEBUG
+    static uint16_t num_messages = 0;
+    if (result) {
+        num_messages++;
+    }
+    static uint32_t last_debug_ms = 0;
+    if (tnow - last_debug_ms > 5500) {
+        const float rate = (num_messages) * 1000.0f / (tnow - last_debug_ms);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GPS %d: status=%d, delta_ms=%" PRIu16 " rate: %.2f Hz",
+                      instance + 1,
+                      state[instance].status,
+                      timing[instance].delta_time_ms,
+                      rate
+                      );
+        last_debug_ms = tnow;
+        num_messages = 0;
+    }
+    #endif
+
     // if we did not get a message, and the idle timer of 2 seconds
     // has expired, re-initialise the GPS. This will cause GPS
     // detection to run again
     bool data_should_be_logged = false;
     if (!result) {
-        if (tnow - timing[instance].last_message_time_ms > GPS_TIMEOUT_MS) {
+        const uint32_t delta_ms = tnow - timing[instance].last_message_time_ms;
+        timing[instance].delta_time_ms = delta_ms;
+        // if (delta_ms > 4000) {
+        //     GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "GPS %d: no data for: %" PRIu32 " ms", instance + 1, delta_ms);
+        // }
+        
+        if (delta_ms > GPS_TIMEOUT_MS) {
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "GPS %d: timeout, re-detecting", instance + 1);
             memset((void *)&state[instance], 0, sizeof(state[instance]));
             state[instance].instance = instance;
             state[instance].hdop = GPS_UNKNOWN_DOP;
             state[instance].vdop = GPS_UNKNOWN_DOP;
             timing[instance].last_message_time_ms = tnow;
-            timing[instance].delta_time_ms = GPS_TIMEOUT_MS;
+            timing[instance].delta_time_ms = delta_ms;
             // do not try to detect again if type is MAV or UAVCAN
             if (type == GPS_TYPE_MAV ||
                 type == GPS_TYPE_UAVCAN ||
