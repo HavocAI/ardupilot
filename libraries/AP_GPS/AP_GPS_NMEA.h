@@ -81,7 +81,10 @@ private:
 
     enum ParserState {
         SearchForStart,
-        SearchForDelimiter,
+        SG,
+        SN,
+        SGR,
+        
         SearchingForTerminator
 
     } _parser_state;

@@ -106,7 +106,7 @@ bool AP_GPS_NMEA::_decode(char c)
     case SearchForStart:
         if (c == '$') {
             // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA: Start");
-            _parser_state = SearchingForTerminator;
+            _parser_state = SG;
             _sentence_length = 1;
             _is_unicore = (c == '#');
             _term_number = _term_offset = 0;
@@ -117,6 +117,39 @@ bool AP_GPS_NMEA::_decode(char c)
             _sentence_length = 1;
             _sentence_done = false;
             _new_gps_yaw = QNAN;
+        }
+        return false;
+    
+    case SG:
+        if (c == 'G') {
+            _parser_state = SN;
+            _sentence_length++;
+            _parity ^= c;
+            _term[_term_offset++] = c;
+        } else {
+            _parser_state = SearchForStart;
+        }
+        return false;
+
+    case SN:
+        if (c == 'N') {
+            _parser_state = SGR;
+            _sentence_length++;
+            _parity ^= c;
+            _term[_term_offset++] = c;
+        } else {
+            _parser_state = SearchForStart;
+        }
+        return false;
+
+    case SGR:
+        if (c == 'G' || c == 'R') {
+            _parser_state = SearchingForTerminator;
+             _sentence_length++;
+            _parity ^= c;
+            _term[_term_offset++] = c;
+        } else {
+            _parser_state = SearchForStart;
         }
         return false;
 
