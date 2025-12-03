@@ -56,6 +56,8 @@ extern const AP_HAL::HAL& hal;
 #define DIGIT_TO_VAL(_x)        (_x - '0')
 #define hexdigit(x) ((x)>9?'A'+((x)-10):'0'+(x))
 
+#define GPS_NMEA_DEBUG 0
+
 bool AP_GPS_NMEA::read(void)
 {
     int16_t numc;
@@ -81,63 +83,137 @@ bool AP_GPS_NMEA::read(void)
  */
 bool AP_GPS_NMEA::_decode(char c)
 {
-    _sentence_length++;
-        
-    switch (c) {
-    case ';':
-        // header separator for unicore
-        if (!_is_unicore) {
-            return false;
-        }
-        FALLTHROUGH;
-    case ',': // term terminators
-        _parity ^= c;
-        if (_is_unicore) {
-            _crc32 = crc_crc32(_crc32, (const uint8_t *)&c, 1);
-        }
-        FALLTHROUGH;
-    case '\r':
-    case '\n':
-    case '*': {
-        if (_sentence_done) {
-            return false;
-        }
-        bool valid_sentence = false;
-        if (_term_offset < sizeof(_term)) {
-            _term[_term_offset] = 0;
-            valid_sentence = _term_complete();
-        }
-        ++_term_number;
-        _term_offset = 0;
-        _is_checksum_term = c == '*';
-        return valid_sentence;
-    }
 
-    case '$': // sentence begin
-    case '#': // unicore message begin
-        _is_unicore = (c == '#');
-        _term_number = _term_offset = 0;
-        _parity = 0;
-        _crc32 = 0;
-        _sentence_type = _GPS_SENTENCE_OTHER;
-        _is_checksum_term = false;
-        _sentence_length = 1;
-        _sentence_done = false;
-        _new_gps_yaw = QNAN;
+#if GPS_NMEA_DEBUG
+
+    static uint32_t num_chars = 0;
+    num_chars++;
+
+    static uint32_t debug_last_ms = 0;
+    
+    const uint32_t now = AP_HAL::millis();
+    const uint32_t diff = now - debug_last_ms;
+    if (diff > 10000) {
+        float rate = (float)num_chars / ((float)diff / 1000.0f);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA: UART rate: %.1f cps", rate);
+        num_chars = 0;
+        debug_last_ms = now;
+    }
+#endif
+    
+
+    switch (_parser_state) {
+    case SearchForStart:
+        if (c == '$') {
+            _parser_state = SG;
+            _sentence_length = 1;
+            _is_unicore = (c == '#');
+            _term_number = _term_offset = 0;
+            _parity = 0;
+            _crc32 = 0;
+            _sentence_type = _GPS_SENTENCE_OTHER;
+            _is_checksum_term = false;
+            _sentence_length = 1;
+            _sentence_done = false;
+            _new_gps_yaw = QNAN;
+        }
         return false;
-    }
-
-    // ordinary characters
-    if (_term_offset < sizeof(_term) - 1)
-        _term[_term_offset++] = c;
-    if (!_is_checksum_term) {
-        _parity ^= c;
-        if (_is_unicore) {
-            _crc32 = crc_crc32(_crc32, (const uint8_t *)&c, 1);
+    
+    case SG:
+        if (c == 'G') {
+            _parser_state = SN;
+            _sentence_length++;
+            _parity ^= c;
+            _term[_term_offset++] = c;
+        } else {
+            _parser_state = SearchForStart;
         }
+        return false;
+
+    case SN:
+        if (c == 'N') {
+            _parser_state = SGR;
+            _sentence_length++;
+            _parity ^= c;
+            _term[_term_offset++] = c;
+        } else {
+            _parser_state = SearchForStart;
+        }
+        return false;
+
+    case SGR:
+        if (c == 'G' || c == 'R') {
+            _parser_state = SearchingForTerminator;
+             _sentence_length++;
+            _parity ^= c;
+            _term[_term_offset++] = c;
+        } else {
+            _parser_state = SearchForStart;
+        }
+        return false;
+
+    case SearchingForTerminator:
+        _sentence_length++;
+        switch (c) {
+            case '\n':
+            case '\r':
+                // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA: Terminator");
+                _parser_state = SearchForStart;
+                _term[_term_offset] = 0;
+                return _term_complete();
+
+            case ',':
+                _parity ^= c;
+                if (_term_offset < sizeof(_term)) {
+                    _term[_term_offset] = 0;
+                    _term_complete();
+                    _term_offset = 0;
+                    _term_number++;
+                } else {
+                    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA: term overflow");
+                    _parser_state = SearchForStart;
+                }
+                return false;
+
+            case '*':
+                // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA: Checksum");
+                if (_term_offset < sizeof(_term)) {
+                    _term[_term_offset] = 0;
+                    _term_complete();
+                    _term_offset = 0;
+                    _term_number++;
+                } else {
+                    GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA: term overflow");
+                    _parser_state = SearchForStart;
+                }
+                _is_checksum_term = true;
+                return false;
+            
+
+            default:
+                // NMEA sentences are all printable ASCII only
+                if (c < 0x20 || c > 0x7E) {
+                    _parser_state = SearchForStart;
+                    return false;
+                }
+                if (!_is_checksum_term) {
+                    _parity ^= c;
+                }
+                if (_term_offset < sizeof(_term) - 1) {
+                    _term[_term_offset++] = c;
+                } else {
+                    // GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "NMEA: term overflow");
+                    _parser_state = SearchForStart;
+                }
+                return false;
+
+        }
+        
+        default:
+            return false;
     }
 
-    return false;
+   
 }
 
 int32_t AP_GPS_NMEA::_parse_decimal_100(const char *p)
