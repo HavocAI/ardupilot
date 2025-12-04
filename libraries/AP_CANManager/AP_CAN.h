@@ -31,5 +31,6 @@ public:
         NanoRadar = 14,
         J1939 = 15,
         Ilmor = 16,
+        NMEA2K = 17,
     };
 };

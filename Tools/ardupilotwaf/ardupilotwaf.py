@@ -23,6 +23,7 @@ COMMON_VEHICLE_DEPENDENT_CAN_LIBRARIES = [
     'AP_KDECAN',
     'AP_J1939_CAN',
     'AP_Ilmor',
+    'AP_NMEA2K',
     'AP_PiccoloCAN',
     'AP_PiccoloCAN/piccolo_protocol',
 ]
