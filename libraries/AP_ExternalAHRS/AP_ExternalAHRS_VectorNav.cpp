@@ -195,9 +195,9 @@ AP_ExternalAHRS_VectorNav::AP_ExternalAHRS_VectorNav(AP_ExternalAHRS *_frontend,
         AP_BoardConfig::allocation_error("VectorNav ExternalAHRS");
     }
 
-    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_VectorNav::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
-        AP_HAL::panic("VectorNav Failed to start ExternalAHRS update thread");
-    }
+    // if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_VectorNav::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
+    //     AP_HAL::panic("VectorNav Failed to start ExternalAHRS update thread");
+    // }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav ExternalAHRS initialised");
 }
 
@@ -208,12 +208,12 @@ AP_ExternalAHRS_VectorNav::AP_ExternalAHRS_VectorNav(AP_ExternalAHRS *_frontend,
 #define SYNC_BYTE 0xFA
 bool AP_ExternalAHRS_VectorNav::check_uart()
 {
-    if (!setup_complete) {
-        return false;
-    }
     WITH_SEMAPHORE(state.sem);
-    // ensure we own the uart
-    uart->begin(0);
+
+    if (!setup_complete) {
+        uart->begin(baudrate);
+        setup_complete = true;
+    }
     uint32_t n = uart->available();
     if (n == 0) {
         return false;
@@ -477,10 +477,11 @@ void AP_ExternalAHRS_VectorNav::update_thread() {
 
 const char* AP_ExternalAHRS_VectorNav::get_name() const
 {
-    if (setup_complete) {
-        return model_name;
-    }
-    return nullptr;
+    return "VectorNav";
+    // if (setup_complete) {
+    //     return model_name;
+    // }
+    // return nullptr;
 }
 
 // Input data struct for EAHA logging message, used by both AHRS mode and INS mode
