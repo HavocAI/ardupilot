@@ -21,6 +21,7 @@
 #include <AP_DroneCAN/AP_DroneCAN.h>
 #include <AP_PiccoloCAN/AP_PiccoloCAN.h>
 #include <AP_Ilmor/AP_Ilmor.h>
+#include <AP_NMEA2K/AP_NMEA2K.h>
 
 // table of user settable CAN bus parameters
 const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
@@ -61,6 +62,12 @@ const AP_Param::GroupInfo AP_CANManager::CANDriver_Params::var_info[] = {
     // @Group: ILM_
     // @Path: ../AP_Ilmor/AP_Ilmor.cpp
     AP_SUBGROUPPTR(_ilmor, "IL_", 7, AP_CANManager::CANDriver_Params, AP_Ilmor),
+#endif
+
+#if HAL_NMEA2K_ENABLED
+    // @Group: N2K_
+    // @Path: ../AP_NMEA2K/AP_NMEA2K.cpp
+    AP_SUBGROUPPTR(_nmea2k, "N2K_", 8, AP_CANManager::CANDriver_Params, AP_NMEA2K),
 #endif
     
     AP_GROUPEND

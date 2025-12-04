@@ -15,6 +15,7 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_Motors/AP_Motors.h>
 #include <AR_Motors/AP_MotorsUGV.h>
+#include <AP_NMEA2K/AP_NMEA2K.h>
 #include <AP_CheckFirmware/AP_CheckFirmware.h>
 #include <GCS_MAVLink/GCS.h>
 #if CONFIG_HAL_BOARD == HAL_BOARD_CHIBIOS
@@ -614,6 +615,9 @@ const AP_Scheduler::Task AP_Vehicle::scheduler_tasks[] = {
 #if HAL_NMEA_OUTPUT_ENABLED
     SCHED_TASK_CLASS(AP_NMEA_Output, &vehicle.nmea,         update,                   50, 50, 180),
 #endif
+#if HAL_NMEA2K_ENABLED
+    SCHED_TASK(update_nmea2k,                   10, 50, 180),
+#endif
 #if HAL_RUNCAM_ENABLED
     SCHED_TASK_CLASS(AP_RunCam,    &vehicle.runcam,         update,                   50, 50, 200),
 #endif
@@ -915,6 +919,13 @@ void AP_Vehicle::update_dynamic_notch_at_specified_rate()
     }
 }
 #endif  // AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED
+
+#if HAL_NMEA2K_ENABLED
+void AP_Vehicle::update_nmea2k()
+{
+    AP_NMEA2K::update();
+}
+#endif  // HAL_NMEA2K_ENABLED
 
 void AP_Vehicle::notify_no_such_mode(uint8_t mode_number)
 {
