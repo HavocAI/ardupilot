@@ -379,10 +379,10 @@ void AP_Ilmor::tick()
         report_faults();
 
         if (!icu_healthy()) {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from ICU");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from ICU <<<<<<");
         }
         if (!inverter_healthy()) {
-            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from Inverter");
+            GCS_SEND_TEXT(MAV_SEVERITY_WARNING, "Ilmor: no COMS from Inverter <<<<<<<");
         }
 
         // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: ICU %.1fHz Inverter %.1fHz",

@@ -7,6 +7,8 @@
 #include <AP_Torqeedo/AP_Torqeedo_config.h>
 #include <AP_J1939_CAN/AP_J1939_CAN_config.h>
 
+#define AP_BATTERY_SSM_ENABLED 1 // CNDEBUG
+
 #ifndef AP_BATTERY_ENABLED
 #define AP_BATTERY_ENABLED 1
 #endif

@@ -152,7 +152,7 @@ bool AP_Torqeedo::pre_arm_checks(char *failure_msg, uint8_t failure_msg_len)
     }
 
     if (!healthy()) {
-        strncpy(failure_msg, "is not healthy yo", failure_msg_len); //CNDEBUG
+        strncpy(failure_msg, "No Happy Dance here.", failure_msg_len); //CNDEBUG
         return false;
     }
     return true;

@@ -119,6 +119,14 @@ void AP_BattMonitor_SSM::init_can()
         return;
     }
 
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> CAN INIT FOR BATTERY"); // CNDEBUG
+    // CNDEBUG -----------------------------------------------------------
+    char taggedfmt[MAVLINK_MSG_STATUSTEXT_FIELD_TEXT_LEN+1];
+    hal.util->snprintf(taggedfmt, sizeof(taggedfmt), ">>>> NOMINAL");
+    va_list arg_list;
+    gcs().send_textv(MAV_SEVERITY_CRITICAL, taggedfmt, arg_list);
+    // CNDEBUG END -----------------------------------------------------------
+
     if (
         // !j1939->register_frame_id(SSMBATTERY_CELL_VOLTAGE_INFORMATION_FRAME_ID, this) ||
         !j1939->register_frame_id(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID, this) ||
@@ -229,6 +237,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     // }
     case J1939::extract_j1939_pgn(SSMBATTERY_CELL_TEMPERATURE_INFORMATION_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_cell_temperature_information_t msg;
         ssmbattery_cell_temperature_information_unpack(&msg, frame.data, frame.dlc);
         handle_cell_temperature_information(msg);
@@ -236,6 +245,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_TOTAL_INFORMATION_0_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_total_information_0_t msg;
         ssmbattery_total_information_0_unpack(&msg, frame.data, frame.dlc);
         handle_total_information_0(msg);
@@ -243,6 +253,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_TOTAL_INFORMATION_1_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_total_information_1_t msg;
         ssmbattery_total_information_1_unpack(&msg, frame.data, frame.dlc);
         handle_total_information_1(msg);
@@ -250,6 +261,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_CELL_VOLTAGE_STATISTICAL_INFORMATION_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_cell_voltage_statistical_information_t msg;
         ssmbattery_cell_voltage_statistical_information_unpack(&msg, frame.data, frame.dlc);
         handle_cell_voltage_statistical_information(msg);
@@ -257,6 +269,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_UNIT_TEMPERATURE_STATISTICAL_INFORMATION_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_unit_temperature_statistical_information_t msg;
         ssmbattery_unit_temperature_statistical_information_unpack(&msg, frame.data, frame.dlc);
         handle_unit_temperature_statistical_information(msg);
@@ -264,6 +277,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_STATUS_INFORMATION_0_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_status_information_0_t msg;
         ssmbattery_status_information_0_unpack(&msg, frame.data, frame.dlc);
         handle_status_information_0(msg);
@@ -271,6 +285,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_STATUS_INFORMATION_1_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_status_information_1_t msg;
         ssmbattery_status_information_1_unpack(&msg, frame.data, frame.dlc);
         handle_status_information_1(msg);
@@ -278,6 +293,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_STATUS_INFORMATION_2_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_status_information_2_t msg;
         ssmbattery_status_information_2_unpack(&msg, frame.data, frame.dlc);
         handle_status_information_2(msg);
@@ -285,6 +301,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_HARDWARE_AND_BATTERY_FAILURE_INFORMATION_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_hardware_and_battery_failure_information_t msg;
         ssmbattery_hardware_and_battery_failure_information_unpack(&msg, frame.data, frame.dlc);
         handle_hardware_and_battery_failure_information(msg);
@@ -292,6 +309,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_CHARGING_INFORMATION_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_charging_information_t msg;
         ssmbattery_charging_information_unpack(&msg, frame.data, frame.dlc);
         handle_charging_information(msg);
@@ -299,6 +317,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_LIMITING_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_limiting_t msg;
         ssmbattery_limiting_unpack(&msg, frame.data, frame.dlc);
         handle_limiting(msg);
@@ -306,6 +325,7 @@ void AP_BattMonitor_SSM::handle_frame(AP_HAL::CANFrame &frame)
     }
     case J1939::extract_j1939_pgn(SSMBATTERY_FAULT_FRAME_ID):
     {
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>>>> AP_BattMonitor_SSM BATTERY: SSMBATTERY_FAULT_FRAME_ID for %d", _board_number.get()); // CNDEBUG
         struct ssmbattery_fault_t msg;
         ssmbattery_fault_unpack(&msg, frame.data, frame.dlc);
         handle_fault(msg);

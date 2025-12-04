@@ -1564,7 +1564,7 @@ bool AP_Arming::estop_checks(bool display_failure)
         }
     }
 #endif  // AP_RC_CHANNEL_ENABLED
-    check_failed(display_failure,">>>> Motors Emergency Stopped"); //CNDEBUG
+    check_failed(display_failure,"<<<<<>>>> Motors Emergency Stopped"); //CNDEBUG
     return false;
 }
 
