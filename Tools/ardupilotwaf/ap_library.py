@@ -114,6 +114,11 @@ def ap_library(bld, library, vehicle):
 
     # allow for dynamically generated sources in a library that inherit the
     # dependencies and includes
+    bld.env.AP_LIB_EXTRA_SOURCES['AP_NMEA2K'] = []
+    s = bld.srcnode.ant_glob('libraries/AP_NMEA2K/can-msg-definitions/*.c', dir=False, src=True)
+    for x in s:
+        bld.env.AP_LIB_EXTRA_SOURCES['AP_NMEA2K'].append(str(x))
+
     if library in bld.env.AP_LIB_EXTRA_SOURCES:
         for s in bld.env.AP_LIB_EXTRA_SOURCES[library]:
             src.append(bld.bldnode.find_or_declare(os.path.join('libraries', library, s)))
