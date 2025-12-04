@@ -885,6 +885,13 @@ void AP_GPS::update_instance(uint8_t instance)
 
     // we have an active driver for this instance
     bool result = drivers[instance]->read();
+    if (option_set(DriverOptions::Disable)) {
+        static uint32_t counter = 0;
+        if ((counter++ % 100) == 0) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "GPS %d: disabled by driver option", instance + 1);
+        }
+        result = false;
+    }
     uint32_t tnow = AP_HAL::millis();
 
     // if we did not get a message, and the idle timer of 2 seconds
