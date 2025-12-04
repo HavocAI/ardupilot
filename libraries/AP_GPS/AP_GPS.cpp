@@ -33,6 +33,7 @@
 #include "AP_GPS_ERB.h"
 #include "AP_GPS_GSOF.h"
 #include "AP_GPS_NMEA.h"
+#include "AP_GPS_NMEA2K.h"
 #include "AP_GPS_SBF.h"
 #include "AP_GPS_SBP.h"
 #include "AP_GPS_SBP2.h"
@@ -308,6 +309,7 @@ bool AP_GPS::needs_uart(GPS_Type type) const
     case GPS_TYPE_MAV:
     case GPS_TYPE_MSP:
     case GPS_TYPE_EXTERNAL_AHRS:
+    case GPS_TYPE_NMEA2K:
         return false;
     default:
         break;
@@ -673,6 +675,11 @@ AP_GPS_Backend *AP_GPS::_detect_instance(uint8_t instance)
         dstate->auto_detected_baud = false; // specified, not detected
         return NEW_NOTHROW AP_GPS_GSOF(*this, params[instance], state[instance], _port[instance]);
 #endif //AP_GPS_GSOF_ENABLED
+#if AP_GPS_NMEA2K_ENABLED
+    case GPS_TYPE_NMEA2K:
+        dstate->auto_detected_baud = false; // specified, not detected
+        return AP_GPS_NMEA2K::probe(*this, params[instance], state[instance]);
+#endif //AP_GPS_NMEA2K_ENABLED
     default:
         break;
     }
