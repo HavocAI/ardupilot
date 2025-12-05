@@ -38,7 +38,7 @@
 
 extern const AP_HAL::HAL &hal;
 
-#define DEBUG_VECTORNAV 1
+#define DEBUG_VECTORNAV 0
 
 
 /*
@@ -200,7 +200,7 @@ AP_ExternalAHRS_VectorNav::AP_ExternalAHRS_VectorNav(AP_ExternalAHRS *_frontend,
     if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_VectorNav::update_thread, void), "VNavCfg", 1024, AP_HAL::Scheduler::PRIORITY_UART, 0)) {
         AP_HAL::panic("VectorNav Failed to start ExternalAHRS update thread");
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav ExternalAHRS initialised");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav ExternalAHRS initialised");
 }
 
 /*
@@ -568,7 +568,7 @@ void AP_ExternalAHRS_VectorNav::write_vnat(const VNAT& data_to_log) const {
 // process INS mode INS packet
 void AP_ExternalAHRS_VectorNav::process_imu_packet(const uint8_t *b)
 {
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav IMU packet received");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav IMU packet received");
     const struct VN_IMU_packet &pkt = *(struct VN_IMU_packet *)b;
 
     last_pkt1_ms = AP_HAL::millis();
@@ -648,7 +648,7 @@ void AP_ExternalAHRS_VectorNav::process_imu_packet(const uint8_t *b)
 // process AHRS mode AHRS packet
 void AP_ExternalAHRS_VectorNav::process_ahrs_ekf_packet(const uint8_t *b) {
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav AHRS EKF packet received");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav AHRS EKF packet received");
 
     const struct VN_AHRS_ekf_packet &pkt = *(struct VN_AHRS_ekf_packet *)b;
 
