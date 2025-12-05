@@ -18,6 +18,8 @@
 
 extern const AP_HAL::HAL &hal;
 
+char nmea_buffer[83];
+
 /*
   formatted print of NMEA message to an allocated string, with
   checksum appended
@@ -79,6 +81,7 @@ bool nmea_printf(AP_HAL::UARTDriver *uart, const char *fmt, ...)
         return false;
     }
     uart->write((const uint8_t*)s, len);
+    uart->flush();
     free(s);
     return true;
 }

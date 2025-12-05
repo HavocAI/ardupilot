@@ -107,6 +107,10 @@ private:
         bool sentence_valid;      // is current sentence valid so far
         bool sentence_done;       // true if this sentence has already been decoded
         bool error_response;      // true if received a VNERR response
+        enum {
+            STATE_WAIT_START,
+            STATE_IN_TERM,
+        } state;
     } nmea;
 };
 

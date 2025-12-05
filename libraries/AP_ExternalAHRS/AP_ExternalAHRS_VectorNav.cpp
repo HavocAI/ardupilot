@@ -38,6 +38,8 @@
 
 extern const AP_HAL::HAL &hal;
 
+#define DEBUG_VECTORNAV 1
+
 
 /*
 TYPE::VN_AHRS configures 2 packets: high-rate IMU and mid-rate EKF
@@ -195,9 +197,9 @@ AP_ExternalAHRS_VectorNav::AP_ExternalAHRS_VectorNav(AP_ExternalAHRS *_frontend,
         AP_BoardConfig::allocation_error("VectorNav ExternalAHRS");
     }
 
-    // if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_VectorNav::update_thread, void), "AHRS", 2048, AP_HAL::Scheduler::PRIORITY_SPI, 0)) {
-    //     AP_HAL::panic("VectorNav Failed to start ExternalAHRS update thread");
-    // }
+    if (!hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_VectorNav::update_thread, void), "VNavCfg", 1024, AP_HAL::Scheduler::PRIORITY_UART, 0)) {
+        AP_HAL::panic("VectorNav Failed to start ExternalAHRS update thread");
+    }
     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav ExternalAHRS initialised");
 }
 
@@ -208,21 +210,31 @@ AP_ExternalAHRS_VectorNav::AP_ExternalAHRS_VectorNav(AP_ExternalAHRS *_frontend,
 #define SYNC_BYTE 0xFA
 bool AP_ExternalAHRS_VectorNav::check_uart()
 {
-    WITH_SEMAPHORE(state.sem);
 
-    if (!setup_complete) {
-        uart->begin(baudrate);
-        setup_complete = true;
+
+#if DEBUG_VECTORNAV
+    static uint32_t last_debug_print_ms = 0;
+    const uint32_t now = AP_HAL::millis();
+    if (now - last_debug_print_ms > 1000) {
+        last_debug_print_ms = now;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav setup_complete: %u", setup_complete);
     }
-    uint32_t n = uart->available();
-    if (n == 0) {
+#endif
+    if (!setup_complete) {
         return false;
     }
+
+    uart->begin(0);
+
+    // WITH_SEMAPHORE(state.sem);
     if (pktoffset < bufsize) {
-        ssize_t nread = uart->read(&pktbuf[pktoffset], MIN(n, unsigned(bufsize-pktoffset)));
+        ssize_t nread = uart->read(&pktbuf[pktoffset], unsigned(bufsize-pktoffset));
         if (nread <= 0) {
             return false;
         }
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+        log_data(&pktbuf[pktoffset], nread);
+#endif
         pktoffset += nread;
     }
 
@@ -319,6 +331,8 @@ void AP_ExternalAHRS_VectorNav::run_command(const char * fmt, ...)
             request_sent = now;
         }
 
+        nmea.state = NMEA_parser::STATE_WAIT_START;
+
         int16_t nbytes = uart->available();
         while (nbytes-- > 0) {
             char c = uart->read();
@@ -337,6 +351,29 @@ void AP_ExternalAHRS_VectorNav::run_command(const char * fmt, ...)
 // returns true if a complete sentence was successfully decoded
 bool AP_ExternalAHRS_VectorNav::decode(char c)
 {
+
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+    log_data(&c, 1);
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav NMEA char: %c", c);
+#endif
+
+    switch (nmea.state) {
+        case NMEA_parser::STATE_WAIT_START:
+            if (c == '$') {
+                nmea.state = NMEA_parser::STATE_IN_TERM;
+                nmea.sentence_valid = true;
+                nmea.term_number = 0;
+                nmea.term_offset = 0;
+                nmea.checksum = 0;
+                nmea.term_is_checksum = false;
+                nmea.sentence_done = false;
+                nmea.error_response = false;
+            }
+            return false;
+
+        case NMEA_parser::STATE_IN_TERM:
+        break;
+    }
     switch (c) {
     case ',':
         // end of a term, add to checksum
@@ -368,23 +405,14 @@ bool AP_ExternalAHRS_VectorNav::decode(char c)
         return false;
     }
 
-    case '$': // sentence begin
-        nmea.sentence_valid = true;
-        nmea.term_number = 0;
-        nmea.term_offset = 0;
-        nmea.checksum = 0;
-        nmea.term_is_checksum = false;
-        nmea.sentence_done = false;
-        nmea.error_response = false;
-        return false;
-    }
-
-    // ordinary characters are added to term
-    if (nmea.term_offset < sizeof(nmea.term) - 1) {
-        nmea.term[nmea.term_offset++] = c;
-    }
-    if (!nmea.term_is_checksum) {
-        nmea.checksum ^= c;
+    default:
+        // ordinary characters are added to term
+        if (nmea.term_offset < sizeof(nmea.term) - 1) {
+            nmea.term[nmea.term_offset++] = c;
+        }
+        if (!nmea.term_is_checksum) {
+            nmea.checksum ^= c;
+        }
     }
 
     return false;
@@ -425,54 +453,69 @@ bool AP_ExternalAHRS_VectorNav::decode_latest_term()
 
 void AP_ExternalAHRS_VectorNav::initialize() {
     // Open port in the thread
-    uart->begin(baudrate, 1024, 512);
+    uart->begin(baudrate, 64, 64);
+
+    uart->discard_input();
 
     // Pause asynchronous communications to simplify packet finding
-    run_command("VNASY,0");
+    // run_command("VNASY,0");
+    nmea_printf(uart, "$VNASY,0");
 
     // Stop ASCII async outputs for both UARTs. If only active UART is disabled, we get a baudrate
     // overflow on the other UART when configuring binary outputs (reg 75 and 76) to both UARTs
-    run_command("VNWRG,06,0,1");
-    run_command("VNWRG,06,0,2");
+    // run_command("VNWRG,06,0,1");
+    nmea_printf(uart, "$VNWRG,06,0,1");
+
+    // run_command("VNWRG,06,0,2");
+    nmea_printf(uart, "$VNWRG,06,0,2");
 
     // Read Model Number Register, ID 1
-    run_command("VNRRG,01");
+    // run_command("VNRRG,01");
+    nmea_printf(uart, "$VNRRG,01");
 
     // Setup for messages respective model types (on both UARTs)
-    if (strncmp(model_name, "VN-1", 4) == 0) {
-        // VN-1X0
-        type = TYPE::VN_AHRS;
+    // if (strncmp(model_name, "VN-1", 4) == 0) {
+    //     // VN-1X0
+    //     type = TYPE::VN_AHRS;
 
-        // These assumes unit is still configured at its default rate of 800hz
-        run_command("VNWRG,75,3,%u,01,0721", unsigned(800 / get_rate()));
-        run_command("VNWRG,76,3,16,11,0001,0106");
-    } else {
-        // Default to setup for sensors other than VN-100 or VN-110
-        // This assumes unit is still configured at its default IMU rate of 400hz for VN-300, 800hz for others
-        uint16_t imu_rate = 800;  // Default for everything but VN-300
-        if (strncmp(model_name, "VN-300", 6) == 0) {
-            imu_rate = 400;
-        }
-        if (strncmp(model_name, "VN-3", 4) == 0) {
-            has_dual_gnss = true;
-        }
-        run_command("VNWRG,75,3,%u,01,0721", unsigned(imu_rate / get_rate()));
-        run_command("VNWRG,76,3,%u,31,0001,0106,0613", unsigned(imu_rate / 50));
-        run_command("VNWRG,77,3,%u,49,0003,26B8,0018", unsigned(imu_rate / 5));
-    }
+    //     // These assumes unit is still configured at its default rate of 800hz
+    //     run_command("VNWRG,75,3,%u,01,0721", unsigned(800 / get_rate()));
+    //     run_command("VNWRG,76,3,16,11,0001,0106");
+    // } else {
+    //     // Default to setup for sensors other than VN-100 or VN-110
+    //     // This assumes unit is still configured at its default IMU rate of 400hz for VN-300, 800hz for others
+    //     uint16_t imu_rate = 800;  // Default for everything but VN-300
+    //     if (strncmp(model_name, "VN-300", 6) == 0) {
+    //         imu_rate = 400;
+    //     }
+    //     if (strncmp(model_name, "VN-3", 4) == 0) {
+    //         has_dual_gnss = true;
+    //     }
+    //     run_command("VNWRG,75,3,%u,01,0721", unsigned(imu_rate / get_rate()));
+    //     run_command("VNWRG,76,3,%u,31,0001,0106,0613", unsigned(imu_rate / 50));
+    //     run_command("VNWRG,77,3,%u,49,0003,26B8,0018", unsigned(imu_rate / 5));
+    // }
+
+    uint16_t imu_rate = 400;
+    has_dual_gnss = true;
+
+    nmea_printf(uart, "$VNWRG,75,3,%u,01,0721", unsigned(imu_rate / get_rate()));
+    nmea_printf(uart, "$VNWRG,76,3,%u,31,0001,0106,0613", unsigned(imu_rate / 50));
+    nmea_printf(uart, "$VNWRG,77,3,%u,49,0003,26B8,0018", unsigned(imu_rate / 5));
 
     // Resume asynchronous communications
-    run_command("VNASY,1");
+    // run_command("VNASY,1");
+    nmea_printf(uart, "$VNASY,1");
     setup_complete = true;
 }
 
 void AP_ExternalAHRS_VectorNav::update_thread() {
     initialize();
-    while (true) {
-        if (!check_uart()) {
-            hal.scheduler->delay(1);
-        }
-    }
+    // while (true) {
+    //     if (!check_uart()) {
+    //         hal.scheduler->delay(1);
+    //     }
+    // }
 }
 
 const char* AP_ExternalAHRS_VectorNav::get_name() const
@@ -525,6 +568,7 @@ void AP_ExternalAHRS_VectorNav::write_vnat(const VNAT& data_to_log) const {
 // process INS mode INS packet
 void AP_ExternalAHRS_VectorNav::process_imu_packet(const uint8_t *b)
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav IMU packet received");
     const struct VN_IMU_packet &pkt = *(struct VN_IMU_packet *)b;
 
     last_pkt1_ms = AP_HAL::millis();
@@ -603,6 +647,9 @@ void AP_ExternalAHRS_VectorNav::process_imu_packet(const uint8_t *b)
 
 // process AHRS mode AHRS packet
 void AP_ExternalAHRS_VectorNav::process_ahrs_ekf_packet(const uint8_t *b) {
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "VectorNav AHRS EKF packet received");
+
     const struct VN_AHRS_ekf_packet &pkt = *(struct VN_AHRS_ekf_packet *)b;
 
     last_pkt2_ms = AP_HAL::millis();

@@ -21,6 +21,14 @@
 
 #if HAL_EXTERNAL_AHRS_ENABLED
 
+#include <GCS_MAVLink/GCS.h>
+
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+#include <AP_Filesystem/AP_Filesystem.h>
+#endif
+
+extern const AP_HAL::HAL &hal;
+
 AP_ExternalAHRS_backend::AP_ExternalAHRS_backend(AP_ExternalAHRS *_frontend,
                                                  AP_ExternalAHRS::state_t &_state) :
     state(_state),
@@ -42,6 +50,46 @@ bool AP_ExternalAHRS_backend::in_fly_forward(void) const
 {
     return AP::ahrs().get_fly_forward();
 }
+
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+void AP_ExternalAHRS_backend::log_data(const void* data, uint16_t len)
+{
+    logging.buf.write(static_cast<const uint8_t*>(data), len);
+    if (!log_thread_created) {
+        log_thread_created = true;
+        hal.scheduler->thread_create(FUNCTOR_BIND_MEMBER(&AP_ExternalAHRS_backend::logging_start, void), "eahrs_log", 4096, AP_HAL::Scheduler::PRIORITY_IO, 0);
+    }
+}
+
+void AP_ExternalAHRS_backend::logging_start()
+{
+    bool is_dirty = false;
+    uint32_t last_flush_ms = 0;
+    const char* log_filename = "eahrs.log";
+    // AP::FS().unlink(log_filename);
+    logging.fd = AP::FS().open(log_filename, O_WRONLY|O_CREAT|O_TRUNC, 0644);
+
+    while (true) {
+        hal.scheduler->delay(10);
+
+        if (logging.fd >= 0 && logging.buf.available()) {
+            uint32_t n;
+            const uint8_t* ptr = logging.buf.readptr(n);
+            AP::FS().write(logging.fd, ptr, n);
+            logging.buf.advance(n);
+            is_dirty = true;
+        }
+
+        if (is_dirty && AP_HAL::millis() - last_flush_ms > 1000) {
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS log flushed");
+            AP::FS().fsync(logging.fd);
+            last_flush_ms = AP_HAL::millis();
+            is_dirty = false;
+        }
+    }
+}
+
+#endif
 
 #endif  // HAL_EXTERNAL_AHRS_ENABLED
 

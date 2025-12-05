@@ -22,6 +22,12 @@
 
 #if HAL_EXTERNAL_AHRS_ENABLED
 
+#define EXTERNAL_AHRS_LOGGING_ENABLED 1
+
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+#include <AP_HAL/utility/RingBuffer.h>
+#endif
+
 class AP_ExternalAHRS_backend {
 public:
     AP_ExternalAHRS_backend(AP_ExternalAHRS *frontend, AP_ExternalAHRS::state_t &state);
@@ -79,9 +85,27 @@ protected:
     const float vel_gate_scale = 0.2;
     const float pos_gate_scale = 0.2;
     const float hgt_gate_scale = 0.2;
+
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+    void log_data(const void*, uint16_t len);
+    void logging_start();
+
+    struct loginfo {
+        int fd = -1;
+        ByteBuffer buf{16000};
+    } logging;
+
+#endif
     
 private:
     AP_ExternalAHRS &frontend;
+
+#if EXTERNAL_AHRS_LOGGING_ENABLED
+
+    bool log_thread_created = false;
+
+#endif
+
 };
 
 #endif  // HAL_EXTERNAL_AHRS_ENABLED
