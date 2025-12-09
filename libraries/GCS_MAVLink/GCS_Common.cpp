@@ -2802,6 +2802,7 @@ void GCS::setup_uarts()
 // report battery2 state
 void GCS_MAVLINK::send_battery2()
 {
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, " ----- CNDEBUG: Sending Battery 2");
     const AP_BattMonitor &battery = AP::battery();
 
     if (battery.num_instances() > 1) {
@@ -6239,11 +6240,13 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
 
 #if AP_BATTERY_ENABLED
     case MSG_BATTERY_STATUS:
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "^.^ %" PRIu8 " CNDEBUG: TrySend Battery status", static_cast<uint8_t>(AP_MAVLINK_BATTERY2_ENABLED));
         send_battery_status();
         break;
 
 #if AP_MAVLINK_BATTERY2_ENABLED
     case MSG_BATTERY2:
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "---- CNDEBUG: TrySend Battery2");
         CHECK_PAYLOAD_SIZE(BATTERY2);
         send_battery2();
         break;
