@@ -202,6 +202,7 @@ class ExtractFeatures(object):
             ('AP_KDECAN_ENABLED', r'AP_KDECAN::update\b',),
             ('HAL_ILMOR_ENABLED', r'AP_Ilmor::init\b',),
             ('HAL_J1939_CAN_ENABLED', r'AP_J1939_CAN::init\b',),
+            ('HAL_ANELLO_ENABLED', r'AP_NMEA2K::update\b',),
 
             ('AP_RPM_ENABLED', 'AP_RPM::AP_RPM',),
             ('AP_RPM_{type}_ENABLED', r'AP_RPM_(?P<type>.*)::update',),
