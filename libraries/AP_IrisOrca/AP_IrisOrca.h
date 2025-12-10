@@ -129,7 +129,9 @@ private:
 
 
     orca::OperatingMode _operating_mode;
+public:
     orca::ActuatorState _actuator_state;
+private:
 
     ReadRegisterTransaction read_register_tx;
     WriteRegisterTransaction write_register_tx;

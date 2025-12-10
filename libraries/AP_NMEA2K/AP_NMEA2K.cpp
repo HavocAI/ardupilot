@@ -15,6 +15,12 @@
 
 #define NMEA2K_DEBUG 0
 #define NMEA2K_EMU_MESSAGES 0
+#define ILMOR_TEST 1
+
+#if ILMOR_TEST
+#include <AP_AHRS/AP_AHRS.h>
+#include <AP_IrisOrca/AP_IrisOrca.h>
+#endif // ILMOR_TEST
 
 const AP_Param::GroupInfo AP_NMEA2K::var_info[] = {
 
@@ -77,6 +83,40 @@ static void send_pgn_127488(AP_NMEA2K* driver)
     }
 
 }
+
+#if ILMOR_TEST
+
+static void send_ilmor_data_collection(AP_NMEA2K* driver)
+{
+
+    AP_IrisOrca* orca = AP::irisorca();
+    if (orca == nullptr) {
+        return;
+    }
+
+    nmea2k::N2KMessage msg;
+    msg.SetPGN(65290);
+
+    // get yaw heading
+    const AP_AHRS &ahrs = AP::ahrs();
+    float current_yaw = wrap_360(degrees(ahrs.get_yaw()));
+    msg.AddByte(static_cast<uint8_t>(current_yaw));
+
+    // orca power
+    msg.Add2ByteUInt(orca->_actuator_state.power_consumed);
+
+    // orca position
+    uint16_t position = orca->_actuator_state.shaft_position / 1000;
+    msg.Add2ByteUInt(position);
+
+    // orca temperature
+    msg.AddByte(orca->_actuator_state.temperature);
+
+    driver->send_message(msg);
+
+}
+
+#endif // ILMOR_TEST
 
 
 AP_NMEA2K::AP_NMEA2K() :
@@ -247,6 +287,9 @@ void AP_NMEA2K::update(void)
             }
 
             send_pgn_127488(driver);
+#if ILMOR_TEST
+            send_ilmor_data_collection(driver);
+#endif // ILMOR_TEST
             driver->send_anello_gps();
 
 #if NMEA2K_EMU_MESSAGES
