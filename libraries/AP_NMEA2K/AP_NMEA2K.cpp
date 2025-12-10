@@ -1,6 +1,5 @@
 #include <AP_NMEA2K/AP_NMEA2K.h>
 
-#include <AP_CANManager/AP_CANManager.h>
 #include <AP_J1939_CAN/AP_J1939_CAN.h>
 #include <AP_ESC_Telem/AP_ESC_Telem.h>
 

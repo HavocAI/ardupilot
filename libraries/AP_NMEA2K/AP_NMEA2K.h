@@ -1,10 +1,6 @@
 #pragma once
 
-#include <AP_HAL/AP_HAL_Boards.h>
-
-#ifndef HAL_NMEA2K_ENABLED
-#define HAL_NMEA2K_ENABLED HAL_CANMANAGER_ENABLED
-#endif
+#include <AP_CANManager/AP_CANManager.h>
 
 #if HAL_NMEA2K_ENABLED
 
@@ -34,7 +30,7 @@ public:
 
     static const struct AP_Param::GroupInfo var_info[];
 
-    // called from the main loop
+    // called from the main loop at 10hz
     static void update(void);
 
     void handle_frame(AP_HAL::CANFrame &frame) override;
