@@ -11,17 +11,17 @@ def build(bld):
     release_path = os.path.join(bld.srcnode.abspath(), 'libraries/AP_BoatEKF/target', cargo_target, 'release')
     lib_name = 'libAP_BoatEKF.a'
     
+    # Unified task:
+    # 1. Runs cargo build (rule)
+    # 2. Acts as the usage provider for other libraries (lib/libpath)
+    # 3. Runs in 'dynamic_sources' group (implicit or via group='dynamic_sources') to ensure it finishes before linking
     bld(
-        name='ap_boatekf_cargo',
+        name='AP_BoatEKF',
+        group='dynamic_sources',
         rule='cd %s/libraries/AP_BoatEKF && cargo build --release' % bld.srcnode.abspath(),
         target=os.path.join(release_path, lib_name),
+        # Export usage info for consumers (Rover)
+        lib=['AP_BoatEKF'],
+        libpath=[release_path],
         always=True,
-    )
-    
-    # Expose the static library
-    # read_stlib creates a task generator that allows other tasks to 'use' this library
-    # It sets STLIB_AP_BoatEKF and STLIBPATH_AP_BoatEKF
-    bld.read_stlib(
-        'AP_BoatEKF',
-        paths=[release_path]
     )
