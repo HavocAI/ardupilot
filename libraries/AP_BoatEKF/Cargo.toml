@@ -1,0 +1,21 @@
+[package]
+name = "AP_BoatEKF"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "AP_BoatEKF"
+# crate-type = ["cdylib"]      # Creates dynamic lib
+crate-type = ["staticlib"] # Creates static lib
+
+
+[dependencies]
+nalgebra = { version = "0.34", default-features = false }
+num-integer = { version = "0.1", default-features = false }
+num-traits = { version = "0.2", default-features = false }
+panic-abort = "0.3"
+panic-halt = "1.0.0"
+# num-dual = { version = "0.13", default-features = false }
+
+# [build-dependencies]
+# bindgen = "0.72"
