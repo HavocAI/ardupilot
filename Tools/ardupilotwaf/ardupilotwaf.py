@@ -153,6 +153,7 @@ IGNORED_AP_LIBRARIES = [
     'doc',
     'AP_Scripting', # this gets explicitly included when it is needed and should otherwise never be globbed in
     'AP_DDS',
+    'AP_BoatEKF',
 ]
 
 

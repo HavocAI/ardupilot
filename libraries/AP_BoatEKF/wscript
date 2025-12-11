@@ -1,0 +1,27 @@
+#!/usr/bin/env python3
+
+import os
+
+def build(bld):
+    # Determine the target directory based on the cargo config or hardcoded for now as confirmed by user/config
+    # In a robust setup we might sniff this or let cargo decide, but Waf needs to know where to find the artifact.
+    # The config.toml in .cargo says "thumbv7em-none-eabihf"
+    
+    cargo_target = "thumbv7em-none-eabihf"
+    release_path = os.path.join(bld.srcnode.abspath(), 'libraries/AP_BoatEKF/target', cargo_target, 'release')
+    lib_name = 'libAP_BoatEKF.a'
+    
+    bld(
+        name='ap_boatekf_cargo',
+        rule='cd %s/libraries/AP_BoatEKF && cargo build --release' % bld.srcnode.abspath(),
+        target=os.path.join(release_path, lib_name),
+        always=True,
+    )
+    
+    # Expose the static library
+    # read_stlib creates a task generator that allows other tasks to 'use' this library
+    # It sets STLIB_AP_BoatEKF and STLIBPATH_AP_BoatEKF
+    bld.read_stlib(
+        'AP_BoatEKF',
+        paths=[release_path]
+    )

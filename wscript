@@ -793,6 +793,7 @@ def _build_common_taskgens(bld):
         name='ap',
         ap_vehicle='UNKNOWN',
         ap_libraries=bld.ap_get_all_libraries(),
+        use=['AP_BoatEKF'],
     )
 
     if bld.env.HAS_GTEST:
@@ -817,6 +818,7 @@ def _build_recursion(bld):
     common_dirs_excl = [
         'modules',
         'libraries/AP_HAL_*',
+        'libraries/AP_BoatEKF',
     ]
 
     hal_dirs_patterns = [
@@ -903,6 +905,9 @@ def build(bld):
 
     bld.add_group('dynamic_sources')
     _build_dynamic_sources(bld)
+
+    # Recurse AP_BoatEKF early so it is available for vehicles
+    bld.recurse('libraries/AP_BoatEKF')
 
     bld.add_group('build')
     bld.get_board().build(bld)

@@ -31,6 +31,8 @@
 
 #include "Rover.h"
 
+extern "C" void call_from_rust();
+
 #define FORCE_VERSION_H_INCLUDE
 #include "version.h"
 #undef FORCE_VERSION_H_INCLUDE
@@ -298,6 +300,7 @@ void Rover::nav_script_time_done(uint16_t id)
 // update AHRS system
 void Rover::ahrs_update()
 {
+    call_from_rust();
     arming.update_soft_armed();
 
     // AHRS may use movement to calculate heading

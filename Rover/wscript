@@ -26,6 +26,7 @@ def build(bld):
             'AP_IRLock',
             'AP_FortVsc',
         ],
+        use=['AP_BoatEKF'],
     )
 
     bld.ap_program(
