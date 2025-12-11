@@ -2,6 +2,35 @@
 
 import os
 
+from waflib.TaskGen import feature, after_method
+
+@feature('cargo_lib')
+@after_method('process_rule')
+def set_link_task_from_rule(self):
+    if hasattr(self, 'tasks') and self.tasks:
+        self.link_task = self.tasks[0]
+        # process_use in ccroot.py uses self.target to determine linker flags.
+        # It extracts the filename: y.target[y.target.rfind(os.sep) + 1:]
+        # We need this to result in 'AP_BoatEKF' so the linker gets '-lAP_BoatEKF',
+        # which will resolve to 'libAP_BoatEKF.a'.
+        
+        node = self.link_task.outputs[0]
+        # node.name is 'libAP_BoatEKF.a'
+        
+        # Heuristic to strip standard library prefixes/suffixes
+        name = node.name
+        if name.startswith('lib'):
+            name = name[3:]
+        if name.endswith('.a'):
+            name = name[:-2]
+        elif name.endswith('.dll') or name.endswith('.so'):
+             # Basic handling for other types if ever needed
+            name = name.rsplit('.', 1)[0]
+            
+        # Set self.target to this name. 
+        # Since rfind(sep) will return -1 if no separator, slice [0:] returns the whole string.
+        self.target = name
+
 def build(bld):
     # Determine the target directory based on the cargo config or hardcoded for now as confirmed by user/config
     # In a robust setup we might sniff this or let cargo decide, but Waf needs to know where to find the artifact.
@@ -13,15 +42,13 @@ def build(bld):
     
     # Unified task:
     # 1. Runs cargo build (rule)
-    # 2. Acts as the usage provider for other libraries (lib/libpath)
-    # 3. Runs in 'dynamic_sources' group (implicit or via group='dynamic_sources') to ensure it finishes before linking
+    # 2. Acts as the usage provider for other libraries (lib/libpath) via 'cargo_lib' feature
+    # 3. Runs in 'dynamic_sources' group to ensure it finishes before linking
     bld(
         name='AP_BoatEKF',
         group='dynamic_sources',
+        features='cargo_lib', 
         rule='cd %s/libraries/AP_BoatEKF && cargo build --release' % bld.srcnode.abspath(),
         target=os.path.join(release_path, lib_name),
-        # Export usage info for consumers (Rover)
-        lib=['AP_BoatEKF'],
-        libpath=[release_path],
         always=True,
     )
