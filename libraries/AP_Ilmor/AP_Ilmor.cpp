@@ -57,6 +57,12 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
 
+#if ILMOR_TEST_DATA_LOGGING
+#include <AP_AHRS/AP_AHRS.h>
+#include <AP_IrisOrca/AP_IrisOrca.h>
+#include <AP_NMEA2K/AP_NMEA2K.h>
+#endif // ILMOR_TEST_DATA_LOGGING
+
 extern const AP_HAL::HAL &hal;
 
 mavlink_torqeedo_telemetry_t _torqeedo_telemetry = {};
@@ -413,6 +419,14 @@ void AP_Ilmor::tick()
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE | 
                       AP_ESC_Telem_Backend::TelemetryType::CURRENT
                     );
+
+#if ILMOR_TEST_DATA_LOGGING
+    if (now_ms - _last_send_data_logging_ms >= 100) {
+        // send data logging message every 100ms
+        send_data_logging();
+        _last_send_data_logging_ms = now_ms;
+    }
+#endif // ILMOR_TEST_DATA_LOGGING
 
 }
 
@@ -1314,6 +1328,54 @@ void AP_Ilmor::handle_inverter_status_frame_5(const struct ilmor_inverter_status
     update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
 }
+
+#if ILMOR_TEST_DATA_LOGGING
+
+static void prepare_frame(const nmea2k::N2KMessage &msg, AP_HAL::CANFrame &frame)
+{
+    frame.id = msg.FormatToCanId() | AP_HAL::CANFrame::FlagEFF;
+    frame.dlc = msg.data_length();
+    msg.CopyDataToBuffer(frame.data, sizeof(frame.data), msg.data_length());
+}
+
+void AP_Ilmor::send_data_logging()
+{
+
+    AP_IrisOrca* orca = AP::irisorca();
+    if (orca == nullptr) {
+        return;
+    }
+
+    nmea2k::N2KMessage msg;
+    msg.SetPGN(65290);
+
+    // get yaw heading
+    const AP_AHRS &ahrs = AP::ahrs();
+    float current_yaw = wrap_360(degrees(ahrs.get_yaw()));
+    msg.AddByte(static_cast<uint8_t>(current_yaw));
+
+    // orca power
+    msg.Add2ByteUInt(orca->_actuator_state.power_consumed);
+
+    // orca position
+    uint16_t position = orca->_actuator_state.shaft_position / 1000;
+    msg.Add2ByteUInt(position);
+
+    // orca temperature
+    msg.AddByte(orca->_actuator_state.temperature);
+
+
+    AP_HAL::CANFrame out_frame;
+    prepare_frame(msg, out_frame);
+    write_frame(out_frame, 10);
+
+
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: ilmor test data sent");
+
+
+}
+
+#endif // ILMOR_TEST_DATA_LOGGING
 
 
 #endif // HAL_ILMOR_ENABLED

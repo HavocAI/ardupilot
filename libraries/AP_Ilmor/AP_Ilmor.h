@@ -25,6 +25,7 @@
 #if HAL_ILMOR_ENABLED
 
 #define AP_ILMOR_DEBUG 1
+#define ILMOR_TEST_DATA_LOGGING 1
 
 #include <AP_Ilmor/ilmor.h>
 #include <AP_HAL/AP_HAL.h>
@@ -221,6 +222,10 @@ private:
     } _output;
 
     char _thread_name[10];
+
+#if ILMOR_TEST_DATA_LOGGING
+    uint32_t _last_send_data_logging_ms;
+#endif // ILMOR_TEST_DATA_LOGGING
     
     void run_io(void);
     void tick(void);
@@ -273,6 +278,10 @@ private:
     /// Healthy is determined if we have seen a CAN message from the inverter within the past 1 second.
     /// @return true if the inverter is healthy, false otherwise
     bool inverter_healthy();
+
+#if ILMOR_TEST_DATA_LOGGING
+    void send_data_logging();
+#endif // ILMOR_TEST_DATA_LOGGING
 
 };
 
