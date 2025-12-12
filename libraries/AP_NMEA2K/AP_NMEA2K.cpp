@@ -13,7 +13,7 @@
 
 #if HAL_NMEA2K_ENABLED
 
-#define NMEA2K_DEBUG 0
+#define NMEA2K_DEBUG 1
 #define NMEA2K_EMU_MESSAGES 0
 #define ILMOR_TEST 1
 
@@ -113,6 +113,10 @@ static void send_ilmor_data_collection(AP_NMEA2K* driver)
     msg.AddByte(orca->_actuator_state.temperature);
 
     driver->send_message(msg);
+
+#if NMEA2K_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: ilmor test data sent");
+#endif // NMEA2K_DEBUG
 
 }
 
