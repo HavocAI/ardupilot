@@ -1352,7 +1352,7 @@ void AP_Ilmor::send_data_logging()
     // get yaw heading
     const AP_AHRS &ahrs = AP::ahrs();
     float current_yaw = wrap_360(degrees(ahrs.get_yaw()));
-    msg.AddByte(static_cast<uint8_t>(current_yaw));
+    msg.Add2ByteUInt(static_cast<uint16_t>(current_yaw));
 
     // orca power
     msg.Add2ByteUInt(orca->_actuator_state.power_consumed);
@@ -1370,7 +1370,7 @@ void AP_Ilmor::send_data_logging()
     write_frame(out_frame, 10);
 
 
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: ilmor test data sent");
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "NMEA2K: ilmor test data sent");
 
 
 }

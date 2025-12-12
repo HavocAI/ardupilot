@@ -15,7 +15,7 @@
 
 #define NMEA2K_DEBUG 1
 #define NMEA2K_EMU_MESSAGES 0
-#define ILMOR_TEST 1
+#define ILMOR_TEST 0
 
 #if ILMOR_TEST
 #include <AP_AHRS/AP_AHRS.h>
@@ -100,7 +100,7 @@ static void send_ilmor_data_collection(AP_NMEA2K* driver)
     // get yaw heading
     const AP_AHRS &ahrs = AP::ahrs();
     float current_yaw = wrap_360(degrees(ahrs.get_yaw()));
-    msg.AddByte(static_cast<uint8_t>(current_yaw));
+    msg.Add2ByteUInt(static_cast<uint16_t>(current_yaw));
 
     // orca power
     msg.Add2ByteUInt(orca->_actuator_state.power_consumed);
