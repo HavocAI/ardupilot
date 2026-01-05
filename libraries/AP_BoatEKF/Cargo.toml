@@ -10,12 +10,13 @@ crate-type = ["staticlib"] # Creates static lib
 
 
 [dependencies]
-nalgebra = { version = "0.34", default-features = false }
+nalgebra = { version = "0.32", default-features = false, features = ["macros", "libm"] }
 num-integer = { version = "0.1", default-features = false }
-num-traits = { version = "0.2", default-features = false }
+num-traits = { version = "0.2", default-features = false, features = ["libm"] }
 panic-abort = "0.3"
 panic-halt = "1.0.0"
 # num-dual = { version = "0.13", default-features = false }
+autodiff_emb = { git = "https://github.com/pshavoc/autodiff_emb.git", branch = "dev", default-features = false, features = ["libm"] }
 
 # [build-dependencies]
 # bindgen = "0.72"

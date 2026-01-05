@@ -1,5 +1,11 @@
 #![no_std]
 
+mod physics;
+mod kalman_filter;
+mod rampage;
+
+type Float = f32;
+
 use panic_abort as _;
 
 #[unsafe(no_mangle)]
