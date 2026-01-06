@@ -449,6 +449,9 @@ public:
 #if HAL_NAVEKF2_AVAILABLE
         TWO = 2,
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+        BOAT = 4,
+#endif
 #if AP_AHRS_SIM_ENABLED
         SIM = 10,
 #endif

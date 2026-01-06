@@ -44,6 +44,44 @@ pub extern "C" fn boatekf_predict(rudder: Float, throttle: Float) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn boatekf_update_gps(north: Float, east: Float, var: Float) {
+    unsafe {
+        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        ekf.update_gps(north, east, var);
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_position(north: *mut Float, east: *mut Float) {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        let pos = ekf.pos();
+        *north = pos[0];
+        *east = pos[1];
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_velocity(north: *mut Float, east: *mut Float) {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        let vel = ekf.velocity();
+        *north = vel[0];
+        *east = vel[1];
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_wind(north: *mut Float, east: *mut Float) {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        let wind = ekf.wind_velocity();
+        *north = wind[0];
+        *east = wind[1];
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn call_from_rust() {}
 
 pub fn add(left: u64, right: u64) -> u64 {

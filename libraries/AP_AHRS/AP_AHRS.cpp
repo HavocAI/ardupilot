@@ -481,6 +481,11 @@ void AP_AHRS::update(bool skip_ins_update)
             shortname = "EKF2";
             break;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+        case EKFType::BOAT:
+            shortname = "BoatEKF";
+            break;
+#endif
         }
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AHRS: %s active", shortname);
     }
@@ -808,6 +813,14 @@ bool AP_AHRS::_get_location(Location &loc) const
         break;
 #endif
 
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        if (BoatEKF.getLLH(loc)) {
+            return true;
+        }
+        break;
+#endif
+
 #if AP_AHRS_SIM_ENABLED
     case EKFType::SIM:
         return sim_estimates.get_location(loc);
@@ -874,6 +887,11 @@ bool AP_AHRS::_wind_estimate(Vector3f &wind) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         return external.wind_estimate(wind);
+#endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.wind_estimate(wind);
 #endif
     }
     return false;
@@ -1011,6 +1029,10 @@ bool AP_AHRS::_airspeed_estimate(float &airspeed_ret, AirspeedEstimateType &airs
         return false;
 #endif
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
 
     // estimate it via nav velocity and wind estimates
@@ -1059,6 +1081,9 @@ bool AP_AHRS::_airspeed_estimate_true(float &airspeed_ret) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+#endif
         break;
     }
 
@@ -1097,6 +1122,11 @@ bool AP_AHRS::_airspeed_vector_true(Vector3f &vec) const
     case EKFType::EXTERNAL:
         break;
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        break;
+#endif
     }
     return false;
 }
@@ -1127,6 +1157,11 @@ bool AP_AHRS::airspeed_health_data(float &innovation, float &innovationVariance,
 
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        break;
+#endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         break;
 #endif
     }
@@ -1172,6 +1207,12 @@ bool AP_AHRS::use_compass(void)
     case EKFType::EXTERNAL:
         break;
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return true;
+#endif
+
     }
 #if AP_AHRS_DCM_ENABLED
     return dcm.use_compass();
@@ -1219,6 +1260,10 @@ bool AP_AHRS::_get_quaternion(Quaternion &quat) const
     case EKFType::EXTERNAL:
         // we assume the external AHRS isn't trimmed with the autopilot!
         return external.get_quaternion(quat);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.get_quaternion(quat);
 #endif
     }
 
@@ -1274,6 +1319,11 @@ bool AP_AHRS::_get_secondary_attitude(Vector3f &eulers) const
         eulers[2] = external_estimates.yaw_rad;
         return true;
     }
+#endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
 #endif
     }
 
@@ -1332,6 +1382,11 @@ bool AP_AHRS::_get_secondary_quaternion(Quaternion &quat) const
         // External is secondary
         return external.get_quaternion(quat);
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.get_quaternion(quat);
+#endif
     }
 
     quat.rotate(-_trim.get());
@@ -1384,6 +1439,11 @@ bool AP_AHRS::_get_secondary_position(Location &loc) const
         // External is secondary
         return external_estimates.get_location(loc);
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.getLLH(loc);
+#endif
     }
 
     // since there is no default case above, this is unreachable
@@ -1424,6 +1484,13 @@ Vector2f AP_AHRS::_groundspeed_vector(void)
         return external.groundspeed_vector();
     }
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT: {
+        Vector2f vec;
+        BoatEKF.get_velocity(vec);
+        return vec;
+    }
+#endif
     }
     return Vector2f();
 }
@@ -1450,6 +1517,10 @@ float AP_AHRS::_groundspeed(void)
 #if AP_AHRS_SIM_ENABLED
     case EKFType::SIM:
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+#endif
         break;
     }
     return groundspeed_vector().length();
@@ -1469,6 +1540,9 @@ bool AP_AHRS::set_origin(const Location &loc)
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     const bool ret_ext = external.set_origin(loc);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    const bool ret_boat = BoatEKF.set_origin(loc);
 #endif
 
     // return success if active EKF's origin was set
@@ -1500,6 +1574,11 @@ bool AP_AHRS::set_origin(const Location &loc)
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         success = ret_ext;
+        break;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        success = ret_boat;
         break;
 #endif
     }
@@ -1560,6 +1639,18 @@ bool AP_AHRS::_get_velocity_NED(Vector3f &vec) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         return external.get_velocity_NED(vec);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT: {
+        Vector2f vel2d;
+        if (BoatEKF.get_velocity(vel2d)) {
+            vec.x = vel2d.x;
+            vec.y = vel2d.y;
+            vec.z = 0.0f;
+            return true;
+        }
+        break;
+    }
 #endif
     }
 #if AP_AHRS_DCM_ENABLED
