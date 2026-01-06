@@ -24,6 +24,10 @@
 #define AP_AHRS_EXTERNAL_ENABLED AP_AHRS_BACKEND_DEFAULT_ENABLED && HAL_EXTERNAL_AHRS_ENABLED
 #endif
 
+#ifndef AP_AHRS_BOATEKF_ENABLED
+#define AP_AHRS_BOATEKF_ENABLED 1
+#endif
+
 #ifndef HAL_NAVEKF2_AVAILABLE
 // EKF2 slated compiled out by default in 4.5, slated to be removed.
 #define HAL_NAVEKF2_AVAILABLE 0

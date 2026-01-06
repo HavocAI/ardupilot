@@ -33,6 +33,7 @@
 #include "AP_AHRS_DCM.h"
 #include "AP_AHRS_SIM.h"
 #include "AP_AHRS_External.h"
+#include "AP_AHRS_BoatEKF.h"
 
 // forward declare view class
 class AP_AHRS_View;
@@ -467,6 +468,9 @@ public:
 #endif
 #if HAL_NAVEKF3_AVAILABLE
     NavEKF3 EKF3;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    NavBoatEKF BoatEKF;
 #endif
 
     // for holding parameters

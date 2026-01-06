@@ -17,6 +17,8 @@ panic-abort = "0.3"
 panic-halt = "1.0.0"
 # num-dual = { version = "0.13", default-features = false }
 autodiff_emb = { git = "https://github.com/pshavoc/autodiff_emb.git", branch = "dev", default-features = false, features = ["libm"] }
+once_cell = { version = "1.21", default-features = false, features = ["race"] }
+
 
 # [build-dependencies]
 # bindgen = "0.72"

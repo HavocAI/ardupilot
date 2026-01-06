@@ -256,6 +256,9 @@ void AP_AHRS::init()
 #if AP_AHRS_EXTERNAL_ENABLED
     external.init();
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    BoatEKF.init();
+#endif
 
 #if AP_CUSTOMROTATIONS_ENABLED
     // convert to new custom rotation
@@ -403,6 +406,10 @@ void AP_AHRS::update(bool skip_ins_update)
 
 #if AP_AHRS_EXTERNAL_ENABLED
     update_external();
+#endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    BoatEKF.update();
 #endif
     
     if (_ekf_type == 2) {

@@ -25,7 +25,7 @@ const WIND_DRAG_COEFFICIENT: f32 = 5.5;
 const DRAG_COEFFICIENT: f32 = 0.15;
 const ANGULAR_DRAG_COEFFICIENT: f32 = 400.0; // angular drag coefficient
 
-pub fn create_motorboat_model() -> crate::physics::motorboat_model::MotorboatModel {
+pub const fn create_motorboat_model() -> crate::physics::motorboat_model::MotorboatModel {
     crate::physics::motorboat_model::MotorboatModel {
         mass: MASS,
         moment_of_inertia: MOMENT_OF_INERTIA,

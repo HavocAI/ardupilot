@@ -26,7 +26,7 @@ pub struct MotorboatDynamicsKalmanFilter {
 
 
 impl MotorboatDynamicsKalmanFilter {
-    fn new(dt: Float, model: physics::motorboat_model::MotorboatModel) -> Self {
+    pub fn new(dt: Float, model: physics::motorboat_model::MotorboatModel) -> Self {
         Self {
             model,
             state_estimate: [0.0; physics::motorboat_model::NUM_STATES],
@@ -49,8 +49,8 @@ impl MotorboatDynamicsKalmanFilter {
     }
 
     
-    pub fn pos(&self) -> Vec<Float> {
-        vec![self.state_estimate[0], self.state_estimate[1]]
+    pub fn pos(&self) -> [Float; 2] {
+        [self.state_estimate[0], self.state_estimate[1]]
     }
 
     
@@ -69,14 +69,13 @@ impl MotorboatDynamicsKalmanFilter {
         if speed.is_nan() { 0.0 } else { speed }
     }
 
-    
-    pub fn velocity(&self) -> Vec<Float> {
-        vec![self.state_estimate[4], self.state_estimate[5]]
+    pub fn velocity(&self) -> [Float; 2] {
+        [self.state_estimate[4], self.state_estimate[5]]
     }
 
     
-    pub fn wind_velocity(&self) -> Vec<Float> {
-        vec![self.state_estimate[6], self.state_estimate[7]]
+    pub fn wind_velocity(&self) -> [Float; 2] {
+        [self.state_estimate[6], self.state_estimate[7]]
     }
 
     
