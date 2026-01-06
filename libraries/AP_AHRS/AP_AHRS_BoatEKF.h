@@ -24,6 +24,7 @@ public:
     bool set_origin(const Location &loc);
 
     bool getLLH(Location &loc) const;
+    bool get_relative_position_NE(Vector2f &pos) const;
     bool get_velocity(Vector2f &vel) const;
     bool get_quaternion(Quaternion &quat) const;
     bool wind_estimate(Vector3f &wind) const;

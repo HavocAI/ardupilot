@@ -69,6 +69,12 @@ bool NavBoatEKF::set_origin(const Location &loc)
     return true;
 }
 
+bool NavBoatEKF::get_relative_position_NE(Vector2f &pos) const
+{
+    boatekf_get_position(&pos.x, &pos.y);
+    return true;
+}
+
 bool NavBoatEKF::getLLH(Location &loc) const
 {
     if (!_have_origin) {

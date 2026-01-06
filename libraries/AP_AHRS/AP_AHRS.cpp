@@ -1687,6 +1687,10 @@ bool AP_AHRS::get_mag_field_NED(Vector3f &vec) const
     case EKFType::EXTERNAL:
         return false;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
     return false;
 }
@@ -1717,6 +1721,10 @@ bool AP_AHRS::get_mag_field_correction(Vector3f &vec) const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        return false;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         return false;
 #endif
     }
@@ -1754,6 +1762,10 @@ bool AP_AHRS::get_vert_pos_rate_D(float &velocity) const
     case EKFType::EXTERNAL:
         return external.get_vert_pos_rate_D(velocity);
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
     // since there is no default case above, this is unreachable
     return false;
@@ -1785,6 +1797,10 @@ bool AP_AHRS::get_hagl(float &height) const
     case EKFType::EXTERNAL: {
         return false;
     }
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
 #endif
     }
     // since there is no default case above, this is unreachable
@@ -1838,6 +1854,17 @@ bool AP_AHRS::get_relative_position_NED_origin(Vector3f &vec) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL: {
         return external.get_relative_position_NED_origin(vec);
+    }
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT: {
+        Vector2f posNE;
+        if (BoatEKF.get_relative_position_NE(posNE)) {
+            vec.x = posNE.x;
+            vec.y = posNE.y;
+            vec.z = 0.0f;
+            return true;
+        }
     }
 #endif
     }
