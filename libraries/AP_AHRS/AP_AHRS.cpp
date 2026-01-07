@@ -1919,6 +1919,10 @@ bool AP_AHRS::get_relative_position_NE_origin(Vector2f &posNE) const
     case EKFType::EXTERNAL:
         return external.get_relative_position_NE_origin(posNE);
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.get_relative_position_NE(posNE);
+#endif
     }
     // since there is no default case above, this is unreachable
     return false;
@@ -1973,6 +1977,10 @@ bool AP_AHRS::get_relative_position_D_origin(float &posD) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         return external.get_relative_position_D_origin(posD);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
 #endif
     }
     // since there is no default case above, this is unreachable
@@ -2032,6 +2040,10 @@ AP_AHRS::EKFType AP_AHRS::ekf_type(void) const
 #endif
 #if HAL_NAVEKF3_AVAILABLE
     case EKFType::THREE:
+        return type;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         return type;
 #endif
 #if AP_AHRS_DCM_ENABLED
@@ -2118,6 +2130,11 @@ AP_AHRS::EKFType AP_AHRS::_active_EKF_type(void) const
         ret = EKFType::EXTERNAL;
         break;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        ret = EKFType::BOAT;;
+        break;
+#endif
     }
 
 #if AP_AHRS_DCM_ENABLED
@@ -2149,6 +2166,12 @@ AP_AHRS::EKFType AP_AHRS::_active_EKF_type(void) const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
         case EKFType::EXTERNAL:
+            get_filter_status(filt_state);
+            should_use_gps = true;
+            break;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+        case EKFType::BOAT:
             get_filter_status(filt_state);
             should_use_gps = true;
             break;
@@ -2285,6 +2308,12 @@ bool AP_AHRS::_get_secondary_EKF_type(EKFType &secondary_ekf_type) const
             return true;
         }
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+        if ((EKFType)_ekf_type.get() == EKFType::BOAT) {
+            secondary_ekf_type = EKFType::BOAT;
+            return true;
+        }
+#endif
         return false;
 #endif
 #if HAL_NAVEKF2_AVAILABLE
@@ -2298,6 +2327,9 @@ bool AP_AHRS::_get_secondary_EKF_type(EKFType &secondary_ekf_type) const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
 #endif
         // DCM is secondary
         secondary_ekf_type = fallback_active_EKF_type();
@@ -2364,6 +2396,10 @@ bool AP_AHRS::healthy(void) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         return external.healthy();
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.healthy();
 #endif
     }
 
@@ -2435,6 +2471,11 @@ bool AP_AHRS::pre_arm_check(bool requires_position, char *failure_msg, uint8_t f
         }
         return EKF3.pre_arm_check(requires_position, failure_msg, failure_msg_len) && ret;
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return true;
+#endif
     }
 
     // if we get here then ekf type is invalid
@@ -2471,6 +2512,10 @@ bool AP_AHRS::initialised(void) const
     case EKFType::EXTERNAL:
         return external.initialised();
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return true;
+#endif
     }
     return false;
 };
@@ -2503,6 +2548,10 @@ bool AP_AHRS::get_filter_status(nav_filter_status &status) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         return external.get_filter_status(status);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.get_filter_status(status);
 #endif
     }
 
@@ -2604,6 +2653,13 @@ void AP_AHRS::getControlLimits(float &ekfGndSpdLimit, float &ekfNavVelGainScaler
         ekfNavVelGainScaler = 1;
         break;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        // no limit on gains, large vel limit
+        ekfGndSpdLimit = 400;
+        ekfNavVelGainScaler = 1;;
+        break;
+#endif
     }
 }
 
@@ -2649,6 +2705,10 @@ bool AP_AHRS::getMagOffsets(uint8_t mag_idx, Vector3f &magOffsets) const
     case EKFType::EXTERNAL:
         return false;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
     // since there is no default case above, this is unreachable
     return false;
@@ -2682,6 +2742,10 @@ void AP_AHRS::_getCorrectedDeltaVelocityNED(Vector3f& ret, float& dt) const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        break;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         break;
 #endif
     }
@@ -2828,6 +2892,10 @@ uint32_t AP_AHRS::getLastYawResetAngle(float &yawAng)
     case EKFType::EXTERNAL:
         return external.getLastYawResetAngle(yawAng);
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return 0;
+#endif
     }
     return 0;
 }
@@ -2859,6 +2927,10 @@ uint32_t AP_AHRS::getLastPosNorthEastReset(Vector2f &pos)
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        return 0;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         return 0;
 #endif
     }
@@ -2894,6 +2966,10 @@ uint32_t AP_AHRS::getLastVelNorthEastReset(Vector2f &vel) const
     case EKFType::EXTERNAL:
         return 0;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return 0;
+#endif
     }
     return 0;
 }
@@ -2925,6 +3001,10 @@ uint32_t AP_AHRS::getLastPosDownReset(float &posDelta)
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        return 0;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         return 0;
 #endif
     }
@@ -2978,6 +3058,10 @@ bool AP_AHRS::resetHeightDatum(void)
     case EKFType::EXTERNAL:
         return false;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
     return false;
 }
@@ -3015,6 +3099,11 @@ void AP_AHRS::send_ekf_status_report(GCS_MAVLINK &link) const
         return EKF3.send_status_report(link);
 #endif
 
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.send_status_report(link);
+#endif
+
     }
 }
 
@@ -3044,6 +3133,10 @@ bool AP_AHRS::_get_origin(EKFType type, Location &ret) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
         return external.get_origin(ret);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.get_origin(ret);
 #endif
     }
     return false;
@@ -3156,6 +3249,10 @@ bool AP_AHRS::get_hgt_ctrl_limit(float& limit) const
     case EKFType::EXTERNAL:
         return false;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
 
     return false;
@@ -3223,6 +3320,10 @@ bool AP_AHRS::get_innovations(Vector3f &velInnov, Vector3f &posInnov, Vector3f &
     case EKFType::EXTERNAL:
         return false;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return false;
+#endif
     }
 
     return false;
@@ -3247,6 +3348,9 @@ bool AP_AHRS::is_vibration_affected() const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
 #endif
         return false;
     }
@@ -3291,6 +3395,10 @@ bool AP_AHRS::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3
     case EKFType::EXTERNAL:
         return external.get_variances(velVar, posVar, hgtVar, magVar, tasVar);
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        return BoatEKF.get_variances(velVar, posVar, hgtVar, magVar, tasVar);
+#endif
     }
 
     return false;
@@ -3327,6 +3435,11 @@ bool AP_AHRS::get_vel_innovations_and_variances_for_source(uint8_t source, Vecto
 
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        return false;
+#endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         return false;
 #endif
     }
@@ -3390,6 +3503,10 @@ uint8_t AP_AHRS::_get_primary_IMU_index() const
     case EKFType::EXTERNAL:
         break;
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        break;
+#endif
     }
     if (imu == -1) {
         imu = AP::ins().get_first_usable_gyro();
@@ -3413,6 +3530,11 @@ int8_t AP_AHRS::_get_primary_core_index() const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        // we have only one core
+        return 0;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         // we have only one core
         return 0;
 #endif
@@ -3463,6 +3585,11 @@ void AP_AHRS::check_lane_switch(void)
     case EKFType::EXTERNAL:
         break;
 #endif
+
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+        break;
+#endif
         
 #if HAL_NAVEKF2_AVAILABLE
     case EKFType::TWO:
@@ -3493,6 +3620,10 @@ void AP_AHRS::request_yaw_reset(void)
 
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+        break;
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
         break;
 #endif
         
@@ -3566,6 +3697,9 @@ bool AP_AHRS::using_noncompass_for_yaw(void) const
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
+#endif
         return false; 
     }
     // since there is no default case above, this is unreachable
@@ -3592,6 +3726,9 @@ bool AP_AHRS::using_extnav_for_yaw(void) const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
 #endif
         return false;
     }
@@ -3635,6 +3772,9 @@ const EKFGSF_yaw *AP_AHRS::get_yaw_estimator(void) const
 #endif
 #if AP_AHRS_EXTERNAL_ENABLED
     case EKFType::EXTERNAL:
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+    case EKFType::BOAT:
 #endif
         return nullptr;
     }

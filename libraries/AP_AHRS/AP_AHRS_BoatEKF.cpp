@@ -5,7 +5,6 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_Common/AP_Common.h>
 #include <AP_GPS/AP_GPS.h>
-#include <GCS_MAVLink/GCS.h>
 
 extern "C" {
     void boatekf_init(float dt);
@@ -17,7 +16,9 @@ extern "C" {
 }
 
 NavBoatEKF::NavBoatEKF()
-    : _last_time_predict_ms(0)
+    : _last_time_predict_ms(0),
+    _last_time_update_gps_ms(0),
+    _last_time_update_compass(500)
 {
     _have_origin = false;
 }
@@ -34,10 +35,8 @@ void NavBoatEKF::update(void)
     if (dt_ms > 100) {
         _last_time_predict_ms = now_ms;
 
-        float rudder = SRV_Channels::get_output_scaled(SRV_Channel::k_steering);
-        float throttle = SRV_Channels::get_output_scaled(SRV_Channel::k_throttle);
-
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: dt=%" PRIu32 " rudder=%.2f throttle=%.2f", dt_ms, rudder, throttle);
+        float rudder = SRV_Channels::get_output_norm(SRV_Channel::k_steering);
+        float throttle = SRV_Channels::get_output_norm(SRV_Channel::k_throttle);
 
         boatekf_predict(rudder, throttle);
     }
@@ -62,10 +61,55 @@ void NavBoatEKF::update(void)
     
 }
 
+bool NavBoatEKF::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
+{
+    // TODO: implement boat EKF variances
+    return false;
+}
+
+bool NavBoatEKF::get_filter_status(nav_filter_status &status) const
+{
+    status.flags.attitude = true;
+    status.flags.horiz_vel = true;
+    status.flags.vert_vel = true;
+    status.flags.horiz_pos_rel = true;
+    status.flags.horiz_pos_abs = _have_origin;
+    status.flags.vert_pos = true;
+    status.flags.terrain_alt = false;
+    status.flags.const_pos_mode = false;
+    status.flags.pred_horiz_pos_rel = true;
+    status.flags.pred_horiz_pos_abs = true;
+    status.flags.takeoff_detected = false;
+    status.flags.takeoff = false;
+    status.flags.touchdown = false;
+    status.flags.using_gps = true;
+    status.flags.gps_glitching = false;
+    status.flags.gps_quality_good = true;
+    status.flags.initalized = true;
+    status.flags.rejecting_airspeed = false;
+    status.flags.dead_reckoning = false;
+    return true;
+}
+
+void NavBoatEKF::send_status_report(GCS_MAVLINK &link) const
+{
+    // TODO: implement status report
+
+}
+
 bool NavBoatEKF::set_origin(const Location &loc)
 {
     _origin_location = loc;
     _have_origin = true;
+    return true;
+}
+
+bool NavBoatEKF::get_origin(Location &ret) const
+{
+    if (!_have_origin) {
+        return false;
+    }
+    ret = _origin_location;
     return true;
 }
 
