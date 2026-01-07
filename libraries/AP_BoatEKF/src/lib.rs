@@ -52,6 +52,14 @@ pub extern "C" fn boatekf_update_gps(north: Float, east: Float, var: Float) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn boatekf_update_compass(heading: Float, var: Float) {
+    unsafe {
+        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        ekf.update_compass(heading, var);
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_position(north: *mut Float, east: *mut Float) {
     unsafe {
         let ekf = &*INSTANCE.as_ptr();

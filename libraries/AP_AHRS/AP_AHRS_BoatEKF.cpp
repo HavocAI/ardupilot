@@ -5,11 +5,13 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_Common/AP_Common.h>
 #include <AP_GPS/AP_GPS.h>
+#include <AP_AHRS/AP_AHRS.h>
 
 extern "C" {
     void boatekf_init(float dt);
     void boatekf_predict(float rudder, float throttle);
     void boatekf_update_gps(float north, float east, float var);
+    void boatekf_update_compass(float yaw, float var);
     void boatekf_get_position(float *north, float *east);
     void boatekf_get_velocity(float *north, float *east);
     void boatekf_get_wind(float *wind_north, float *wind_east);
@@ -57,6 +59,40 @@ void NavBoatEKF::update(void)
         boatekf_update_gps(ne.x, ne.y, accuracy);
 
         _last_time_update_gps_ms = now_ms;
+    }
+
+    if (now_ms - _last_time_update_compass > 1000) {
+        const NavEKF3& EKF3 = AP::ahrs().EKF3;
+
+        uint16_t faultInt;
+        EKF3.getFilterFaults(faultInt);
+
+        // we just want to ensure that the EKF3's quaternion is valid and the states have been initialized
+        const uint16_t mask = (1 << 0) | (1 << 7);
+        const bool is_healthy = (faultInt & mask) == 0;
+
+        if (is_healthy) {
+            // Matrix3f dcm_matrix;
+
+            Vector3f eulers;
+            // EKF3.getRotationBodyToNED(dcm_matrix);
+            EKF3.getEulerAngles(eulers);
+            // roll  = eulers.x;
+            // pitch = eulers.y;
+            float yaw   = eulers.z;
+
+            Vector3f velInnov;
+            Vector3f posInnov;
+            Vector3f magInnov;
+            float tasInnov = 0;
+            float yawInnov = 0;
+            EKF3.getInnovations(velInnov, posInnov, magInnov, tasInnov, yawInnov);
+
+            // we use the yaw innovation squared as a variance proxy
+            boatekf_update_compass(yaw, yawInnov * yawInnov);
+
+            _last_time_update_compass = now_ms;
+        }
     }
     
 }
