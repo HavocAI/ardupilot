@@ -74,11 +74,11 @@ void Rover::failsafe_trigger(uint8_t failsafe_type, const char* type_str, bool o
         // clear rc overrides
         RC_Channels::clear_overrides();
 
-        if ((control_mode == &mode_auto) &&
+        if ((control_mode == &mode_auto || control_mode == &mode_guided) &&
             ((failsafe_type == FAILSAFE_EVENT_THROTTLE && g.fs_throttle_enabled == FS_THR_ENABLED_CONTINUE_MISSION) ||
              (failsafe_type == FAILSAFE_EVENT_GCS && g.fs_gcs_enabled == FS_GCS_ENABLED_CONTINUE_MISSION))) {
             // continue with mission in auto mode
-            gcs().send_text(MAV_SEVERITY_WARNING, "Failsafe - Continuing Auto Mode");
+            gcs().send_text(MAV_SEVERITY_WARNING, "Failsafe - Continuing Autonomous Mode");
         } else {
             switch ((FailsafeAction)g.fs_action.get()) {
             case FailsafeAction::None:
