@@ -52,60 +52,19 @@ void Rover::failsafe_trigger(uint8_t failsafe_type, const char* type_str, bool o
     } else {
         failsafe.bits &= ~failsafe_type;
     }
-    if (old_bits == 0 && failsafe.bits != 0) {
+    if ((old_bits & failsafe_type) == 0 && (failsafe.bits & failsafe_type) != 0) {
         // a failsafe event has started
-        failsafe.start_time = millis();
-    }
-    if (failsafe.triggered != 0 && failsafe.bits == 0) {
-        // a failsafe event has ended
-        gcs().send_text(MAV_SEVERITY_INFO, "%s Failsafe Cleared", type_str);
-    }
-
-    failsafe.triggered &= failsafe.bits;
-
-    if ((failsafe.triggered == 0) &&
-        (failsafe.bits != 0) &&
-        (millis() - failsafe.start_time > g.fs_timeout * 1000) &&
-        (control_mode != &mode_rtl) &&
-        ((control_mode != &mode_hold || (g2.fs_options & (uint32_t)Failsafe_Options::Failsafe_Option_Active_In_Hold)))) {
-        failsafe.triggered = failsafe.bits;
         gcs().send_text(MAV_SEVERITY_WARNING, "%s Failsafe", type_str);
 
-        // clear rc overrides
         RC_Channels::clear_overrides();
 
-        if ((control_mode == &mode_auto || control_mode == &mode_guided) &&
-            ((failsafe_type == FAILSAFE_EVENT_THROTTLE && g.fs_throttle_enabled == FS_THR_ENABLED_CONTINUE_MISSION) ||
-             (failsafe_type == FAILSAFE_EVENT_GCS && g.fs_gcs_enabled == FS_GCS_ENABLED_CONTINUE_MISSION))) {
-            // continue with mission in auto mode
-            gcs().send_text(MAV_SEVERITY_WARNING, "Failsafe - Continuing Autonomous Mode");
-        } else {
-            switch ((FailsafeAction)g.fs_action.get()) {
-            case FailsafeAction::None:
-                break;
-            case FailsafeAction::SmartRTL:
-                if (set_mode(mode_smartrtl, ModeReason::FAILSAFE)) {
-                    break;
-                }
-                FALLTHROUGH;
-            case FailsafeAction::RTL:
-                if (set_mode(mode_rtl, ModeReason::FAILSAFE)) {
-                    break;
-                }
-                FALLTHROUGH;
-            case FailsafeAction::Hold:
-                set_mode(mode_hold, ModeReason::FAILSAFE);
-                break;
-            case FailsafeAction::SmartRTL_Hold:
-                if (!set_mode(mode_smartrtl, ModeReason::FAILSAFE)) {
-                    set_mode(mode_hold, ModeReason::FAILSAFE);
-                }
-                break;
-            case FailsafeAction::Terminate:
-                arming.disarm(AP_Arming::Method::FAILSAFE_ACTION_TERMINATE);
-                break;
-            }
+        if ((control_mode == &mode_manual || control_mode == &mode_acro || control_mode == &mode_steering)) {
+            arming.disarm(AP_Arming::Method::FAILSAFE_ACTION_TERMINATE);
         }
+
+
+    } else if (old_bits && failsafe.bits == 0) {
+        gcs().send_text(MAV_SEVERITY_INFO, "Failsafe Cleared");
     }
 }
 

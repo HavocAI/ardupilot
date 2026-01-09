@@ -263,7 +263,7 @@ public:
     AP_Enum<PilotSteerType>     pilot_steer_type;
 
     // failsafe control
-    AP_Int8     fs_action;
+    // AP_Int8     fs_action;
     AP_Float    fs_timeout;
     AP_Int8     fs_throttle_enabled;
     AP_Int16    fs_throttle_value;

@@ -136,7 +136,10 @@ void Rover::read_radio()
         failsafe.last_valid_rc_ms = AP_HAL::millis();
     }
 
-    AP_Notify::flags.failsafe_radio = is_rc_link_lost && g.fs_throttle_enabled;
+    // Note: we are hard-coding enabling the failsafe here. Normally we would read
+    // the g.fs_throttle_enabled parameter. Like this:
+    // AP_Notify::flags.failsafe_radio = is_rc_link_lost && g.fs_throttle_enabled;
+    AP_Notify::flags.failsafe_radio = is_rc_link_lost;
     failsafe_trigger(FAILSAFE_EVENT_THROTTLE, "Radio", AP_Notify::flags.failsafe_radio);
 
     if (!is_rc_link_lost) {
