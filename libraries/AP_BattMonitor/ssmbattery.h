@@ -963,7 +963,7 @@ struct ssmbattery_fault_t {
      * Scale: 1
      * Offset: 0
      */
-    uint8_t fault_bits;
+    uint8_t fault_bits[7];
 };
 
 /**

@@ -2073,7 +2073,13 @@ int ssmbattery_fault_unpack(
     }
 
     dst_p->page_no = unpack_right_shift_u8(src_p[0], 0u, 0xffu);
-    dst_p->fault_bits = unpack_right_shift_u8(src_p[1], 0u, 0xffu);
+    dst_p->fault_bits[0] = unpack_right_shift_u8(src_p[1], 0u, 0xffu);
+    dst_p->fault_bits[1] = unpack_right_shift_u8(src_p[2], 0u, 0xffu);
+    dst_p->fault_bits[2] = unpack_right_shift_u8(src_p[3], 0u, 0xffu);
+    dst_p->fault_bits[3] = unpack_right_shift_u8(src_p[4], 0u, 0xffu);
+    dst_p->fault_bits[4] = unpack_right_shift_u8(src_p[5], 0u, 0xffu);
+    dst_p->fault_bits[5] = unpack_right_shift_u8(src_p[6], 0u, 0xffu);
+    dst_p->fault_bits[6] = unpack_right_shift_u8(src_p[7], 0u, 0xffu);
 
     return (0);
 }

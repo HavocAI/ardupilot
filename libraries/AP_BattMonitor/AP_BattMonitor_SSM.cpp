@@ -458,6 +458,8 @@ void AP_BattMonitor_SSM::handle_status_information_2(const struct ssmbattery_sta
 void AP_BattMonitor_SSM::handle_hardware_and_battery_failure_information(const struct ssmbattery_hardware_and_battery_failure_information_t &msg)
 {
     // Handle the hardware and battery failure information message
+    WITH_SEMAPHORE(_sem_battmon);
+    memcpy(&_interim_fault_state.hwinfo, &msg, sizeof(ssmbattery_hardware_and_battery_failure_information_t));
 }
 
 void AP_BattMonitor_SSM::handle_charging_information(const struct ssmbattery_charging_information_t &msg)
@@ -472,11 +474,17 @@ void AP_BattMonitor_SSM::handle_limiting(const struct ssmbattery_limiting_t &msg
 
 void AP_BattMonitor_SSM::handle_fault(const struct ssmbattery_fault_t &msg)
 {
-    // Handle the fault message
-    if (msg.fault_bits)
-    {
-        GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "SSM Battery: Page %d Fault %d", msg.page_no,msg.fault_bits);
+    // Handle fault messages
+    constexpr size_t num_fault_bytes = sizeof(ssmbattery_fault_t::fault_bits) / sizeof(ssmbattery_fault_t::fault_bits[0]);
+    for(size_t idx = 0; idx < num_fault_bytes; ++idx) {
+        if (msg.fault_bits[idx])
+        {
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "SSM Battery: Page %d Fault %d Byte %d", msg.page_no,msg.fault_bits[idx],idx);
+        }
     }
+
+    WITH_SEMAPHORE(_sem_battmon);
+    memcpy(&_interim_fault_state.faults, &msg, sizeof(ssmbattery_fault_t));
 }
 
 void AP_BattMonitor_SSM::split_id(uint32_t can_id, uint32_t& base_id, uint32_t& board_number) {

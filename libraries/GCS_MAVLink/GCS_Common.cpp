@@ -69,6 +69,7 @@
 #include <AP_Landing/AP_Landing_config.h>
 #include <AP_IrisOrca/AP_IrisOrca.h>
 #include <AP_Torqeedo/AP_Torqeedo.h>
+#include <AP_BattMonitor/AP_BattMonitor_SSM.h>
 
 #include "MissionItemProtocol_Waypoints.h"
 #include "MissionItemProtocol_Rally.h"
@@ -1161,6 +1162,9 @@ ap_message GCS_MAVLINK::mavlink_id_to_ap_message_id(const uint32_t mavlink_id) c
 #endif
 #if HAL_TORQEEDO_ENABLED
         { MAVLINK_MSG_ID_TORQEEDO_TELEMETRY, MSG_TORQEEDO_TELEMETRY},
+#endif
+#if AP_BATTERY_SSM_ENABLED
+        { MAVLINK_MSG_ID_SSM_TELEMETRY, MSG_SSM_TELEMETRY},
 #endif
             };
 
@@ -6241,6 +6245,39 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
     case MSG_BATTERY_STATUS:
         send_battery_status();
         break;
+
+#if AP_BATTERY_SSM_ENABLED // TODO: Do we need to guard this with HAL_x_ENABLED, or AP_BATTERY_SSM_ENABLED, etc
+    case MSG_SSM_TELEMETRY:
+        // CHECK_PAYLOAD_SIZE(SSM_TELEMETRY);
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY");
+        /* **************************** */                                    
+        // TODO(Cory) HACK - Testing sending over fault message, no safety checks yet
+        {
+            const AP_BattMonitor &battery = AP::battery();
+
+            for(uint8_t i = 0; i < AP_BATT_MONITOR_MAX_INSTANCES; i++) {
+                const uint8_t battery_id = (last_battery_status_idx + 1) % AP_BATT_MONITOR_MAX_INSTANCES;
+                const auto configured_type = battery.configured_type(battery_id);
+                if (configured_type != AP_BattMonitor::Type::NONE
+                    && configured_type == battery.allocated_type(battery_id)
+                    && !battery.option_is_set(battery_id, AP_BattMonitor_Params::Options::InternalUseOnly)
+                    && AP_BattMonitor::Type::SSM == configured_type
+                ) {
+                    CHECK_PAYLOAD_SIZE(SSM_TELEMETRY);
+                    const AP_BattMonitor_SSM *ssm = static_cast<AP_BattMonitor_SSM*>(battery.get_backend_driver(battery_id));
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY %" PRIu32, ssm->sanity_check());
+                    // send_battery_status(battery_id);
+                    last_battery_status_idx = battery_id;
+                    return true;
+                } else {
+                    last_battery_status_idx = battery_id;
+                }
+            }
+            return true;
+        }
+        /* ******** END HACK ********** */
+        break;
+#endif
 
 #if AP_MAVLINK_BATTERY2_ENABLED
     case MSG_BATTERY2:

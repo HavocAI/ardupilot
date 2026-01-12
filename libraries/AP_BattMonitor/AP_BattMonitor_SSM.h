@@ -48,6 +48,8 @@ public:
     
     static const struct AP_Param::GroupInfo var_info[];
 
+    uint32_t sanity_check() const { return 0xDEADBEEFU; }
+
 private:
 
     void tick(void);
@@ -78,6 +80,10 @@ private:
 
     AP_BattMonitor::BattMonitor_State _interim_state;
     uint8_t _capacity_remaining_pct;
+    struct {
+        ssmbattery_hardware_and_battery_failure_information_t hwinfo;
+        ssmbattery_fault_t faults;
+    } _interim_fault_state, _fault_state;
 
     // Parameters
     AP_Int8 _can_port;

@@ -107,5 +107,6 @@ enum ap_message : uint8_t {
     MSG_AVAILABLE_MODES_MONITOR,
     MSG_ORCA_TELEMETRY,
     MSG_TORQEEDO_TELEMETRY,
+    MSG_SSM_TELEMETRY,
     MSG_LAST // MSG_LAST must be the last entry in this enum
 };

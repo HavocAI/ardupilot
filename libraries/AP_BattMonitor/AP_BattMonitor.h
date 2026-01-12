@@ -294,6 +294,9 @@ public:
     // return true if state of health (as a percentage) can be provided and fills in soh_pct argument
     bool get_state_of_health_pct(uint8_t instance, uint8_t &soh_pct) const;
 
+
+    AP_BattMonitor_Backend* get_backend_driver(const uint8_t instance) const { return drivers[instance]; }
+
     static const struct AP_Param::GroupInfo var_info[];
 
 #if AP_BATTERY_SCRIPTING_ENABLED
