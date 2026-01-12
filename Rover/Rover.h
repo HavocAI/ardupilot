@@ -197,8 +197,6 @@ private:
     // structure for holding failsafe state
     struct {
         uint8_t bits;               // bit flags of failsafes that have started (but not necessarily triggered an action)
-        uint32_t start_time;        // start time of the earliest failsafe
-        uint8_t triggered;          // bit flags of failsafes that have triggered an action
         uint32_t last_valid_rc_ms;  // system time of most recent RC input from pilot
         bool ekf;
     } failsafe;
@@ -368,7 +366,6 @@ private:
     void init_rc_in();
     void rudder_arm_disarm_check();
     void read_radio();
-    void radio_failsafe_check(uint16_t pwm);
 
     // sensors.cpp
     void update_compass(void);
