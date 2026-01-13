@@ -7,7 +7,8 @@ pub const WIDTH: f32 = 6.5 * 0.3048;
 /// Rampage is about 600lbs, converted to kg.
 pub const MASS: f32 = 800.0 * 0.453592;
 
-pub const MOTOR_SCALER: f32 = 30.0;
+// about a 10KW motor w/80% efficient
+pub const MOTOR_SCALER: f32 = 100.0 * 0.8;
 
 /// Rampage moment of inertia, approximated as a rectangle.
 pub const MOMENT_OF_INERTIA: f32 = MASS * (LENGTH * WIDTH * WIDTH * WIDTH) / 12.0;
@@ -22,7 +23,7 @@ pub const WIND_CENTER_FORCE_X: f32 = 2.0 * 0.3048;
 pub const WIND_CENTER_FORCE_Y: f32 = 0.0;
 
 const WIND_DRAG_COEFFICIENT: f32 = 5.5;
-const DRAG_COEFFICIENT: f32 = 0.15;
+const DRAG_COEFFICIENT: f32 = 0.42;
 const ANGULAR_DRAG_COEFFICIENT: f32 = 400.0; // angular drag coefficient
 
 pub const fn create_motorboat_model() -> crate::physics::motorboat_model::MotorboatModel {
