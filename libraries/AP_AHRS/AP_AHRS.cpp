@@ -451,8 +451,9 @@ void AP_AHRS::update(bool skip_ins_update)
     update_AOA_SSA();
 
 #if HAL_GCS_ENABLED
+    const uint32_t now_ms = AP_HAL::millis();
     state.active_EKF = _active_EKF_type();
-    if (state.active_EKF != last_active_ekf_type) {
+    if (state.active_EKF != last_active_ekf_type || now_ms - _last_ekf_type_report_ms > 5000) {
         last_active_ekf_type = state.active_EKF;
         const char *shortname = "???";
         switch ((EKFType)state.active_EKF) {
@@ -488,6 +489,7 @@ void AP_AHRS::update(bool skip_ins_update)
 #endif
         }
         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "AHRS: %s active", shortname);
+        _last_ekf_type_report_ms = now_ms;
     }
 #endif // HAL_GCS_ENABLED
 

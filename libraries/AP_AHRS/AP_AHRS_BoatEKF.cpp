@@ -13,6 +13,7 @@ extern "C" {
     void boatekf_update_gps(float north, float east, float var);
     void boatekf_update_compass(float yaw, float var);
     void boatekf_get_position(float *north, float *east);
+    float boatekf_get_heading();
     void boatekf_get_velocity(float *north, float *east);
     void boatekf_get_wind(float *wind_north, float *wind_east);
 }
@@ -237,9 +238,8 @@ bool NavBoatEKF::get_velocity(Vector2f &vel) const
 
 bool NavBoatEKF::get_quaternion(Quaternion &quat) const
 {
-    quat = Quaternion();
-
-    // TODO: implement boat EKF quaternion output
+    const float heading_rad = boatekf_get_heading();
+    quat.from_euler(0.0f, 0.0f, heading_rad);
     return true;
 }
 

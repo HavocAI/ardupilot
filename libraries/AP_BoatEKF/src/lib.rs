@@ -70,6 +70,14 @@ pub extern "C" fn boatekf_get_position(north: *mut Float, east: *mut Float) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_heading() -> Float {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        ekf.theta()
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_velocity(north: *mut Float, east: *mut Float) {
     unsafe {
         let ekf = &*INSTANCE.as_ptr();

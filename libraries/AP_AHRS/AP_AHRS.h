@@ -1035,6 +1035,8 @@ private:
 
     // true when we have completed the common origin setup
     bool done_common_origin;
+
+    uint32_t _last_ekf_type_report_ms;
 };
 
 namespace AP {
