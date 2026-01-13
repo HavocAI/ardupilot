@@ -194,6 +194,8 @@ void AP_BattMonitor_SSM::read()
     _state.healthy = _interim_state.healthy;
     // memcpy(_state.cell_voltages.cells, _interim_state.cell_voltages.cells, sizeof(_state.cell_voltages));
 
+    memcpy(&_fault_state, &_interim_fault_state, sizeof(ssm_fault_state_t));
+
 }
 
 // parse inbound frames
@@ -475,16 +477,20 @@ void AP_BattMonitor_SSM::handle_limiting(const struct ssmbattery_limiting_t &msg
 void AP_BattMonitor_SSM::handle_fault(const struct ssmbattery_fault_t &msg)
 {
     // Handle fault messages
-    constexpr size_t num_fault_bytes = sizeof(ssmbattery_fault_t::fault_bits) / sizeof(ssmbattery_fault_t::fault_bits[0]);
+    const size_t num_fault_bytes = sizeof(msg.fault_bits) / sizeof(msg.fault_bits[0]);
     for(size_t idx = 0; idx < num_fault_bytes; ++idx) {
         if (msg.fault_bits[idx])
         {
-            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "SSM Battery: Page %d Fault %d Byte %d", msg.page_no,msg.fault_bits[idx],idx);
+            GCS_SEND_TEXT(MAV_SEVERITY_CRITICAL, "SSM Battery: Page %d Byte %d Fault 0x%02X", msg.page_no,idx+1,(unsigned int)msg.fault_bits[idx]);
         }
     }
 
-    WITH_SEMAPHORE(_sem_battmon);
-    memcpy(&_interim_fault_state.faults, &msg, sizeof(ssmbattery_fault_t));
+    constexpr uint8_t max_pages = 2;
+    if ((msg.page_no > 0) && (msg.page_no <= max_pages))
+    {
+        WITH_SEMAPHORE(_sem_battmon);
+        memcpy(&_interim_fault_state.faults[msg.page_no-1], &msg, sizeof(ssmbattery_fault_t));
+    }
 }
 
 void AP_BattMonitor_SSM::split_id(uint32_t can_id, uint32_t& base_id, uint32_t& board_number) {
@@ -492,4 +498,9 @@ void AP_BattMonitor_SSM::split_id(uint32_t can_id, uint32_t& base_id, uint32_t& 
     board_number = can_id & 0x000000FF;
 }
 
+AP_BattMonitor_SSM::ssm_fault_state_t AP_BattMonitor_SSM::get_ssm_fault_info()
+{
+    WITH_SEMAPHORE(_sem_battmon);
+    return _fault_state;
+}
 #endif // AP_BATTERY_SSM_ENABLED

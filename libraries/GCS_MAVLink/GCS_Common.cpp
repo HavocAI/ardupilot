@@ -408,6 +408,49 @@ bool GCS_MAVLINK::send_battery_status()
     }
     return true;
 }
+
+void GCS_MAVLINK::send_battery_extras(const uint8_t instance) const
+{
+    const AP_BattMonitor &battery = AP::battery();
+    AP_BattMonitor_SSM * const ssm = static_cast<AP_BattMonitor_SSM*>(battery.get_backend_driver(instance));
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY %" PRIu32, ssm->sanity_check());
+    const AP_BattMonitor_SSM::ssm_fault_state_t failure_and_fault_state = ssm->get_ssm_fault_info();
+    mavlink_msg_ssm_telemetry_send(chan,
+        instance,
+        failure_and_fault_state.hwinfo.voltage_faults,
+        failure_and_fault_state.hwinfo.temp_faults,
+        failure_and_fault_state.hwinfo.overcurrent_faults,
+        failure_and_fault_state.hwinfo.pressure_temp_faults,
+        failure_and_fault_state.hwinfo.mos_faults,
+        failure_and_fault_state.hwinfo.system_faults,
+        failure_and_fault_state.hwinfo.module_faults,
+        failure_and_fault_state.hwinfo.balance_faults,
+        failure_and_fault_state.faults[0].fault_bits,
+        failure_and_fault_state.faults[1].fault_bits);
+}
+
+bool GCS_MAVLINK::send_battery_extras()
+{
+    const AP_BattMonitor &battery = AP::battery();
+
+    for(uint8_t i = 0; i < AP_BATT_MONITOR_MAX_INSTANCES; i++) {
+        const uint8_t battery_id = (last_battery_status_idx + 1) % AP_BATT_MONITOR_MAX_INSTANCES;
+        const auto configured_type = battery.configured_type(battery_id);
+        if (configured_type != AP_BattMonitor::Type::NONE
+            && configured_type == battery.allocated_type(battery_id)
+            && !battery.option_is_set(battery_id, AP_BattMonitor_Params::Options::InternalUseOnly)
+            && AP_BattMonitor::Type::SSM == configured_type
+        ) {
+            CHECK_PAYLOAD_SIZE(SSM_TELEMETRY);
+            send_battery_extras(battery_id);
+            return true;
+        } else {
+            last_battery_extras_idx = battery_id;
+        }
+    }
+    return true;
+}
+
 #endif  // AP_BATTERY_ENABLED
 
 #if AP_RANGEFINDER_ENABLED
@@ -6248,33 +6291,9 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
 
 #if AP_BATTERY_SSM_ENABLED // TODO: Do we need to guard this with HAL_x_ENABLED, or AP_BATTERY_SSM_ENABLED, etc
     case MSG_SSM_TELEMETRY:
-        // CHECK_PAYLOAD_SIZE(SSM_TELEMETRY);
-        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY");
         /* **************************** */                                    
         // TODO(Cory) HACK - Testing sending over fault message, no safety checks yet
-        {
-            const AP_BattMonitor &battery = AP::battery();
-
-            for(uint8_t i = 0; i < AP_BATT_MONITOR_MAX_INSTANCES; i++) {
-                const uint8_t battery_id = (last_battery_status_idx + 1) % AP_BATT_MONITOR_MAX_INSTANCES;
-                const auto configured_type = battery.configured_type(battery_id);
-                if (configured_type != AP_BattMonitor::Type::NONE
-                    && configured_type == battery.allocated_type(battery_id)
-                    && !battery.option_is_set(battery_id, AP_BattMonitor_Params::Options::InternalUseOnly)
-                    && AP_BattMonitor::Type::SSM == configured_type
-                ) {
-                    CHECK_PAYLOAD_SIZE(SSM_TELEMETRY);
-                    const AP_BattMonitor_SSM *ssm = static_cast<AP_BattMonitor_SSM*>(battery.get_backend_driver(battery_id));
-                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY %" PRIu32, ssm->sanity_check());
-                    // send_battery_status(battery_id);
-                    last_battery_status_idx = battery_id;
-                    return true;
-                } else {
-                    last_battery_status_idx = battery_id;
-                }
-            }
-            return true;
-        }
+        send_battery_extras();
         /* ******** END HACK ********** */
         break;
 #endif

@@ -344,6 +344,8 @@ public:
 #endif
     void send_battery_status(const uint8_t instance) const;
     bool send_battery_status();
+    void send_battery_extras(const uint8_t instance) const;
+    bool send_battery_extras();
     void send_distance_sensor();
     // send_rangefinder sends only if a downward-facing instance is
     // found.  Rover overrides this!
@@ -1121,6 +1123,7 @@ private:
     uint32_t last_mavlink_stats_logged;
 
     uint8_t last_battery_status_idx;
+    uint8_t last_battery_extras_idx;
 
     // if we've ever sent a DISTANCE_SENSOR message out of an
     // orientation we continue to send it out, even if it is not
