@@ -80,16 +80,18 @@ void NavBoatEKF::update(void)
             // roll  = eulers.x;
             // pitch = eulers.y;
             float yaw   = eulers.z;
+            float yaw_variance = 0.4f;
 
-            Vector3f velInnov;
-            Vector3f posInnov;
-            Vector3f magInnov;
-            float tasInnov = 0;
-            float yawInnov = 0;
-            EKF3.getInnovations(velInnov, posInnov, magInnov, tasInnov, yawInnov);
+            // Vector3f velInnov;
+            // Vector3f posInnov;
+            // Vector3f magInnov;
+            // float tasInnov = 0;
+            // float yawInnov = 0;
+            // EKF3.getInnovations(velInnov, posInnov, magInnov, tasInnov, yawInnov);
+            // yaw_variance += yawInnov * yawInnov;
 
             // we use the yaw innovation squared as a variance proxy
-            boatekf_update_compass(yaw, yawInnov * yawInnov);
+            boatekf_update_compass(yaw, yaw_variance);
 
             _last_time_update_compass = now_ms;
         }
@@ -99,8 +101,14 @@ void NavBoatEKF::update(void)
 
 bool NavBoatEKF::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
 {
+    velVar = 0.12f;
+    posVar = 0.12f;
+    hgtVar = 0.12f;
+    magVar = Vector3f(0.5f, 0.5f, 0.5f);
+    tasVar = 0.5f;
+
     // TODO: implement boat EKF variances
-    return false;
+    return true;
 }
 
 bool NavBoatEKF::get_filter_status(nav_filter_status &status) const
@@ -129,8 +137,52 @@ bool NavBoatEKF::get_filter_status(nav_filter_status &status) const
 
 void NavBoatEKF::send_status_report(GCS_MAVLINK &link) const
 {
-    // TODO: implement status report
+    nav_filter_status status;
+    get_filter_status(status);
+    uint16_t flags = 0;
 
+    if (status.flags.attitude) {
+        flags |= EKF_ATTITUDE;
+    }
+    if (status.flags.horiz_vel) {
+        flags |= EKF_VELOCITY_HORIZ;
+    }
+    if (status.flags.vert_vel) {
+        flags |= EKF_VELOCITY_VERT;
+    }
+    if (status.flags.horiz_pos_rel) {
+        flags |= EKF_POS_HORIZ_REL;
+    }
+    if (status.flags.horiz_pos_abs) {
+        flags |= EKF_POS_HORIZ_ABS;
+    }
+    if (status.flags.vert_pos) {
+        flags |= EKF_POS_VERT_ABS;
+    }
+    if (status.flags.terrain_alt) {
+        flags |= EKF_POS_VERT_AGL;
+    }
+    if (status.flags.const_pos_mode) {
+        flags |= EKF_CONST_POS_MODE;
+    }
+    if (status.flags.pred_horiz_pos_rel) {
+        flags |= EKF_PRED_POS_HORIZ_REL;
+    }
+    if (status.flags.pred_horiz_pos_abs) {
+        flags |= EKF_PRED_POS_HORIZ_ABS;
+    }
+    if (!status.flags.initalized) {
+        flags |= EKF_UNINITIALIZED;
+    }
+
+
+    float velVar = 0, posVar = 0, hgtVar = 0, tasVar = 0;
+    Vector3f magVar;
+    get_variances(velVar, posVar, hgtVar, magVar, tasVar);
+    const float mag_max = fmaxF(fmaxF(magVar.x,magVar.y),magVar.z);
+    float temp = 0.0f;
+
+    mavlink_msg_ekf_status_report_send(link.get_chan(), flags, velVar, posVar, hgtVar, mag_max, temp, tasVar);
 }
 
 bool NavBoatEKF::set_origin(const Location &loc)
@@ -185,8 +237,10 @@ bool NavBoatEKF::get_velocity(Vector2f &vel) const
 
 bool NavBoatEKF::get_quaternion(Quaternion &quat) const
 {
+    quat = Quaternion();
+
     // TODO: implement boat EKF quaternion output
-    return false;
+    return true;
 }
 
 bool NavBoatEKF::wind_estimate(Vector3f &wind) const
