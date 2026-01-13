@@ -362,6 +362,10 @@ void AP_AHRS::update_state(void)
     _getCorrectedDeltaVelocityNED(state.corrected_dv, state.corrected_dv_dt);
     state.origin_ok = _get_origin(state.origin);
     state.velocity_NED_ok = _get_velocity_NED(state.velocity_NED);
+
+    state.quat.to_euler(roll, pitch, yaw);
+    update_cd_values();
+    update_trig();
 }
 
 void AP_AHRS::update(bool skip_ins_update)
@@ -645,6 +649,9 @@ void AP_AHRS::update_EKF2(void)
 #if AP_AHRS_EXTERNAL_ENABLED
                 external.set_origin(new_origin);
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+                BoatEKF.set_origin(new_origin);
+#endif
             }
         }
     }
@@ -729,6 +736,9 @@ void AP_AHRS::update_EKF3(void)
 #if AP_AHRS_EXTERNAL_ENABLED
                 external.set_origin(new_origin);
 #endif
+#if AP_AHRS_BOATEKF_ENABLED
+                BoatEKF.set_origin(new_origin);
+#endif
             }
         }
     }
@@ -757,6 +767,9 @@ void AP_AHRS::update_external(void)
 #endif
 #if HAL_NAVEKF3_AVAILABLE
             EKF3.setOriginLLH(new_origin);
+#endif
+#if AP_AHRS_BOATEKF_ENABLED
+            BoatEKF.set_origin(new_origin);
 #endif
         }
     }

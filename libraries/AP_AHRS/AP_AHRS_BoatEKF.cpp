@@ -54,10 +54,11 @@ void NavBoatEKF::update(void)
 
         float accuracy;
         if (!AP::gps().horizontal_accuracy(accuracy)) {
-            accuracy = 4.0f;
+            accuracy = 1.5f;
         }
+        accuracy = constrain_float(accuracy, 0.1f, 1000.0f);
 
-        boatekf_update_gps(ne.x, ne.y, accuracy);
+        boatekf_update_gps(ne.x, ne.y, accuracy * accuracy);
 
         _last_time_update_gps_ms = now_ms;
     }
