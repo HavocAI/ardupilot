@@ -7,6 +7,8 @@
 #include <AP_GPS/AP_GPS.h>
 #include <AP_AHRS/AP_AHRS.h>
 
+#define BOATEKF_DEBUG 1
+
 extern "C" {
     void boatekf_init(float dt);
     void boatekf_predict(float rudder, float throttle);
@@ -222,6 +224,15 @@ bool NavBoatEKF::getLLH(Location &loc) const
     // compute new location
     loc = _origin_location;
     loc.offset(north, east);
+
+#if BOATEKF_DEBUG
+    const uint32_t now_ms = AP_HAL::millis();
+    static uint32_t last_print_ms = 0;
+    if (now_ms - last_print_ms > 1000) {
+        last_print_ms = now_ms;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF NE: N=%.2f E=%.2f", north, east);
+    }
+#endif
 
     return true;
 
