@@ -48,6 +48,11 @@ impl MotorboatDynamicsKalmanFilter {
         Self::new(0.1, model)
     }
 
+    pub fn update_origin(&mut self) {
+        self.state_estimate[(STATE_POSITION_X)] = 0.0;
+        self.state_estimate[(STATE_POSITION_Y)] = 0.0;
+    }
+
     
     pub fn pos(&self) -> [Float; 2] {
         [self.state_estimate[0], self.state_estimate[1]]

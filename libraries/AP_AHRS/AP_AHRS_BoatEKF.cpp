@@ -21,6 +21,7 @@ extern "C" {
     void boatekf_get_velocity(float *north, float *east);
     float boatekf_get_speed_variance();
     void boatekf_get_wind(float *wind_north, float *wind_east);
+    void boatekf_update_origin();
 }
 
 NavBoatEKF::NavBoatEKF()
@@ -195,6 +196,7 @@ bool NavBoatEKF::set_origin(const Location &loc)
 {
     _origin_location = loc;
     _have_origin = true;
+    boatekf_update_origin();
     return true;
 }
 

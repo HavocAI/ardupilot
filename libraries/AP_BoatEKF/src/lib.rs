@@ -36,6 +36,14 @@ pub extern "C" fn boat_ekf() -> *mut kalman_filter::MotorboatDynamicsKalmanFilte
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn boatekf_update_origin() {
+    unsafe {
+        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        ekf.update_origin();
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn boatekf_predict(rudder: Float, throttle: Float) {
     unsafe {
         let ekf = &mut *convert_mut(INSTANCE.as_ptr());
