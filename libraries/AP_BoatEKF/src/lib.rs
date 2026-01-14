@@ -11,34 +11,23 @@ type Float = f32;
 
 use panic_abort as _;
 
-static INSTANCE: MaybeUninit<kalman_filter::MotorboatDynamicsKalmanFilter> = MaybeUninit::uninit();
-
-unsafe fn convert_mut<T>(ptr: *const T) -> *mut T {
-    ptr as *mut T
-}
+static mut INSTANCE: MaybeUninit<kalman_filter::MotorboatDynamicsKalmanFilter> = MaybeUninit::uninit();
 
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_init(dt: Float) {
     let model = rampage::create_motorboat_model();
     let ekf = kalman_filter::MotorboatDynamicsKalmanFilter::new(dt, model);
     unsafe {
-        // let instance = (&INSTANCE) as *const _ as *mut MaybeUninit<kalman_filter::MotorboatDynamicsKalmanFilter>;
-        // instance.write(ekf);
-        
-        convert_mut(INSTANCE.as_ptr()).write(ekf);
-        // INSTANCE.as_mut_ptr().write(ekf);
+        let instance = &mut * &raw mut INSTANCE;
+        instance.write(ekf);
     }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn boat_ekf() -> *mut kalman_filter::MotorboatDynamicsKalmanFilter {
-    unsafe { convert_mut(INSTANCE.as_ptr()) }
 }
 
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_update_origin() {
     unsafe {
-        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        let instance = &mut * &raw mut INSTANCE;
+        let ekf = instance.assume_init_mut();
         ekf.update_origin();
     }
 }
@@ -46,7 +35,8 @@ pub extern "C" fn boatekf_update_origin() {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_predict(rudder: Float, throttle: Float) {
     unsafe {
-        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        let instance = &mut * &raw mut INSTANCE;
+        let ekf = instance.assume_init_mut();
         ekf.predict(rudder, throttle);
     }
 }
@@ -54,7 +44,8 @@ pub extern "C" fn boatekf_predict(rudder: Float, throttle: Float) {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_update_gps(north: Float, east: Float, var: Float) {
     unsafe {
-        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        let instance = &mut * &raw mut INSTANCE;
+        let ekf = instance.assume_init_mut();
         ekf.update_gps(north, east, var);
     }
 }
@@ -62,7 +53,8 @@ pub extern "C" fn boatekf_update_gps(north: Float, east: Float, var: Float) {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_update_compass(heading: Float, var: Float) {
     unsafe {
-        let ekf = &mut *convert_mut(INSTANCE.as_ptr());
+        let instance = &mut * &raw mut INSTANCE;
+        let ekf = instance.assume_init_mut();
         ekf.update_compass(heading, var);
     }
 }
@@ -70,7 +62,8 @@ pub extern "C" fn boatekf_update_compass(heading: Float, var: Float) {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_position(north: *mut Float, east: *mut Float) {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         let pos = ekf.pos();
         *north = pos[0];
         *east = pos[1];
@@ -80,7 +73,8 @@ pub extern "C" fn boatekf_get_position(north: *mut Float, east: *mut Float) {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_position_variance() -> Float {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         ekf.pos_variance()
     }
 }
@@ -88,7 +82,8 @@ pub extern "C" fn boatekf_get_position_variance() -> Float {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_heading() -> Float {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         ekf.theta()
     }
 }
@@ -96,7 +91,8 @@ pub extern "C" fn boatekf_get_heading() -> Float {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_theta_variance() -> Float {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         ekf.theta_variance()
     }
 }
@@ -104,7 +100,8 @@ pub extern "C" fn boatekf_get_theta_variance() -> Float {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_velocity(north: *mut Float, east: *mut Float) {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         let vel = ekf.velocity();
         *north = vel[0];
         *east = vel[1];
@@ -114,7 +111,8 @@ pub extern "C" fn boatekf_get_velocity(north: *mut Float, east: *mut Float) {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_speed_variance() -> Float {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         ekf.speed_variance()
     }
 }
@@ -122,7 +120,8 @@ pub extern "C" fn boatekf_get_speed_variance() -> Float {
 #[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_wind(north: *mut Float, east: *mut Float) {
     unsafe {
-        let ekf = &*INSTANCE.as_ptr();
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
         let wind = ekf.wind_velocity();
         *north = wind[0];
         *east = wind[1];

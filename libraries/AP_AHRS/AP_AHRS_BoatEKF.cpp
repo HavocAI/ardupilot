@@ -228,18 +228,18 @@ bool NavBoatEKF::getLLH(Location &loc) const
     float north, east;
     boatekf_get_position(&north, &east);
 
-    // compute new location
-    loc = _origin_location;
-    loc.offset(north, east);
-
 #if BOATEKF_DEBUG
     const uint32_t now_ms = AP_HAL::millis();
     static uint32_t last_print_ms = 0;
     if (now_ms - last_print_ms > 1000) {
         last_print_ms = now_ms;
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF NE: N=%.2f E=%.2f", north, east);
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF NE: N=%.4f E=%.4f", north, east);
     }
 #endif
+
+    // compute new location
+    loc = _origin_location;
+    loc.offset(north, east);
 
     return true;
 

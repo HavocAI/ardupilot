@@ -31,7 +31,7 @@ impl MotorboatDynamicsKalmanFilter {
             model,
             state_estimate: [0.0; physics::motorboat_model::NUM_STATES],
             covariance_estimate: CovarianceMatrix::identity(),
-            process_noise: CovarianceMatrix::identity() * 0.1,
+            process_noise: CovarianceMatrix::identity() * 0.001,
             dt,
         }
     }
