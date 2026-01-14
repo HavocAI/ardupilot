@@ -194,6 +194,9 @@ void NavBoatEKF::send_status_report(GCS_MAVLINK &link) const
 
 bool NavBoatEKF::set_origin(const Location &loc)
 {
+#if BOATEKF_DEBUG
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF origin set: lat=%" PRIi32 " lon=%" PRIi32 "", loc.lat, loc.lng);
+#endif
     _origin_location = loc;
     _have_origin = true;
     boatekf_update_origin();
