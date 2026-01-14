@@ -15,8 +15,11 @@ extern "C" {
     void boatekf_update_gps(float north, float east, float var);
     void boatekf_update_compass(float yaw, float var);
     void boatekf_get_position(float *north, float *east);
+    float boatekf_get_position_variance();
     float boatekf_get_heading();
+    float boatekf_get_theta_variance();
     void boatekf_get_velocity(float *north, float *east);
+    float boatekf_get_speed_variance();
     void boatekf_get_wind(float *wind_north, float *wind_east);
 }
 
@@ -105,13 +108,12 @@ void NavBoatEKF::update(void)
 
 bool NavBoatEKF::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
 {
-    velVar = 0.12f;
-    posVar = 0.12f;
+    velVar = boatekf_get_speed_variance();
+    posVar = boatekf_get_position_variance();
     hgtVar = 0.12f;
-    magVar = Vector3f(0.5f, 0.5f, 0.5f);
+    const float theta_variance = boatekf_get_theta_variance();
+    magVar = Vector3f(theta_variance, theta_variance, theta_variance);
     tasVar = 0.5f;
-
-    // TODO: implement boat EKF variances
     return true;
 }
 

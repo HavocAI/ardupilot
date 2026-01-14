@@ -11,7 +11,7 @@ use crate::{
     Float,
     physics::{
         self,
-        motorboat_model::{STATE_ORIENTATION, STATE_POSITION_X, STATE_POSITION_Y},
+        motorboat_model::{STATE_ORIENTATION, STATE_POSITION_X, STATE_POSITION_Y, STATE_VELOCITY_X, STATE_VELOCITY_Y},
     },
 };
 
@@ -53,9 +53,19 @@ impl MotorboatDynamicsKalmanFilter {
         [self.state_estimate[0], self.state_estimate[1]]
     }
 
+    pub fn pos_variance(&self) -> Float {
+        let x_var = self.covariance_estimate[(STATE_POSITION_X, STATE_POSITION_X)];
+        let y_var = self.covariance_estimate[(STATE_POSITION_Y, STATE_POSITION_Y)];
+        x_var + y_var
+    }
+
     
     pub fn theta(&self) -> Float {
         self.state_estimate[2]
+    }
+
+    pub fn theta_variance(&self) -> Float {
+        self.covariance_estimate[(STATE_ORIENTATION, STATE_ORIENTATION)]
     }
 
     
@@ -69,10 +79,15 @@ impl MotorboatDynamicsKalmanFilter {
         if speed.is_nan() { 0.0 } else { speed }
     }
 
+    pub fn speed_variance(&self) -> Float {
+        let x_var = self.covariance_estimate[(STATE_VELOCITY_X, STATE_VELOCITY_X)];
+        let y_var = self.covariance_estimate[(STATE_VELOCITY_Y, STATE_VELOCITY_Y)];
+        x_var + y_var
+    }
+
     pub fn velocity(&self) -> [Float; 2] {
         [self.state_estimate[4], self.state_estimate[5]]
     }
-
     
     pub fn wind_velocity(&self) -> [Float; 2] {
         [self.state_estimate[6], self.state_estimate[7]]
@@ -106,7 +121,6 @@ impl MotorboatDynamicsKalmanFilter {
     }
 
     #[allow(non_snake_case)]
-    
     pub fn update_gps(
         &mut self,
         gps_position_x: Float,
@@ -137,7 +151,6 @@ impl MotorboatDynamicsKalmanFilter {
     }
 
     #[allow(non_snake_case)]
-    
     pub fn update_compass(&mut self, compass_heading: Float, compass_heading_variance: Float) {
         let z_data = [compass_heading];
         let z = SVectorView::from_slice(&z_data);

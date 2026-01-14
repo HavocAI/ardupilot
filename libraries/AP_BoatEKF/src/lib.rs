@@ -70,10 +70,26 @@ pub extern "C" fn boatekf_get_position(north: *mut Float, east: *mut Float) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_position_variance() -> Float {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        ekf.pos_variance()
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn boatekf_get_heading() -> Float {
     unsafe {
         let ekf = &*INSTANCE.as_ptr();
         ekf.theta()
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_theta_variance() -> Float {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        ekf.theta_variance()
     }
 }
 
@@ -84,6 +100,14 @@ pub extern "C" fn boatekf_get_velocity(north: *mut Float, east: *mut Float) {
         let vel = ekf.velocity();
         *north = vel[0];
         *east = vel[1];
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_speed_variance() -> Float {
+    unsafe {
+        let ekf = &*INSTANCE.as_ptr();
+        ekf.speed_variance()
     }
 }
 
