@@ -37,7 +37,7 @@ void NavBoatEKF::init(void)
     boatekf_init(0.100f); // 100 ms timestep
 }
 
-void NavBoatEKF::update(void)
+void NavBoatEKF::update(bool disable_gps, bool disable_compass)
 {
     const uint32_t now_ms = AP_HAL::millis();
     const uint32_t dt_ms = now_ms - _last_time_predict_ms;
@@ -50,7 +50,7 @@ void NavBoatEKF::update(void)
         boatekf_predict(rudder, throttle);
     }
 
-    if (now_ms - _last_time_update_gps_ms > 1000 && AP::gps().status() >= AP_GPS::GPS_OK_FIX_2D) {
+    if (!disable_gps && now_ms - _last_time_update_gps_ms > 1000 && AP::gps().status() >= AP_GPS::GPS_OK_FIX_2D) {
 
         const Location &location = AP::gps().location();
         if (!_have_origin) {
@@ -69,7 +69,7 @@ void NavBoatEKF::update(void)
         _last_time_update_gps_ms = now_ms;
     }
 
-    if (now_ms - _last_time_update_compass > 1000) {
+    if (!disable_compass && now_ms - _last_time_update_compass > 1000) {
         const NavEKF3& EKF3 = AP::ahrs().EKF3;
 
         uint16_t faultInt;

@@ -413,7 +413,8 @@ void AP_AHRS::update(bool skip_ins_update)
 #endif
 
 #if AP_AHRS_BOATEKF_ENABLED
-    BoatEKF.update();
+    BoatEKF.update(option_set(Options::DISABLE_GPS),
+                   option_set(Options::DISABLE_COMPASS));
 #endif
     
     if (_ekf_type == 2) {

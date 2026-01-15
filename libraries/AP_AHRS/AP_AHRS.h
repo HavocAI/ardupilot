@@ -1026,6 +1026,8 @@ private:
         DISABLE_DCM_FALLBACK_FW=(1U<<0),
         DISABLE_DCM_FALLBACK_VTOL=(1U<<1),
         DISABLE_AIRSPEED_EKF_CHECK=(1U<<2),
+        DISABLE_GPS=(1U<<3),
+        DISABLE_COMPASS=(1U<<4),
     };
     AP_Int16 _options;
     

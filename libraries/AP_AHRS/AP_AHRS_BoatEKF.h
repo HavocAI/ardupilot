@@ -27,7 +27,7 @@ public:
     void send_status_report(GCS_MAVLINK &link) const;
 
     // Update Filter - this should be called from AP_AHRS::update in the main loop (400Hz?)
-    void update(void);
+    void update(bool disable_gps, bool disable_compass);
 
     bool set_origin(const Location &loc);
     bool get_origin(Location &ret) const;
