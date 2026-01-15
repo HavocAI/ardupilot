@@ -45,6 +45,7 @@ void NavBoatEKF::update(bool disable_gps, bool disable_compass)
         _last_time_predict_ms = now_ms;
 
         float rudder = SRV_Channels::get_output_norm(SRV_Channel::k_steering);
+        rudder = rudder * 0.35f;
         float throttle = SRV_Channels::get_output_norm(SRV_Channel::k_throttle);
 
         boatekf_predict(rudder, throttle);
