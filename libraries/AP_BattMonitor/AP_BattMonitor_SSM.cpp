@@ -195,6 +195,9 @@ void AP_BattMonitor_SSM::read()
     // memcpy(_state.cell_voltages.cells, _interim_state.cell_voltages.cells, sizeof(_state.cell_voltages));
 
     memcpy(&_fault_state, &_interim_fault_state, sizeof(ssm_fault_state_t));
+    // TODO(Cory): This is when we would set ArduPilot proper battery fault flags
+    // But we may not care about all of them, for instance, there are fault flags
+    // only when the battery is turned off, which might not be relevant.
 
 }
 

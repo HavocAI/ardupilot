@@ -413,7 +413,7 @@ void GCS_MAVLINK::send_battery_extras(const uint8_t instance) const
 {
     const AP_BattMonitor &battery = AP::battery();
     AP_BattMonitor_SSM * const ssm = static_cast<AP_BattMonitor_SSM*>(battery.get_backend_driver(instance));
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY %" PRIu32, ssm->sanity_check());
+    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY %" PRIu32, 0xDEADBEEF);
     const AP_BattMonitor_SSM::ssm_fault_state_t failure_and_fault_state = ssm->get_ssm_fault_info();
     mavlink_msg_ssm_telemetry_send(chan,
         instance,

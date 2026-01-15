@@ -48,11 +48,9 @@ public:
     
     static const struct AP_Param::GroupInfo var_info[];
 
-    uint32_t sanity_check() const { return 0xDEADBEEFU; }
-
     struct ssm_fault_state_t {
         ssmbattery_hardware_and_battery_failure_information_t hwinfo;
-        ssmbattery_fault_t faults[2]; // NOTE: Page 1 and Page 2 are stores as their own message, this wastes 2 bytes to store the implicit page number
+        ssmbattery_fault_t faults[2]; // NOTE: Page 1 and Page 2 are stored as their own message, this wastes 2 bytes to store the implicit page number
     };
 
     ssm_fault_state_t get_ssm_fault_info();
@@ -85,8 +83,8 @@ private:
     void split_id(uint32_t can_id, uint32_t& base_id, uint32_t& board_number);
 
     AP_BattMonitor::BattMonitor_State _interim_state;
+    ssm_fault_state_t _fault_state, _interim_fault_state;
     uint8_t _capacity_remaining_pct;
-    ssm_fault_state_t _interim_fault_state, _fault_state;
 
     // Parameters
     AP_Int8 _can_port;
