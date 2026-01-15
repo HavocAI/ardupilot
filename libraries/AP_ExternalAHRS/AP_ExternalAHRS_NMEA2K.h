@@ -51,6 +51,8 @@ private:
     uint32_t last_gps_ms;
     bool initialized;
     uint32_t last_send_cmd;
+    // magnetic variation (radians)
+    float mag_variation;
     AP_NMEA2K* nmea2k;
 };
 

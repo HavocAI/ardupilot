@@ -81,8 +81,8 @@ void AP_ExternalAHRS_NMEA2K::update()
 bool AP_ExternalAHRS_NMEA2K::healthy(void) const
 {
     WITH_SEMAPHORE(state.sem);
-    return AP_HAL::millis() - last_att_ms < 500 &&
-           AP_HAL::millis() - last_vel_ms < 500 &&
+    return AP_HAL::millis() - last_att_ms < 500 ||
+           AP_HAL::millis() - last_vel_ms < 500 ||
            AP_HAL::millis() - last_pos_ms < 500;
 }
 
@@ -143,6 +143,7 @@ bool AP_ExternalAHRS_NMEA2K::get_variances(float &velVar, float &posVar, float &
     velVar = 0.5f * vel_gate_scale;
     posVar = 0.5f * pos_gate_scale;
     hgtVar = 0.5f * hgt_gate_scale;
+    magVar = Vector3f(mag_variation, mag_variation, mag_variation);
     tasVar = 0;
     return true;
 }
@@ -376,6 +377,19 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
     }
     break;
 
+    case 127258:
+    {
+        n2k_pgn_127258_magnetic_variation_t data;
+        if (n2k_pgn_127258_magnetic_variation_unpack(&data, msg.DataPtrForUnpack(), msg.data_length()) != 0) {
+            return;
+        }
+
+        WITH_SEMAPHORE(state.sem);
+
+        mag_variation = data.variation * 0.0001f;
+
+    } break;
+
     case 127250:
     {
 
@@ -384,22 +398,29 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
             return;
         }
 
-        // WITH_SEMAPHORE(state.sem);
+        WITH_SEMAPHORE(state.sem);
 
-        // state.quat.from_euler(
-        //     0.0f,
-        //     0.0f,
-        //     data.heading * 0.0001f
-        // );
+        float pitch, roll, yaw;
+        state.quat.to_euler(roll, pitch, yaw);
 
-        // state.have_quaternion = true;
-        // last_att_ms = now_ms;
+        yaw = data.heading * 0.0001f;
 
-        // static uint32_t last_heading_ms = 0;
-        // if (now_ms - last_heading_ms > 1000) {
-        //     last_heading_ms = now_ms;
-        //     GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: heading %.2f", degrees(data.heading * 0.0001f));
-        // }
+        state.quat.from_euler(
+            roll,
+            pitch,
+            yaw
+        );
+
+        state.have_quaternion = true;
+        last_att_ms = now_ms;
+
+#if EXTERNAL_AHRS_DEBUG
+        static uint32_t last_heading_ms = 0;
+        if (now_ms - last_heading_ms > 1000) {
+            last_heading_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: heading %.2f", degrees(data.heading * 0.0001f));
+        }
+#endif // EXTERNAL_AHRS_DEBUG
 
 
     } break;
