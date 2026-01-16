@@ -29,7 +29,6 @@ bool AP_ExternalAHRS_NMEA2K::init()
     if (initialized) {
         return true;
     }
-    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: init");
 
     // find a NMEA2K CAN driver instance from the CANManager
     AP_CANManager* can_manager = AP_CANManager::get_singleton();
@@ -171,6 +170,16 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         state.last_location_update_us = AP_HAL::micros();
         last_pos_ms = now_ms;
 
+#if EXTERNAL_AHRS_DEBUG
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 5000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: pos lat %.7f lon %.7f",
+                          state.location.lat * 1e-7,
+                          state.location.lng * 1e-7);
+        }
+#endif
+
     }
     break;
     case 129029:
@@ -301,14 +310,13 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         }
 
 #if EXTERNAL_AHRS_DEBUG
-        static uint32_t last_position_print_ms = 0;
-        if (now_ms - last_position_print_ms > 1000) {
-            last_position_print_ms = now_ms;
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: pos lat %.7f lon %.7f sats %d m: %d",
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 5000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: pos lat %.7f lon %.7f sats %d",
                           gps_data.latitude * 1e-7,
                           gps_data.longitude * 1e-7,
-                          gps_data.satellites_in_view,
-                          cached_data.pgn_129029_method);
+                          gps_data.satellites_in_view);
         }
 #endif // EXTERNAL_AHRS_DEBUG
 
@@ -342,6 +350,17 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
 
         last_vel_ms = now_ms;
 
+#if EXTERNAL_AHRS_DEBUG
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 5000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: vel N %.2f E %.2f S %.2f",
+                          gps_data.ned_vel_north,
+                          gps_data.ned_vel_east,
+                          gps_data.ned_vel_down);
+        }
+#endif
+
     }
     break;
 
@@ -364,10 +383,10 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         last_att_ms = now_ms;
 
 #if EXTERNAL_AHRS_DEBUG
-        static uint32_t last_attitude_print_ms = 0;
-        if (now_ms - last_attitude_print_ms > 1000) {
-            last_attitude_print_ms = now_ms;
-            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: att R %.2f P %.2f Y %.2f",
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 5000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: att R %.0f P %.0f Y %.0f",
                           degrees(data.roll * 0.0001f),
                           degrees(data.pitch * 0.0001f),
                           degrees(data.yaw * 0.0001f));
@@ -387,6 +406,15 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         WITH_SEMAPHORE(state.sem);
 
         mag_variation = data.variation * 0.0001f;
+
+#if EXTERNAL_AHRS_DEBUG
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 10000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: mag var %.2f deg",
+                          degrees(mag_variation));
+        }
+#endif // EXTERNAL_AHRS_DEBUG
 
     } break;
 
@@ -415,9 +443,9 @@ void AP_ExternalAHRS_NMEA2K::handle_nmea2k_message(AP_NMEA2K* nmea2k_instance, n
         last_att_ms = now_ms;
 
 #if EXTERNAL_AHRS_DEBUG
-        static uint32_t last_heading_ms = 0;
-        if (now_ms - last_heading_ms > 1000) {
-            last_heading_ms = now_ms;
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 5000) {
+            last_print_ms = now_ms;
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "EAHRS_NMEA2K: heading %.2f", degrees(data.heading * 0.0001f));
         }
 #endif // EXTERNAL_AHRS_DEBUG
