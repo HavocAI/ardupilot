@@ -68,6 +68,7 @@ class AP_GPS
     friend class AP_GPS_UBLOX;
     friend class AP_GPS_Backend;
     friend class AP_GPS_DroneCAN;
+    friend class AP_GPS_NMEA2K;
 
 public:
     AP_GPS();
@@ -112,6 +113,7 @@ public:
         GPS_TYPE_UNICORE_NMEA = 24,
         GPS_TYPE_UNICORE_MOVINGBASE_NMEA = 25,
         GPS_TYPE_SBF_DUAL_ANTENNA = 26,
+        GPS_TYPE_NMEA2K = 27,
 #if HAL_SIM_GPS_ENABLED
         GPS_TYPE_SITL = 100,
 #endif
@@ -631,6 +633,7 @@ protected:
         GPSL5HealthOverride = (1U << 5),
         AlwaysRTCMDecode = (1U << 6),
         DisableRTCMDecode = (1U << 7),
+        Disable = (1U << 8),
     };
 
     // check if an option is set

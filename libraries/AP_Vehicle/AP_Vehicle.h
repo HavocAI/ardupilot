@@ -539,6 +539,10 @@ private:
     void update_dynamic_notch_at_specified_rate();
 #endif  // AP_INERTIALSENSOR_HARMONICNOTCH_ENABLED
 
+#if HAL_NMEA2K_ENABLED
+    void update_nmea2k();
+#endif  // HAL_NMEA2K_ENABLED
+
     // decimation for 1Hz update
     uint8_t one_Hz_counter;
     void one_Hz_update();
