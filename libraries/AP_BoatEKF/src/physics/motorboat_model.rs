@@ -1,4 +1,4 @@
-use nalgebra::{SVector, Vector2, VectorView};
+use nalgebra::{SVector, Vector, Vector2};
 
 use crate::physics::{
     AIR_DENSITY, WATER_DENSITY,
@@ -35,13 +35,15 @@ pub struct MotorboatModel {
 
 impl MotorboatModel {}
 
-pub fn state_transition<D: nalgebra::RealField + Copy + From<f32>>(
+pub fn state_transition<D: nalgebra::RealField + Copy + From<f32>, S>(
     model: &MotorboatModel,
     dt: f32,
     rudder: f32,
     throttle: f32,
-    x: VectorView<'_, D, nalgebra::Const<NUM_STATES>>,
-) -> SVector<D, NUM_STATES> {
+    x: &Vector<D, nalgebra::Const<NUM_STATES>, S>,
+) -> SVector<D, NUM_STATES>
+where S: nalgebra::RawStorage<D, nalgebra::Const<NUM_STATES>>,
+{
     let dt = D::from(dt);
     let rudder = D::from(rudder);
     let throttle = D::from(throttle);

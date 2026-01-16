@@ -6,6 +6,7 @@ version = 4
 name = "AP_BoatEKF"
 version = "0.1.0"
 dependencies = [
+ "assert_approx_eq",
  "autodiff_emb",
  "nalgebra",
  "num-integer",
@@ -25,6 +26,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_approx_eq"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c07dab4369547dbe5114677b33fbbf724971019f3818172d59a97a61c774ffd"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -33,7 +40,7 @@ checksum = "c08606f8c3cbf4ce6ec8e28fb0014a2c086708fe954eaa885384a6165172e7e8"
 [[package]]
 name = "autodiff_emb"
 version = "0.1.0"
-source = "git+https://github.com/pshavoc/autodiff_emb.git?branch=dev#fa32377f97f045ed45d462f79d132f09d57dbb9e"
+source = "git+https://github.com/pshavoc/autodiff_emb.git?branch=dev#f71ce8861d2c4c1388ee284726d1a3ad4c8d4643"
 dependencies = [
  "approx",
  "libm",
@@ -50,9 +57,9 @@ checksum = "f9fbbcab51052fe104eb5e5d351cf728d30a5be1fe14d9be8a3b097481fb97de"
 
 [[package]]
 name = "nalgebra"
-version = "0.32.6"
+version = "0.34.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b5c17de023a86f59ed79891b2e5d5a94c705dbe904a5b5c9c952ea6221b03e4"
+checksum = "c4d5b3eff5cd580f93da45e64715e8c20a3996342f1e466599cf7a267a0c2f5f"
 dependencies = [
  "approx",
  "nalgebra-macros",
@@ -65,9 +72,9 @@ dependencies = [
 
 [[package]]
 name = "nalgebra-macros"
-version = "0.2.2"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "254a5372af8fc138e36684761d3c0cdb758a4410e938babcff1c860ce14ddbfc"
+checksum = "973e7178a678cfd059ccec50887658d482ce16b0aa9da3888ddeab5cd5eb4889"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -156,9 +163,9 @@ dependencies = [
 
 [[package]]
 name = "simba"
-version = "0.8.1"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "061507c94fc6ab4ba1c9a0305018408e312e17c041eb63bef8aa726fa33aceae"
+checksum = "c99284beb21666094ba2b75bbceda012e610f5479dfcc2d6e2426f53197ffd95"
 dependencies = [
  "approx",
  "num-complex",
