@@ -5,9 +5,17 @@
 #include <SRV_Channel/SRV_Channel.h>
 #include <AP_Common/AP_Common.h>
 #include <AP_GPS/AP_GPS.h>
+#include <AP_Compass/AP_Compass.h>
+#include <AP_NavEKF/EKFGSF_yaw.h>
 #include <AP_AHRS/AP_AHRS.h>
 
 #define BOATEKF_DEBUG 1
+
+#if defined(__GNUC__) || defined(__clang__)
+#define UNUSED __attribute__((unused))
+#else
+#define UNUSED
+#endif
 
 extern "C" {
     void boatekf_init(float dt);
@@ -35,6 +43,68 @@ NavBoatEKF::NavBoatEKF()
 void NavBoatEKF::init(void)
 {
     boatekf_init(0.100f); // 100 ms timestep
+}
+
+
+UNUSED
+static bool get_yaw_ekf3(float &yaw, float &yaw_variance)
+{
+    const NavEKF3& EKF3 = AP::ahrs().EKF3;
+
+    uint16_t faultInt;
+    EKF3.getFilterFaults(faultInt);
+
+    // we just want to ensure that the EKF3's quaternion is valid and the states have been initialized
+    const uint16_t mask = (1 << 0) | (1 << 7);
+    const bool is_healthy = (faultInt & mask) == 0;
+
+    if (is_healthy) {
+        Vector3f eulers;
+        EKF3.getEulerAngles(eulers);
+        yaw   = eulers.z;
+        yaw_variance = 0.25f;
+        return true;
+    }
+    return false;
+}
+
+UNUSED
+static bool get_yaw_from_compass(float &yaw, float &yaw_variance)
+{
+    Compass &compass = AP::compass();
+
+    yaw = compass.calculate_heading(AP::ahrs().get_DCM_rotation_body_to_ned());
+
+    // note: we can get the yaw error by using AP_AHRS_DCM::yaw_error_compass()
+
+    // assume a default variance of 10 degrees squared
+    yaw_variance = radians(10.0f) * radians(10.0f);
+    return true;
+
+}
+
+
+UNUSED
+static bool get_yaw_ekf3_yaw_estimator(float &yaw, float &yaw_variance)
+{
+    const NavEKF3& EKF3 = AP::ahrs().EKF3;
+    const EKFGSF_yaw* gsf = EKF3.get_yawEstimator();
+
+    if (gsf == nullptr) {
+        // no GSF available
+        return false;
+    }
+
+    ftype yaw_d, yaw_variance_d;
+    if (!gsf->getYawData(yaw_d, yaw_variance_d, nullptr) ||
+        !is_positive(yaw_variance_d)) {
+        // not converged
+        return false;
+    }
+
+    yaw = yaw_d;
+    yaw_variance = yaw_variance_d;
+    return true;
 }
 
 void NavBoatEKF::update(bool disable_gps, bool disable_compass)
@@ -65,47 +135,33 @@ void NavBoatEKF::update(bool disable_gps, bool disable_compass)
         }
         accuracy = constrain_float(accuracy, 0.1f, 1000.0f);
 
+#if BOATEKF_DEBUG
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 1000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF GPS: N=%.3f E=%.3f Acc=%.2f", ne.x, ne.y, accuracy);
+        }
+#endif
+
         boatekf_update_gps(ne.x, ne.y, accuracy * accuracy);
 
         _last_time_update_gps_ms = now_ms;
     }
 
-    if (!disable_compass && now_ms - _last_time_update_compass > 1000) {
-        const NavEKF3& EKF3 = AP::ahrs().EKF3;
-
-        uint16_t faultInt;
-        EKF3.getFilterFaults(faultInt);
-
-        // we just want to ensure that the EKF3's quaternion is valid and the states have been initialized
-        const uint16_t mask = (1 << 0) | (1 << 7);
-        const bool is_healthy = (faultInt & mask) == 0;
-
-        if (is_healthy) {
-            // Matrix3f dcm_matrix;
-
-            Vector3f eulers;
-            // EKF3.getRotationBodyToNED(dcm_matrix);
-            EKF3.getEulerAngles(eulers);
-            // roll  = eulers.x;
-            // pitch = eulers.y;
-            float yaw   = eulers.z;
-            float yaw_variance = 0.4f;
-
-            // Vector3f velInnov;
-            // Vector3f posInnov;
-            // Vector3f magInnov;
-            // float tasInnov = 0;
-            // float yawInnov = 0;
-            // EKF3.getInnovations(velInnov, posInnov, magInnov, tasInnov, yawInnov);
-            // yaw_variance += yawInnov * yawInnov;
-
-            // we use the yaw innovation squared as a variance proxy
+    if (!disable_compass && now_ms - _last_time_update_compass > 100) {
+        float yaw, yaw_variance;
+        if (get_yaw_from_compass(yaw, yaw_variance)) {
+#if BOATEKF_DEBUG
+            static uint32_t last_print_ms = 0;
+            if (now_ms - last_print_ms > 1000) {
+                last_print_ms = now_ms;
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: yaw=%.2f var=%.4f", degrees(yaw), degrees(sqrtf(yaw_variance)));
+            }
+#endif
             boatekf_update_compass(yaw, yaw_variance);
-
             _last_time_update_compass = now_ms;
         }
     }
-    
 }
 
 bool NavBoatEKF::get_variances(float &velVar, float &posVar, float &hgtVar, Vector3f &magVar, float &tasVar) const
@@ -229,14 +285,14 @@ bool NavBoatEKF::getLLH(Location &loc) const
     float north, east;
     boatekf_get_position(&north, &east);
 
-#if BOATEKF_DEBUG
-    const uint32_t now_ms = AP_HAL::millis();
-    static uint32_t last_print_ms = 0;
-    if (now_ms - last_print_ms > 1000) {
-        last_print_ms = now_ms;
-        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF NE: N=%.4f E=%.4f", north, east);
-    }
-#endif
+// #if BOATEKF_DEBUG
+//     const uint32_t now_ms = AP_HAL::millis();
+//     static uint32_t last_print_ms = 0;
+//     if (now_ms - last_print_ms > 10000) {
+//         last_print_ms = now_ms;
+//         GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF NE: N=%.4f E=%.4f", north, east);
+//     }
+// #endif
 
     // compute new location
     loc = _origin_location;
@@ -259,6 +315,16 @@ bool NavBoatEKF::get_velocity(Vector2f &vel) const
 bool NavBoatEKF::get_quaternion(Quaternion &quat) const
 {
     const float heading_rad = boatekf_get_heading();
+    
+#if BOATEKF_DEBUG
+    static uint32_t last_print_ms = 0;
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - last_print_ms > 1000) {
+        last_print_ms = now_ms;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: out yaw: %.1f deg", degrees(heading_rad));
+    }
+#endif
+    
     quat.from_euler(0.0f, 0.0f, heading_rad);
     return true;
 }
