@@ -117,6 +117,15 @@ void NavBoatEKF::update(bool disable_gps, bool disable_compass)
         float rudder = SRV_Channels::get_output_norm(SRV_Channel::k_steering);
         rudder = rudder * 0.35f;
         float throttle = SRV_Channels::get_output_norm(SRV_Channel::k_throttle);
+        throttle = throttle * 100.0f;
+
+#if BOATEKF_DEBUG
+        static uint32_t last_print_ms = 0;
+        if (now_ms - last_print_ms > 1000) {
+            last_print_ms = now_ms;
+            GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: r=%.2f t=%.2f", rudder, throttle);
+        }
+#endif
 
         boatekf_predict(rudder, throttle);
     }
@@ -137,7 +146,7 @@ void NavBoatEKF::update(bool disable_gps, bool disable_compass)
 
 #if BOATEKF_DEBUG
         static uint32_t last_print_ms = 0;
-        if (now_ms - last_print_ms > 1000) {
+        if (now_ms - last_print_ms > 10000) {
             last_print_ms = now_ms;
             GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF GPS: N=%.3f E=%.3f Acc=%.2f", ne.x, ne.y, accuracy);
         }
@@ -308,6 +317,15 @@ bool NavBoatEKF::get_velocity(Vector2f &vel) const
         return false;
     }
 
+#if BOATEKF_DEBUG
+    const uint32_t now_ms = AP_HAL::millis();
+    static uint32_t last_print_ms = 0;
+    if (now_ms - last_print_ms > 10000) {
+        last_print_ms = now_ms;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: out vel: N=%.2f E=%.2f", vel.x, vel.y);
+    }
+#endif
+
     boatekf_get_velocity(&vel.x, &vel.y);
     return true;
 }
@@ -333,6 +351,16 @@ bool NavBoatEKF::wind_estimate(Vector3f &wind) const
 {
     float wind_north, wind_east;
     boatekf_get_wind(&wind_north, &wind_east);
+
+#if BOATEKF_DEBUG
+    static uint32_t last_print_ms = 0;
+    const uint32_t now_ms = AP_HAL::millis();
+    if (now_ms - last_print_ms > 10000) {
+        last_print_ms = now_ms;
+        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: wind N=%.2f E=%.2f", wind_north, wind_east);
+    }
+#endif
+
     wind = Vector3f(wind_north, wind_east, 0.0f);
     return true;
 }
