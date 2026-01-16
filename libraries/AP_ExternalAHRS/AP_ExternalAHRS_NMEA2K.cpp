@@ -11,7 +11,7 @@
 
 extern const AP_HAL::HAL &hal;
 
-#define EXTERNAL_AHRS_DEBUG 0
+#define EXTERNAL_AHRS_DEBUG 1
 
 AP_ExternalAHRS_NMEA2K::AP_ExternalAHRS_NMEA2K(AP_ExternalAHRS *_frontend, AP_ExternalAHRS::state_t &_state)
     : AP_ExternalAHRS_backend(_frontend, _state)

@@ -2105,6 +2105,13 @@ AP_AHRS::EKFType AP_AHRS::_active_EKF_type(void) const
 
 AP_AHRS::EKFType AP_AHRS::fallback_active_EKF_type(void) const
 {
+
+#if AP_AHRS_EXTERNAL_ENABLED
+    if (external.healthy()) {
+        return EKFType::EXTERNAL;
+    }
+#endif
+
 #if AP_AHRS_DCM_ENABLED
     return EKFType::DCM;
 #endif
@@ -2118,12 +2125,6 @@ AP_AHRS::EKFType AP_AHRS::fallback_active_EKF_type(void) const
 #if HAL_NAVEKF2_AVAILABLE
     if (_ekf2_started) {
         return EKFType::TWO;
-    }
-#endif
-
-#if AP_AHRS_EXTERNAL_ENABLED
-    if (external.healthy()) {
-        return EKFType::EXTERNAL;
     }
 #endif
 
