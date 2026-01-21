@@ -56,6 +56,7 @@
 #include <AP_HAL/utility/sparse-endian.h>
 #include <SRV_Channel/SRV_Channel.h>
 #include <GCS_MAVLink/GCS.h>
+#include <AP_Filesystem/AP_Filesystem.h>
 
 extern const AP_HAL::HAL &hal;
 
@@ -248,6 +249,8 @@ const AP_Param::GroupInfo AP_Ilmor::var_info[] = {
     // @User: Advanced
     AP_GROUPINFO("MAX_R", 13, AP_Ilmor, _max_rpm_reverse, 300),
 
+    AP_GROUPINFO("CAN_U", 14, AP_Ilmor, _can_update, 0),
+
     AP_GROUPEND};
 
 AP_Ilmor::AP_Ilmor()
@@ -382,6 +385,8 @@ void AP_Ilmor::tick()
 #ifdef AP_ILMOR_DEBUG
     icu_logging_state_machine();
 #endif
+
+    ota_update_state_machine();
 
     if (now_ms - _last_print_faults_ms >= 10000) {
         report_faults();
@@ -1313,6 +1318,103 @@ void AP_Ilmor::handle_inverter_status_frame_5(const struct ilmor_inverter_status
     };
     update_telem_data(0, t,
                       AP_ESC_Telem_Backend::TelemetryType::VOLTAGE);
+}
+
+
+#define CHUNK_SIZE 1024
+#define CAN_UPDATE_STATE_IDLE           0
+#define CAN_UPDATE_STATE_START          1
+#define CAN_UPDATE_STATE_IN_PROGRESS    2
+
+void AP_Ilmor::ota_update_state_machine()
+{
+
+    static uint8_t can_update_state = 0;
+    static int ota_file;
+    static const char* fw_file_path = "ilmor_fw.bin";
+    static uint32_t bytes_sent = 0;
+    static uint32_t fw_size = 0;
+    static uint8_t seq_number = 0;
+
+    if (_can_update.get() == 1) {
+        switch (can_update_state) {
+            case CAN_UPDATE_STATE_IDLE:
+                can_update_state = CAN_UPDATE_STATE_START;
+                {
+                    struct stat st;
+                    if (AP::FS().stat(fw_file_path, &st) < 0) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_ERROR, "Ilmor: CAN FW update file ilmor_fw.bin not found");
+                        return;
+                    }
+
+                    ota_file = AP::FS().open(fw_file_path, O_RDONLY);
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: Starting CAN firmware update");
+                    GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: FW size: %" PRIu32 " bytes", (uint32_t)st.st_size);
+
+                    J1939::J1939Frame frame;
+                    frame.pgn = 0xfff0;
+                    frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+
+                    fw_size = st.st_size;
+                    frame.data[0] = (st.st_size >> 16) & 0xF0;
+                    frame.data[1] = (st.st_size >> 12) & 0xFF;
+                    frame.data[2] = (st.st_size >> 4) & 0xFF;
+                    frame.data[3] = (st.st_size) & 0x0f;
+
+                    frame.data[4] = 0x00;
+                    frame.data[5] = 0x00;
+
+
+                    AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+                    write_frame(can_frame, 50);
+
+                    can_update_state = CAN_UPDATE_STATE_IN_PROGRESS;
+
+                }
+                break;
+
+            case CAN_UPDATE_STATE_IN_PROGRESS:
+            {
+                J1939::J1939Frame frame;
+                uint32_t len, err;
+
+                frame.pgn = 0xfff1;
+                frame.source_address = AP_ILMOR_SOURCE_ADDRESS;
+
+                // create ISO TP endpoint (ISO 15765-2)
+                if (bytes_sent % CHUNK_SIZE == 0) {
+                    // send first frame
+                    seq_number = 0;
+                    frame.data[0] = 0x14;
+                    frame.data[1] = 0x00;
+                    len = 6;
+                    err = AP::FS().read(ota_file, &frame.data[2], len);
+                } else {
+                    len = 7;
+                    frame.data[0] = 0x20 | seq_number;
+                    seq_number = (seq_number + 1) & 0x0F;
+                    err = AP::FS().read(ota_file, &frame.data[1], len);
+                }
+
+                if (err > 0) {
+                    bytes_sent += err;
+                    AP_HAL::CANFrame can_frame = J1939::pack_j1939_frame(frame);
+                    write_frame(can_frame, 50);
+
+                    if (bytes_sent >= fw_size) {
+                        GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Ilmor: CAN firmware update completed");
+                        AP::FS().close(ota_file);
+                        can_update_state = CAN_UPDATE_STATE_IDLE;
+                        _can_update.set(0);
+                    }
+                }
+
+            }
+            break;
+        }
+    }
+
+
 }
 
 

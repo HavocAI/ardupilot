@@ -180,6 +180,7 @@ private:
     AP_Int8 _auto_trim_down_threshold;
     AP_Int32 _auto_trim_down_period;
     AP_Float _max_rpm_reverse;
+    AP_Int8 _can_update;
 
     uint8_t _current_trim_position;
     int32_t _last_rpm;
@@ -256,6 +257,8 @@ private:
 #ifdef AP_ILMOR_DEBUG
     void icu_logging_state_machine();
 #endif
+
+    void ota_update_state_machine();
 
     void active_fault(J1939::DiagnosticMessage1::DTC& dtc);
     void report_faults();
