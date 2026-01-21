@@ -59,7 +59,7 @@ uint32_t GCS_Rover::custom_mode() const
 
 MAV_STATE GCS_MAVLINK_Rover::vehicle_system_status() const
 {
-    if ((rover.failsafe.triggered != 0) || rover.failsafe.ekf) {
+    if ((rover.failsafe.bits != 0) || rover.failsafe.ekf) {
         return MAV_STATE_CRITICAL;
     }
     if (rover.control_mode == &rover.mode_initializing) {
@@ -594,6 +594,9 @@ static const ap_message STREAM_EXTRA3_msgs[] = {
     MSG_SYSTEM_TIME,
 #if AP_BATTERY_ENABLED
     MSG_BATTERY_STATUS,
+#if AP_MAVLINK_BATTERY2_ENABLED
+    MSG_BATTERY2,
+#endif
 #endif
 #if HAL_MOUNT_ENABLED
     MSG_GIMBAL_DEVICE_ATTITUDE_STATUS,

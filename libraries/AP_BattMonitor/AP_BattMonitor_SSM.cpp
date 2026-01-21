@@ -436,8 +436,8 @@ void AP_BattMonitor_SSM::handle_unit_temperature_statistical_information(const s
 {
     // Handle the unit temperature statistical information message
     WITH_SEMAPHORE(_sem_battmon);
-    _state.temperature = msg.max_t - 40;
-    _state.temperature_time = AP_HAL::micros();
+    _interim_state.temperature = msg.max_t - 40;
+    _interim_state.temperature_time = AP_HAL::micros();
 }
 
 void AP_BattMonitor_SSM::handle_status_information_0(const struct ssmbattery_status_information_0_t &msg)

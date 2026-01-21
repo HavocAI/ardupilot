@@ -18,7 +18,7 @@
 // ArduPilot 4.6 stops compiling support in
 // ArduPilot 4.7 removes the code entirely
 #ifndef AP_MAVLINK_BATTERY2_ENABLED
-#define AP_MAVLINK_BATTERY2_ENABLED 0
+#define AP_MAVLINK_BATTERY2_ENABLED 1
 #endif
 
 #ifndef HAL_HIGH_LATENCY2_ENABLED

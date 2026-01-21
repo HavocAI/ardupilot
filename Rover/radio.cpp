@@ -128,31 +128,23 @@ void Rover::rudder_arm_disarm_check()
 
 void Rover::read_radio()
 {
-    if (!rc().read_input()) {
-        // check if we lost RC link
-        radio_failsafe_check(channel_throttle->get_radio_in());
-        return;
+    const uint32_t now = AP_HAL::millis();
+    const bool new_input = rc().read_input();
+    const bool is_rc_link_lost = !new_input && now - failsafe.last_valid_rc_ms > rc().get_fs_timeout_ms();
+
+    if (new_input) {
+        failsafe.last_valid_rc_ms = AP_HAL::millis();
     }
 
-    failsafe.last_valid_rc_ms = AP_HAL::millis();
-    // check that RC value are valid
-    radio_failsafe_check(channel_throttle->get_radio_in());
+    // Note: we are hard-coding enabling the failsafe here. Normally we would read
+    // the g.fs_throttle_enabled parameter. Like this:
+    // AP_Notify::flags.failsafe_radio = is_rc_link_lost && g.fs_throttle_enabled;
+    AP_Notify::flags.failsafe_radio = is_rc_link_lost;
+    failsafe_trigger(FAILSAFE_EVENT_THROTTLE, "Radio", AP_Notify::flags.failsafe_radio);
 
-    // check if we try to do RC arm/disarm
-    rudder_arm_disarm_check();
+    if (!is_rc_link_lost) {
+        // check if we try to do RC arm/disarm
+        rudder_arm_disarm_check();
+    }
 }
 
-void Rover::radio_failsafe_check(uint16_t pwm)
-{
-    if (!g.fs_throttle_enabled) {
-        // radio failsafe disabled
-        return;
-    }
-
-    bool failed = pwm < static_cast<uint16_t>(g.fs_throttle_value);
-    if (AP_HAL::millis() - failsafe.last_valid_rc_ms > 500) {
-        failed = true;
-    }
-    AP_Notify::flags.failsafe_radio = failed;
-    failsafe_trigger(FAILSAFE_EVENT_THROTTLE, "Radio", failed);
-}
