@@ -30,6 +30,7 @@ extern "C" {
     float boatekf_get_speed_variance();
     void boatekf_get_wind(float *wind_north, float *wind_east);
     void boatekf_update_origin();
+    float boatekf_get_compass_offset();
 }
 
 NavBoatEKF::NavBoatEKF()
@@ -162,9 +163,10 @@ void NavBoatEKF::update(bool disable_gps, bool disable_compass)
         if (get_yaw_from_compass(yaw, yaw_variance)) {
 #if BOATEKF_DEBUG
             static uint32_t last_print_ms = 0;
-            if (now_ms - last_print_ms > 1000) {
+            if (now_ms - last_print_ms > 3000) {
                 last_print_ms = now_ms;
-                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: yaw=%.2f var=%.4f", degrees(yaw), degrees(sqrtf(yaw_variance)));
+                float compass_offset = boatekf_get_compass_offset();
+                GCS_SEND_TEXT(MAV_SEVERITY_INFO, "BoatEKF: yaw=%.2f offset=%.4f", degrees(yaw), degrees(compass_offset));
             }
 #endif
             boatekf_update_compass(yaw, yaw_variance);

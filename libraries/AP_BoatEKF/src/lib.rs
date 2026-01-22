@@ -128,3 +128,12 @@ pub extern "C" fn boatekf_get_wind(north: *mut Float, east: *mut Float) {
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn boatekf_get_compass_offset() -> Float {
+    unsafe {
+        let instance = &*&raw const INSTANCE;
+        let ekf = instance.assume_init_ref();
+        ekf.compass_offset()
+    }
+}
+
