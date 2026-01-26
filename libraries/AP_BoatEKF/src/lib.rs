@@ -137,3 +137,8 @@ pub extern "C" fn boatekf_get_compass_offset() -> Float {
     }
 }
 
+/// Wrap angle to [-pi, pi]
+pub fn wrap_angle(angle_rad: Float) -> Float {
+    use num_traits::ops::euclid::Euclid;
+    (angle_rad + core::f32::consts::PI).rem_euclid(&(2.0 * core::f32::consts::PI)) - core::f32::consts::PI
+}

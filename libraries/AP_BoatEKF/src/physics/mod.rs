@@ -1,7 +1,6 @@
 
 
 mod rigidbody;
-use rigidbody::*;
 
 pub mod motorboat_model;
 
