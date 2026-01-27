@@ -8,6 +8,7 @@
 #include <AP_Compass/AP_Compass.h>
 #include <AP_NavEKF/EKFGSF_yaw.h>
 #include <AP_AHRS/AP_AHRS.h>
+#include <AP_ExternalAHRS/AP_ExternalAHRS.h>
 
 #define BOATEKF_DEBUG 1
 
@@ -107,6 +108,29 @@ static bool get_yaw_ekf3_yaw_estimator(float &yaw, float &yaw_variance)
     yaw_variance = yaw_variance_d;
     return true;
 }
+
+#if HAL_EXTERNAL_AHRS_ENABLED
+
+UNUSED
+static bool get_yaw_external_ahrs(float &yaw, float &yaw_variance)
+{
+    Quaternion quat;
+    AP_ExternalAHRS& ext_ahrs = AP::externalAHRS();
+
+    if (ext_ahrs.healthy() && ext_ahrs.get_quaternion(quat)) {
+        yaw = quat.get_euler_yaw();
+
+        // assume the variance of 1 degree squared
+        yaw_variance = radians(1.0f);
+        yaw_variance = yaw_variance * yaw_variance;
+        return true;
+
+    } else {
+        return false;
+    }
+}
+
+#endif  // HAL_EXTERNAL_AHRS_ENABLED
 
 void NavBoatEKF::update(bool disable_gps, bool disable_compass)
 {
