@@ -413,7 +413,7 @@ void GCS_MAVLINK::send_battery_extras(const uint8_t instance) const
 {
     const AP_BattMonitor &battery = AP::battery();
     AP_BattMonitor_SSM * const ssm = static_cast<AP_BattMonitor_SSM*>(battery.get_backend_driver(instance));
-    // GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY %" PRIu32, 0xDEADBEEF);
+    GCS_SEND_TEXT(MAV_SEVERITY_INFO, ">>> MSG_SSM_TELEMETRY 0x%u", 0xDEADBEEF);
     const AP_BattMonitor_SSM::ssm_fault_state_t failure_and_fault_state = ssm->get_ssm_fault_info();
     mavlink_msg_ssm_telemetry_send(chan,
         instance,
@@ -434,15 +434,25 @@ bool GCS_MAVLINK::send_battery_extras()
     const AP_BattMonitor &battery = AP::battery();
 
     for(uint8_t i = 0; i < AP_BATT_MONITOR_MAX_INSTANCES; i++) {
-        const uint8_t battery_id = (last_battery_status_idx + 1) % AP_BATT_MONITOR_MAX_INSTANCES;
+        const uint8_t battery_id = (last_battery_extras_idx + 1) % AP_BATT_MONITOR_MAX_INSTANCES;
+        // send_battery_extras(battery_id);
         const auto configured_type = battery.configured_type(battery_id);
+
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Battery  %d Type %d", static_cast<int>(battery_id), static_cast<int>(configured_type));
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Check 1 %d", static_cast<int>(configured_type != AP_BattMonitor::Type::NONE));
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Check 2 %d", static_cast<int>(configured_type == battery.allocated_type(battery_id)));
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Check 3 %d", static_cast<int>(!battery.option_is_set(battery_id, AP_BattMonitor_Params::Options::InternalUseOnly)));
+        // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Check 4 %d", static_cast<int>(AP_BattMonitor::Type::SSM == configured_type));
+
         if (configured_type != AP_BattMonitor::Type::NONE
             && configured_type == battery.allocated_type(battery_id)
             && !battery.option_is_set(battery_id, AP_BattMonitor_Params::Options::InternalUseOnly)
             && AP_BattMonitor::Type::SSM == configured_type
         ) {
+            // GCS_SEND_TEXT(MAV_SEVERITY_INFO, "Checking battery %d", static_cast<int>(battery_id));
             CHECK_PAYLOAD_SIZE(SSM_TELEMETRY);
             send_battery_extras(battery_id);
+            last_battery_extras_idx = battery_id;
             return true;
         } else {
             last_battery_extras_idx = battery_id;
@@ -6289,12 +6299,9 @@ bool GCS_MAVLINK::try_send_message(const enum ap_message id)
         send_battery_status();
         break;
 
-#if AP_BATTERY_SSM_ENABLED // TODO: Do we need to guard this with HAL_x_ENABLED, or AP_BATTERY_SSM_ENABLED, etc
+#if AP_BATTERY_SSM_ENABLED
     case MSG_SSM_TELEMETRY:
-        /* **************************** */                                    
-        // TODO(Cory) HACK - Testing sending over fault message, no safety checks yet
         send_battery_extras();
-        /* ******** END HACK ********** */
         break;
 #endif
 
